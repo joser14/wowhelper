@@ -138,7 +138,7 @@ tipInfo = nil
 
 -- Legacy flat price entry, and hours ago.
 hover(118)
-need("Auction = |cffeda55f50c|r", "legacy price shown")
+need("Auction = |cffc7c7cf1s|r |cffeda55f50c|r", "legacy price shown")
 need("5h ago", "hours age")
 need("(older save)", "legacy marked")
 lack("You have", "no count line when nobody has it")

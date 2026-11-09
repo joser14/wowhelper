@@ -203,7 +203,8 @@ events:SetScript("OnEvent", function(_, event)
                 end
             end
         end
-        if TooltipDataProcessor and TooltipUtil and Enum and Enum.TooltipDataType then
+        -- The Tooltips helper shows counts on every character (and can switch them off); only add our own line without it.
+        if not (SlashCmdList and SlashCmdList.TOOLTIPS) and TooltipDataProcessor and TooltipUtil and Enum and Enum.TooltipDataType then
             TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltip)
         end
         SaveBags()

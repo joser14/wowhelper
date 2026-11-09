@@ -1,3 +1,5 @@
+-- The game's time() isn't in plain Lua.
+time = time or os.time
 local base = ADDON_PATH
 local toasts, sounds = {}, 0
 ForeverHub_Receive = function(_, t) toasts[#toasts + 1] = t end

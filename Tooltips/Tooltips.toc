@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub, PriceMemory, ItemFinder, ProfessionGuide
+## Title: Tooltips
+## Notes: Adds vendor prices, remembered auction prices, counts on all your characters, and profession guide uses to item tooltips. Only adds information to tooltips.
+## Version: 0.1.0
+## SavedVariables: TooltipsDB
+
+Tooltips.lua

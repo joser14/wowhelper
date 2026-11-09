@@ -107,7 +107,8 @@ events:SetScript("OnEvent", function(_, event)
                 end
             end
         end
-        if TooltipDataProcessor and TooltipUtil and Enum and Enum.TooltipDataType then
+        -- The Tooltips helper shows this price (and can switch it off); only add our own line without it.
+        if not (SlashCmdList and SlashCmdList.TOOLTIPS) and TooltipDataProcessor and TooltipUtil and Enum and Enum.TooltipDataType then
             TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltip)
         end
     else
