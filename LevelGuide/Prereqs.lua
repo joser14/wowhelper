@@ -7,27 +7,7 @@ parts[#parts + 1] = (function()
 -- Sources: https://wow4ever.quest/en/quests/<slug> (one page per pick-up title; "First you need" line and "Minimum level", Questie Forever data) ; https://www.wowhead.com/forever/quest=273 ; https://www.wowhead.com/forever/quest=287 ; https://www.wowhead.com/forever/quest=512 ; https://www.wowhead.com/forever/quest=526
 return {
     -- Dun Morogh
-    ["Beer Basted Boar Ribs"] = { level = 5 },
-    ["Dawn in the Mountains"] = { level = 5 },
-    ["Tools for Steelgrill"] = { level = 2 },
-    ["Operation Recombobulation"] = { level = 7 },
-    ["Stocking Jetsteam"] = { level = 2 },
-    ["The Grizzled Den"] = { level = 4 },
-    ["Ammo for Rumbleshot"] = { level = 5 },
-    ["Bitter Rivals"] = { level = 2 },
-    ["Frosthowl"] = { level = 5 },
-    ["Rime's Wrath"] = { level = 5 },
-    ["Finding Warmth"] = { level = 5 },
-    ["Treacherous Cold"] = { level = 5 },
-    ["Frostmane Hold"] = { any = { 282, 420 }, level = 7 },
-    ["Never Saddle on Quality"] = { level = 7 },
-    ["Protecting the Herd"] = { level = 6 },
     ["The Quarry's Smith"] = { level = 7 },
-    ["Those Blasted Troggs!"] = { level = 5 },
-    ["The Public Servant"] = { level = 6 },
-    ["Stolen Blasting Powder"] = { level = 7 },
-    ["Farsen's Watch"] = { level = 9 },
-    ["The Lost Pilot"] = { level = 8 },
 
     -- Loch Modan
 
@@ -64,88 +44,11 @@ return {
     ["The Branch of Cenarius"] = { all = { 1021 }, level = 26 },        -- "Vile Satyr! Dryads in Danger!" (from Illiyana)
 
     -- Arathi Highlands
-    ["Worth Its Weight in Gold"] = { all = { 690 }, level = 30 },
-    ["Northfold Manor"] = { level = 30 },
-    ["Wanted! Marez Cowl"] = { level = 30 },
-    ["Wanted! Otto and Falconcrest"] = { level = 30 },
-    ["Stromgarde Badges"] = { all = { 681 }, level = 30 },
     ["Crystal in the Mountains"] = { level = 30 },
-    ["The Princess Trapped"] = { level = 30 },
-    ["Stones of Binding"] = { all = { 642 }, level = 30 },
-    ["Wand over Fist"] = { all = { 691 }, level = 30 },
-    ["Trelane's Defenses"] = { all = { 693 }, level = 30 },
-    ["An Apprentice's Enchantment"] = { all = { 694 }, level = 30 },
-    ["Attack on the Tower"] = { all = { 695 }, level = 30 },
-    ["Land Ho!"] = { level = 35 },
-    ["Deep Sea Salvage"] = { all = { 663 }, level = 35 },
-    ["Drowned Sorrows"] = { level = 35 },
-    ["Sunken Treasure"] = { level = 35 },
-    ["Malin's Request"] = { all = { 696 }, level = 30 },                -- route picks up part 2 (697)
 
     -- Desolace
-    ["Reagents for Reclaimers Inc."] = { all = { 1453 }, level = 30 },
-    ["The Karnitol Shipwreck"] = { all = { 1453 }, level = 30 },
-    ["Vahlarriel's Search"] = { level = 30 },
-    ["Centaur Bounty"] = { level = 30 },
-    ["Strange Alliance"] = { level = 30 },
-    ["Down the Scarlet Path"] = { level = 34 },
-    ["Sceptre of Light"] = { level = 30 },
-    ["Claim Rackmore's Treasure!"] = { level = 30 },
-    ["Book of the Ancients"] = { all = { 5741 }, level = 30 },
-    ["Search for Tyranis"] = { all = { 1438 }, level = 30 },
-    ["Return to Vahlarriel"] = { all = { 1439 }, level = 30 },
-    ["Bone Collector"] = { level = 33 },
-    ["Bodyguard for Hire"] = { level = 30 },
-    ["Kodo Roundup"] = { level = 30 },
-    ["Ghost-o-plasm Round Up"] = { level = 34 },
-    ["Get Me Out of Here!"] = { level = 34 },
-    ["Gizelton Caravan"] = { level = 32 },
-    ["Raid on the Kolkar"] = { all = { 1382 }, level = 30 },
 
     -- Stranglethorn Vale
-    ["Jungle Secrets"] = { level = 30 },
-    ["Bookie Herod"] = { all = { 215 }, level = 30 },
-    ["The Second Rebellion"] = { level = 30 },
-    ["Bad Medicine"] = { level = 30 },
-    ["Krazek's Cookery"] = { level = 32 },
-    ["The Hidden Key"] = { all = { 200 }, level = 30 },
-    ["The Spy Revealed!"] = { all = { 328 }, level = 30 },
-    ["Patrol Schedules"] = { all = { 329 }, level = 30 },
-    ["Report to Doren"] = { all = { 330 }, level = 30 },
-    ["Welcome to the Jungle"] = { level = 28 },
-    ["Tiger Mastery"] = { all = { 583 }, level = 28 },
-    ["Panther Mastery"] = { all = { 583 }, level = 28 },
-    ["Raptor Mastery"] = { all = { 583 }, level = 28 },
-    ["The Green Hills of Stranglethorn"] = { all = { 583 }, level = 30 },
-    ["Chapter I"] = { level = 30 },
-    ["Chapter II"] = { level = 30 },
-    ["Chapter III"] = { level = 30 },
-    ["Chapter IV"] = { level = 30 },
-    ["Favor for Krazek"] = { all = { 210 }, level = 32 },
-    ["Return to Corporal Kaleb"] = { all = { 627 }, level = 32 },
-    ["Supplies to Private Thorsen"] = { level = 30 },
-    ["Investigate the Camp"] = { level = 28 },
-    ["The Haunted Isle"] = { level = 32 },
-    ["Supply and Demand"] = { level = 26 },
-    ["Singing Blue Shards"] = { level = 30 },
-    ["Bloodscalp Ears"] = { level = 30 },
-    ["Hostile Takeover"] = { level = 31 },
-    ["Kurzen's Mystery"] = { all = { 203, 204 }, level = 30 },          -- source lists both, does not say all or any
-    ["Troll Witchery"] = { all = { 207 }, level = 30 },
-    ["Special Forces"] = { all = { 203, 204 }, level = 30 },            -- source lists both, does not say all or any
-    ["Colonel Kurzen"] = { all = { 574 }, level = 30 },
-    ["Some Assembly Required"] = { all = { 575 }, level = 31 },
-    ["The Stone of the Tides"] = { all = { 616 }, level = 32 },
-    ["Water Elementals"] = { all = { 578 }, level = 32 },
-    ["The Bloodsail Buccaneers"] = { level = 37 },
-    ["Skullsplitter Tusks"] = { all = { 189 }, level = 37 },
-    ["Scaring Shaky"] = { level = 30 },
-    ["Voodoo Dues"] = { all = { 607 }, level = 30 },
-    ["Zanzil's Secret"] = { level = 35 },
-    ["Akiris by the Bundle"] = { level = 38 },
-    ["The Curse of the Tides"] = { all = { 610 }, level = 32 },         -- "Pretty Boy" Duncan
-    ["Big Game Hunter"] = { all = { 188, 193, 197 }, level = 28 },     -- source names the three Mastery titles; IDs are each chain's last part
-    ["Return to MacKinley"] = { all = { 606 }, level = 30 },
     ["Stranglethorn Fever"] = { level = 32 },                           -- part 1 (349)
 }
 end)()
@@ -163,34 +66,6 @@ return {
     -- The Hinterlands
 
     -- Un'Goro Crater
-    ["The Apes of Un'Goro"] = { level = 47 },
-    ["The Fare of Lar'korwi"] = { level = 48 },
-    ["It's a Secret to Everybody"] = { level = 47 },
-    ["The Scent of Lar'korwi"] = { all = { 4290 }, level = 48 },
-    ["Williden's Journal"] = { level = 48 },
-    ["Chasing A-Me 01"] = { level = 48 },
-    ["Expedition Salvation"] = { level = 48 },
-    ["Alien Ecology"] = { level = 48 },
-    ["Crystals of Power"] = { level = 47 },
-    ["The Northern Pylon"] = { all = { 4284 }, level = 47 },
-    ["The Eastern Pylon"] = { all = { 4284 }, level = 47 },
-    ["The Western Pylon"] = { all = { 4284 }, level = 47 },
-    ["Roll the Bones"] = { level = 49 },
-    ["Beware of Pterrordax"] = { level = 49 },
-    ["Lost!"] = { level = 50 },
-    ["Muigin and Larion"] = { level = 47 },
-    ["Shizzle's Flyer"] = { level = 49 },
-    ["A Gnome's Assistance"] = { all = { 3914 }, level = 47 },
-    ["Linken's Memory"] = { all = { 3941 }, level = 47 },
-    ["The Mighty U'cha"] = { all = { 4289 }, level = 50 },
-    ["The Bait for Lar'korwi"] = { all = { 4291 }, level = 48 },
-    ["Finding the Source"] = { level = 51 },
-    ["The New Springs"] = { all = { 974 }, level = 51 },
-    ["A Little Help From My Friends"] = { all = { 4492 }, level = 50 },
-    ["A Visit to Gregan"] = { all = { 4141 }, level = 47 },
-    ["Making Sense of It"] = { all = { 4285, 4287, 4288 }, level = 47 },
-    ["Linken's Adventure"] = { all = { 4005 }, level = 47 },
-    ["It's Dangerous to Go Alone"] = { all = { 3961 }, level = 47 },
 
     -- Felwood
 
@@ -204,43 +79,8 @@ return {
     ["Plagued Hatchlings"] = { level = 55 },
 
     -- Winterspring
-    ["Beads for Salfa"] = { all = { 8464 }, level = 50 },
-    ["Winterfall Activity"] = { level = 45 },
-    ["The Videre Elixir"] = { all = { 3908 }, level = 47 },
-    ["Threat of the Winterfall"] = { all = { 6603 }, level = 52 },
-    ["Falling to Corruption"] = { all = { 5083 }, level = 52 },
-    ["The Ruins of Kel'Theril"] = { level = 53 },
-    ["Troubled Spirits of Kel'Theril"] = { all = { 5244 }, level = 53 },
-    ["The Everlook Report"] = { level = 50 },
-    ["Duke Nicholas Zverenhoff"] = { level = 50 },
-    ["Chillwind Horns"] = { all = { 4808 }, level = 50 },
-    ["Are We There, Yeti?"] = { level = 52 },
-    ["Enraged Wildkin"] = { level = 53 },
-    ["Sister Pamela"] = { level = 50 },
-    ["Trouble in Winterspring!"] = { level = 52 },
-    ["Toxic Horrors"] = { all = { 5085 }, level = 52 },
-    ["Winterfall Runners"] = { all = { 5086 }, level = 52 },
-    ["High Chief Winterfall"] = { all = { 5087 }, level = 52 },
-    ["Words of the High Chief"] = { all = { 5123 }, level = 52 },
-    ["Guardians of the Altar"] = { all = { 979 }, level = 52 },
 
     -- Silithus
-    ["Securing the Supply Lines"] = { level = 54 },
-    ["Deadly Desert Venom"] = { level = 54 },
-    ["Desert Recipe"] = { level = 54 },
-    ["The Twilight Mystery"] = { level = 54 },
-    ["The Spirits of Southwind"] = { all = { 1124 }, level = 54 },
-    ["Hive in the Tower"] = { all = { 1125 }, level = 54 },
-    ["Umber, Archivist"] = { all = { 1126 }, level = 54 },
-    ["Stepping Up Security"] = { all = { 8280 }, level = 54 },
-    ["Noggle's Last Hope"] = { all = { 8277 }, level = 54 },
-    ["Sharing the Knowledge"] = { all = { 8307 }, level = 54 },
-    ["Scouring the Desert"] = { all = { 9415 } },
-    ["The Deserter"] = { all = { 8284 }, level = 54 },
-    ["Noggle's Lost Satchel"] = { all = { 8278 }, level = 54 },
-    ["The Twilight Lexicon"] = { all = { 8285 } },
-    ["A Terrible Purpose"] = { all = { 8279 } },
-    ["True Believers"] = { level = 54 },
 }
 end)()
 
@@ -302,6 +142,33 @@ return {
 }
 end)()
 
+-- zz_v3_arathi.lua
+parts[#parts + 1] = (function()
+-- Prerequisites for routes_v3/arathi.lua from wow4ever.quest "First you need" / "Minimum level".
+-- Sources: https://wow4ever.quest/en/quests/<slug> ; https://foreverchanges.pro/quest/<id>
+return {
+    ["Northfold Manor"] = { level = 30 },
+    ["Wanted! Marez Cowl"] = { level = 30 },
+    ["Wanted! Otto and Falconcrest"] = { level = 30 },
+    ["Worth Its Weight in Gold"] = { all = { 690 }, level = 30 },       -- Malin's Request part 1 (turned in here first)
+    ["Stromgarde Badges"] = { all = { 681 }, level = 30 },              -- Northfold Manor
+    ["The Princess Trapped"] = { level = 30 },                          -- wow4ever lists no required quest (Crystal in the Mountains is optional)
+    ["Stones of Binding"] = { all = { 642 }, level = 30 },              -- The Princess Trapped
+    ["Hints of a New Plague?"] = { level = 30 },                        -- part 1 (659) is accepted in Hillsbrad; parts gate each other
+    ["Wand over Fist"] = { all = { 691 }, level = 30 },                 -- Worth Its Weight in Gold
+    ["Trelane's Defenses"] = { all = { 693 }, level = 30 },             -- Wand over Fist
+    ["Breaking the Keystone"] = { all = { 651 }, level = 30 },          -- Stones of Binding
+    ["An Apprentice's Enchantment"] = { all = { 694 }, level = 30 },    -- Trelane's Defenses
+    ["Attack on the Tower"] = { all = { 695 }, level = 30 },            -- An Apprentice's Enchantment
+    ["Land Ho!"] = { level = 35 },
+    ["Deep Sea Salvage"] = { all = { 663 }, level = 35 },               -- Land Ho!
+    ["Drowned Sorrows"] = { level = 35 },
+    ["Sunken Treasure"] = { level = 35 },
+    ["Myzrael's Allies"] = { all = { 652 }, level = 30 },               -- Breaking the Keystone
+    ["Malin's Request"] = { level = 30 },                               -- part 1 (690) has no required quest; part 2 (697) needs 696, which the route turns in just before
+}
+end)()
+
 -- zz_v3_burningsteppes.lua
 parts[#parts + 1] = (function()
 -- Prerequisites for routes_v3/burningsteppes.lua from wow4ever.quest "First you need" / "Minimum level".
@@ -317,6 +184,79 @@ return {
     ["Felnok Steelspring"] = { all = { 4726 }, level = 50 },           -- Broodling Essence
     ["Ogre Head On A Stick = Party"] = { all = { 3824 }, level = 48 }, -- Gor'tesh the Brute Lord
     ["The True Masters"] = { all = { 4182 }, level = 48 },             -- Dragonkin Menace (part 1)
+}
+end)()
+
+-- zz_v3_desolace.lua
+parts[#parts + 1] = (function()
+-- Prerequisites for routes_v3/desolace.lua from wow4ever.quest "First you need" / "Minimum level" (New quests: foreverchanges.pro/quest/<id>).
+-- Sources: https://wow4ever.quest/en/quests/<slug> ; https://foreverchanges.pro/quest/<id>
+return {
+    ["Reagents for Reclaimers Inc."] = { all = { 1453 }, level = 30 },   -- Reclaimers' Business in Desolace (Ironforge)
+    ["The Karnitol Shipwreck"] = { all = { 1453 }, level = 30 },
+    ["Vahlarriel's Search"] = { level = 30 },
+    ["Vahlarriel's Vengeance"] = { level = 30 },
+    ["Centaur Bounty"] = { level = 30 },
+    ["Strange Alliance"] = { level = 30 },
+    ["Carved Centaur Totems"] = { level = 30 },
+    ["Search for Tyranis"] = { all = { 1438 }, level = 30 },
+    ["Return to Vahlarriel"] = { all = { 1439 }, level = 30 },
+    ["Sceptre of Light"] = { level = 30 },
+    ["Claim Rackmore's Treasure!"] = { level = 30 },
+    ["Book of the Ancients"] = { all = { 5741 }, level = 30 },
+    ["Bone Collector"] = { level = 33 },
+    ["Bodyguard for Hire"] = { level = 30 },
+    ["Kodo Roundup"] = { level = 30 },
+    ["Ghost-o-plasm Round Up"] = { level = 34 },
+    ["Gizelton Caravan"] = { level = 32 },
+    ["Buying Friendship: Gelkis"] = { all = { 93224 }, level = 30 },     -- offered after Carved Centaur Totems (Pentigast's turn-in text); needs Gelkis >= Neutral
+    ["Down the Scarlet Path"] = { level = 34 },
+    ["Raid on the Kolkar"] = { all = { 1382 }, level = 30 },
+    ["Get Me Out of Here!"] = { level = 34 },
+}
+end)()
+
+-- zz_v3_dunmorogh.lua
+parts[#parts + 1] = (function()
+-- Prerequisites for routes_v3/dunmorogh.lua from wow4ever.quest "First you need" / "Minimum level" (Forever-new quests: foreverchanges.pro/quest/<id>).
+-- Sources: https://wow4ever.quest/en/quests/<slug>, https://foreverchanges.pro/quest/<id>
+return {
+    ["Grund and Gozwin"] = { level = 4 },
+    ["Secure the Mountain"] = { level = 4 },                 -- part 1 (98322); parts 2-3 gated by the parts
+    ["Dawn in the Mountains"] = { level = 5 },
+    ["Beer Basted Boar Ribs"] = { level = 5 },
+    ["Tools for Steelgrill"] = { level = 2 },
+    ["Flintfire's Shipment"] = { level = 4 },
+    ["Stocking Jetsteam"] = { level = 2 },
+    ["The Grizzled Den"] = { level = 4 },
+    ["Ammo for Rumbleshot"] = { level = 5 },
+    ["Frostmane Hold"] = { any = { 282, 420 }, level = 7 },  -- "First you need: Senir's Observations"
+    ["Operation Recombobulation"] = { level = 7 },
+    ["Evershine"] = { all = { 317 }, level = 2 },            -- needs Stocking Jetsteam
+    ["Finding Warmth"] = { level = 5 },
+    ["Rime's Wrath"] = { level = 5 },                        -- part 1 (99160)
+    ["Treacherous Cold"] = { level = 5 },
+    ["A Favor for Evershine"] = { all = { 318 }, level = 2 },  -- needs Evershine
+    ["The Perfect Stout"] = { level = 5 },
+    ["Bitter Rivals"] = { level = 2 },
+    ["Frosthowl"] = { level = 5 },
+    ["Tundra MacGrann's Stolen Stash"] = { level = 7 },
+    ["Return to Marleth"] = { all = { 310 }, level = 2 },    -- needs Bitter Rivals
+    ["The Reports"] = { all = { 287 }, level = 1 },          -- needs Frostmane Hold
+    ["Return to Bellowfiz"] = { all = { 319 }, level = 2 },  -- needs A Favor for Evershine
+    ["Shimmer Stout"] = { all = { 315 }, level = 8 },        -- needs The Perfect Stout
+    ["A Visitor to Dun Morogh"] = { level = 9 },
+    ["Never Saddle on Quality"] = { level = 7 },
+    ["Protecting the Herd"] = { level = 6 },
+    ["Those Blasted Troggs!"] = { level = 5 },
+    ["The Public Servant"] = { level = 6 },
+    ["Stolen Blasting Powder"] = { level = 7 },              -- part 1 starts from the Empty Powder Keg item; part 2 gated by part 1
+    ["Farsen's Watch"] = { all = { 96408 }, level = 9 },     -- follows A Visitor to Dun Morogh (foreverchanges chain)
+    ["Nip 'Em in the Bud"] = { all = { 96392 }, level = 9 }, -- follows Farsen's Watch
+    ["Underground Map"] = { level = 9 },                     -- item start (Dark Iron Map), no prerequisite (foreverchanges 96391)
+    ["The Lost Pilot"] = { level = 8 },
+    ["A Pilot's Revenge"] = { all = { 419 }, level = 8 },    -- needs The Lost Pilot; starts at A Dwarven Corpse
+    ["Stout to Kadrell"] = { all = { 413 }, level = 8 },     -- needs Shimmer Stout
 }
 end)()
 
@@ -551,6 +491,100 @@ return {
 }
 end)()
 
+-- zz_v3_silithus.lua
+parts[#parts + 1] = (function()
+-- Prerequisites for routes_v3/silithus.lua from wow4ever.quest "First you need" / "Minimum level" (level-60 quests: foreverchanges.pro/quest/<id> chain + required level).
+-- Sources: https://wow4ever.quest/en/quests/<slug> ; https://foreverchanges.pro/quest/<id> ; https://www.wowhead.com/forever/quest=<id>
+return {
+    ["Report to Marshal Bluewall"] = { level = 1 },                     -- Forever "Changed": min level 1
+    ["Securing the Supply Lines"] = { level = 54 },                      -- Taking Back Silithus 8275 is only the chain's step 1, not a requirement
+    ["Deadly Desert Venom"] = { level = 54 },
+    ["Desert Recipe"] = { level = 54 },
+    ["The Twilight Mystery"] = { level = 54 },
+    ["The Spirits of Southwind"] = { all = { 1124 }, level = 54 },       -- Wasteland (Moonglade)
+    ["Hive in the Tower"] = { all = { 1125 }, level = 54 },
+    ["Umber, Archivist"] = { all = { 1126 }, level = 54 },
+    ["Stepping Up Security"] = { all = { 8280 }, level = 54 },
+    ["Noggle's Last Hope"] = { all = { 8277 }, level = 54 },
+    ["Secret Communication"] = { level = 57 },
+    ["Sharing the Knowledge"] = { all = { 8307 }, level = 54 },
+    ["Scouring the Desert"] = { all = { 9415 }, level = 1 },             -- Forever "Changed": min level 1; PvP objective
+    ["The Deserter"] = { all = { 8284 }, level = 54 },
+    ["Noggle's Lost Satchel"] = { all = { 8278 }, level = 54 },
+    ["Wanted - Deathclasp, Terror of the Sands"] = { level = 54 },
+    ["The Twilight Lexicon"] = { all = { 8285 }, level = 54 },
+    ["True Believers"] = { level = 54 },                                 -- wow4ever lists no requirement; routed after The Twilight Lexicon anyway
+    ["Still Believing"] = { all = { 8323 }, level = 54 },
+    ["A Terrible Purpose"] = { all = { 8279 }, level = 54 },
+    ["Twilight Geolords"] = { level = 60 },
+    ["Vyral the Vile"] = { all = { 8320 }, level = 60 },
+}
+end)()
+
+-- zz_v3_stranglethorn.lua
+parts[#parts + 1] = (function()
+-- Prerequisites for routes_v3/stranglethorn.lua from wow4ever.quest "First you need" / "Minimum level".
+-- Sources: https://wow4ever.quest/en/quests/<slug>; New quests: https://foreverchanges.pro/quest/<id>.
+-- Keep An Eye Out / Up to Snuff: wow4ever names "The Bloodsail Buccaneers" without an id; foreverchanges chains 576 after 595.
+return {
+    ["Jungle Secrets"] = { level = 30 },
+    ["Bookie Herod"] = { all = { 215 }, level = 30 },
+    ["The Second Rebellion"] = { level = 30 },
+    ["Bad Medicine"] = { level = 30 },
+    ["The Cook in the Cage"] = { level = 30 },
+    ["The Hidden Key"] = { all = { 200 }, level = 30 },
+    ["The Spy Revealed!"] = { all = { 328 }, level = 30 },
+    ["Patrol Schedules"] = { all = { 329 }, level = 30 },
+    ["Report to Doren"] = { all = { 330 }, level = 30 },
+    ["Krazek's Cookery"] = { level = 32 },
+    ["Welcome to the Jungle"] = { level = 28 },
+    ["Tiger Mastery"] = { all = { 583 }, level = 28 },
+    ["Panther Mastery"] = { all = { 583 }, level = 28 },
+    ["Raptor Mastery"] = { all = { 583 }, level = 28 },
+    ["The Green Hills of Stranglethorn"] = { all = { 583 }, level = 30 },
+    ["Chapter I"] = { level = 30 },
+    ["Chapter II"] = { level = 30 },
+    ["Chapter III"] = { level = 30 },
+    ["Chapter IV"] = { level = 30 },
+    ["Favor for Krazek"] = { all = { 210 }, level = 32 },
+    ["Return to Corporal Kaleb"] = { all = { 627 }, level = 32 },
+    ["Supplies to Private Thorsen"] = { level = 30 },
+    ["Investigate the Camp"] = { level = 28 },
+    ["The Haunted Isle"] = { level = 32 },
+    ["The Stone of the Tides"] = { all = { 616 }, level = 32 },
+    ["Supply and Demand"] = { level = 26 },
+    ["Singing Blue Shards"] = { level = 30 },
+    ["Bloodscalp Ears"] = { level = 30 },
+    ["Hostile Takeover"] = { level = 31 },
+    ["Kurzen's Mystery"] = { all = { 203, 204 }, level = 30 },
+    ["Special Forces"] = { all = { 203, 204 }, level = 30 },
+    ["Anything of Value"] = { level = 30 },
+    ["Where's the Key?"] = { level = 30 },
+    ["Zimmix's Great Escape"] = { all = { 97329 }, level = 30 },
+    ["Troll Witchery"] = { all = { 207 }, level = 30 },
+    ["Water Elementals"] = { all = { 578 }, level = 32 },
+    ["Venture Company Mining"] = { all = { 605 }, level = 30 },
+    ["Some Assembly Required"] = { all = { 575 }, level = 31 },
+    ["Magical Analysis"] = { all = { 601 }, level = 32 },
+    ["\"Pretty Boy\" Duncan"] = { all = { 603 }, level = 32 },
+    ["The Curse of the Tides"] = { all = { 610 }, level = 32 },
+    ["The Bloodsail Buccaneers"] = { level = 37 },
+    ["Scaring Shaky"] = { level = 30 },
+    ["Return to MacKinley"] = { all = { 606 }, level = 30 },
+    ["Voodoo Dues"] = { all = { 607 }, level = 30 },
+    ["Skullsplitter Tusks"] = { all = { 189 }, level = 37 },
+    ["Zanzil's Secret"] = { level = 35 },
+    ["Akiris by the Bundle"] = { level = 38 },
+    ["Keep An Eye Out"] = { all = { 595 }, level = 37 },
+    ["Up to Snuff"] = { all = { 595 }, level = 37 },
+    ["Stoley's Debt"] = { level = 40 },
+    ["Tran'rek"] = { level = 40 },
+    ["Colonel Kurzen"] = { all = { 574 }, level = 30 },
+    ["Big Game Hunter"] = { all = { 188, 193, 197 }, level = 28 },
+    -- "Sunken Treasure" (part 5 accepted here) is described by Arathi's prereqs file (part 1).
+}
+end)()
+
 -- zz_v3_tanaris.lua
 parts[#parts + 1] = (function()
 -- Prerequisites for routes_v3/tanaris.lua from wow4ever.quest "First you need" / "Minimum level".
@@ -581,6 +615,43 @@ return {
     ["Handle With Care"] = { level = 42 },
     ["Super Sticky"] = { level = 48 },
     ["The Stone Circle"] = { all = { 3445 }, level = 46 },          -- The Sunken Temple (Alliance, Feralas)
+}
+end)()
+
+-- zz_v3_ungoro.lua
+parts[#parts + 1] = (function()
+-- Prerequisites for routes_v3/ungoro.lua from wow4ever.quest "First you need" / "Minimum level".
+-- Sources: https://wow4ever.quest/en/quests/<slug> (Questie Forever 1.60.1); https://foreverchanges.pro/quests/ungoro-crater (Req. column)
+return {
+    ["The Apes of Un'Goro"] = { level = 47 },
+    ["The Fare of Lar'korwi"] = { level = 48 },
+    ["The Scent of Lar'korwi"] = { all = { 4290 }, level = 48 },
+    ["The Bait for Lar'korwi"] = { all = { 4291 }, level = 48 },
+    ["The Mighty U'cha"] = { all = { 4289 }, level = 50 },
+    ["It's a Secret to Everybody"] = { level = 47 },
+    ["Williden's Journal"] = { level = 48 },
+    ["Expedition Salvation"] = { level = 48 },
+    ["Alien Ecology"] = { level = 48 },
+    ["Dadanga is Hungry!"] = { level = 47 },
+    ["Roll the Bones"] = { level = 49 },
+    ["Beware of Pterrordax"] = { level = 49 },
+    ["Muigin and Larion"] = { level = 47 },
+    ["A Visit to Gregan"] = { all = { 4141 }, level = 47 },
+    ["Shizzle's Flyer"] = { level = 49 },
+    ["Crystals of Power"] = { level = 47 },
+    ["The Northern Pylon"] = { all = { 4284 }, level = 47 },
+    ["The Eastern Pylon"] = { all = { 4284 }, level = 47 },
+    ["The Western Pylon"] = { all = { 4284 }, level = 47 },
+    ["Making Sense of It"] = { all = { 4285, 4287, 4288 }, level = 47 },
+    ["Chasing A-Me 01"] = { level = 48 },
+    ["Lost!"] = { level = 50 },
+    ["A Little Help From My Friends"] = { all = { 4492 }, level = 50 },
+    ["Finding the Source"] = { level = 51 },
+    ["The New Springs"] = { all = { 974 }, level = 51 },
+    ["A Gnome's Assistance"] = { all = { 3914 }, level = 47 },      -- Linken's Sword (Tanaris gravestone)
+    ["Linken's Memory"] = { all = { 3941 }, level = 47 },
+    ["Linken's Adventure"] = { all = { 4005 }, level = 47 },        -- Aquementas (Felwood)
+    ["It's Dangerous to Go Alone"] = { all = { 3961 }, level = 47 },
 }
 end)()
 
@@ -659,6 +730,38 @@ return {
     ["Razormaw Needling"] = { all = { 98240 }, level = 21 },
     ["Cleansing the Eye"] = { all = { 292 }, level = 22 },
     ["A Friend of the Family"] = { all = { 98189 }, level = 20 },
+}
+end)()
+
+-- zz_v3_winterspring.lua
+parts[#parts + 1] = (function()
+-- Prerequisites for routes_v3/winterspring.lua from wow4ever.quest "First you need" / "Minimum level".
+-- Sources: https://wow4ever.quest/en/quests/<slug> ; https://foreverchanges.pro/quest/<id>
+return {
+    ["Winterfall Activity"] = { level = 45 },
+    ["The Videre Elixir"] = { all = { 3908 }, level = 47 },             -- It's a Secret to Everybody part 3 (Un'Goro)
+    ["Strange Sources"] = { all = { 980 }, level = 51 },                -- The New Springs (Un'Goro)
+    ["The Ruins of Kel'Theril"] = { any = { 5249, 5250 }, level = 53 }, -- To Winterspring! (Felwood) or Starfall (Rut'theran)
+    ["Troubled Spirits of Kel'Theril"] = { all = { 5244 }, level = 53 },
+    ["The Everlook Report"] = { level = 50 },
+    ["Duke Nicholas Zverenhoff"] = { level = 50 },
+    ["Chillwind Horns"] = { all = { 4808 }, level = 50 },               -- Felnok Steelspring (Burning Steppes)
+    ["Return to Tinkee"] = { all = { 4809 }, level = 50 },
+    ["Are We There, Yeti?"] = { level = 52 },
+    ["Enraged Wildkin"] = { level = 53 },
+    ["Sister Pamela"] = { level = 50 },
+    ["Trouble in Winterspring!"] = { level = 52 },
+    ["Winterfall Firewater"] = { level = 52 },                          -- item-started (Empty Firewater Flask)
+    ["Threat of the Winterfall"] = { all = { 6603 }, level = 52 },
+    ["Falling to Corruption"] = { all = { 5083 }, level = 52 },
+    ["Beads for Salfa"] = { all = { 8464 }, level = 50 },
+    ["Mystery Goo"] = { all = { 5084 }, level = 52 },                   -- accepted at the Deadwood Cauldron (Felwood)
+    ["Toxic Horrors"] = { all = { 5085 }, level = 52 },
+    ["Winterfall Runners"] = { all = { 5086 }, level = 52 },
+    ["High Chief Winterfall"] = { all = { 5087 }, level = 52 },
+    ["The Final Piece"] = { all = { 5087 }, level = 52 },               -- item-started (Crudely-written Log from High Chief Winterfall)
+    ["Words of the High Chief"] = { all = { 5123 }, level = 52 },
+    ["Guardians of the Altar"] = { all = { 979 }, level = 52 },         -- Find Ranshalla (Erelas Ambersky, Teldrassil)
 }
 end)()
 

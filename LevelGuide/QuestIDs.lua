@@ -8,36 +8,12 @@ parts[#parts + 1] = (function()
 return {
     ids = {
         -- Dun Morogh
-        ["Senir's Observations"] = { 282, 420 },
-        ["Supplies to Tannok"] = { 2160 },
-        ["Beer Basted Boar Ribs"] = { 384 },
-        ["Dawn in the Mountains"] = { 99158 },
-        ["Tools for Steelgrill"] = { 400 },
-        ["Operation Recombobulation"] = { 412 },
-        ["Stocking Jetsteam"] = { 317 },
-        ["The Grizzled Den"] = { 313 },
-        ["Ammo for Rumbleshot"] = { 5541 },
-        ["Bitter Rivals"] = { 310 },
-        ["Frosthowl"] = { 98326 },
-        ["Rime's Wrath"] = { 99160, 99161 },
-        ["Finding Warmth"] = { 99159 },
-        ["Treacherous Cold"] = { 99162 },
-        ["Frostmane Hold"] = { 287 },
-        ["Never Saddle on Quality"] = { 95212 },
-        ["Protecting the Herd"] = { 314 },
         ["The Quarry's Smith"] = { 95217 },
-        ["Those Blasted Troggs!"] = { 432 },
-        ["The Public Servant"] = { 433 },
-        ["Stolen Blasting Powder"] = { 95213, 95214 },
-        ["Farsen's Watch"] = { 96392 },
-        ["The Lost Pilot"] = { 419 },
-        ["A Pilot's Revenge"] = { 417 },
         -- Loch Modan
         -- Wetlands
         -- Duskwood
         ["Look To The Stars"] = { 174, 175, 177, 181 },
         -- Hillsbrad Foothills
-        ["Hints of a New Plague?"] = { 659, 658, 657, 660, 661 },
     },
     renamed = {
         ["Look To The Stars"] = "Look to the Stars",
@@ -51,7 +27,6 @@ parts[#parts + 1] = (function()
 return {
     ids = {
         -- Ashenvale
-        ["The Tower of Althalaxx"] = { 967, 970, 973 },
         ["Bathran's Hair"] = { 1010 },
         ["The Sleeper Has Awakened"] = { 5321 },
         ["Orendil's Cure"] = { 1020 },
@@ -71,96 +46,13 @@ return {
         ["The Branch of Cenarius"] = { 1031 },
 
         -- Arathi Highlands
-        ["Plea To The Alliance"] = { 634 },
-        ["Malin's Request"] = { 690, 697 },
-        ["Worth Its Weight in Gold"] = { 691 },
-        ["Northfold Manor"] = { 681 },
-        ["Wanted! Marez Cowl"] = { 684 },
-        ["Wanted! Otto and Falconcrest"] = { 685 },
-        ["Stromgarde Badges"] = { 682 },
         ["Crystal in the Mountains"] = { 635 },
-        ["The Princess Trapped"] = { 642 },
-        ["Stones of Binding"] = { 651 },
-        ["Hints of a New Plague?"] = { 659, 658, 660, 661 },
-        ["Wand over Fist"] = { 693 },
-        ["Trelane's Defenses"] = { 694 },
-        ["An Apprentice's Enchantment"] = { 695 },
-        ["Attack on the Tower"] = { 696 },
-        ["Land Ho!"] = { 663 },
-        ["Deep Sea Salvage"] = { 662 },
-        ["Drowned Sorrows"] = { 664 },
-        ["Sunken Treasure"] = { 665, 666, 668, 669 },
 
         -- Desolace
-        ["Reclaimers' Business in Desolace"] = { 1453 },
-        ["Reagents for Reclaimers Inc."] = { 1458, 1459, 1466, 1467 },
-        ["The Karnitol Shipwreck"] = { 1454, 1455, 1456, 1457 },
-        ["Vahlarriel's Search"] = { 1437, 1465, 1438 },
-        ["Centaur Bounty"] = { 1387 },
-        ["Strange Alliance"] = { 1382 },
-        ["Down the Scarlet Path"] = { 261 },
-        ["Sceptre of Light"] = { 5741 },
-        ["Claim Rackmore's Treasure!"] = { 6161 },
-        ["Book of the Ancients"] = { 6027 },
-        ["Search for Tyranis"] = { 1439 },
-        ["Return to Vahlarriel"] = { 1440 },
-        ["Bone Collector"] = { 5501 },
-        ["Bodyguard for Hire"] = { 5821 },
-        ["Kodo Roundup"] = { 5561 },
-        ["Ghost-o-plasm Round Up"] = { 6134 },
-        ["Get Me Out of Here!"] = { 6132 },
-        ["Gizelton Caravan"] = { 5943 },
-        ["Raid on the Kolkar"] = { 1384 },
 
         -- Stranglethorn Vale
-        ["Jungle Secrets"] = { 215 },
-        ["Bookie Herod"] = { 200 },
-        ["The Second Rebellion"] = { 203 },
-        ["Bad Medicine"] = { 204 },
-        ["Krazek's Cookery"] = { 210 },
-        ["The Hidden Key"] = { 328 },
-        ["The Spy Revealed!"] = { 329 },
-        ["Patrol Schedules"] = { 330 },
-        ["Report to Doren"] = { 331 },
-        ["Welcome to the Jungle"] = { 583 },
-        ["Tiger Mastery"] = { 185, 186, 187, 188 },
-        ["Panther Mastery"] = { 190, 191, 192, 193 },
-        ["Raptor Mastery"] = { 194, 195, 196, 197 },
-        ["The Green Hills of Stranglethorn"] = { 338 },
-        ["Chapter I"] = { 339 },
-        ["Chapter II"] = { 340 },
-        ["Chapter III"] = { 341 },
-        ["Chapter IV"] = { 342 },
-        ["Favor for Krazek"] = { 627 },
-        ["Return to Corporal Kaleb"] = { 622 },
-        ["Supplies to Private Thorsen"] = { 198 },
-        ["Investigate the Camp"] = { 201 },
-        ["The Haunted Isle"] = { 616 },
-        ["Supply and Demand"] = { 575 },
-        ["Singing Blue Shards"] = { 605 },
-        ["Bloodscalp Ears"] = { 189 },
-        ["Hostile Takeover"] = { 213 },
-        ["Kurzen's Mystery"] = { 207 },
-        ["Troll Witchery"] = { 205 },
-        ["Special Forces"] = { 574 },
-        ["Colonel Kurzen"] = { 202 },
-        ["Some Assembly Required"] = { 577 },
-        ["The Stone of the Tides"] = { 578 },
-        ["Water Elementals"] = { 601 },
-        ["The Bloodsail Buccaneers"] = { 595, 597, 599, 604, 608 },
-        ["Skullsplitter Tusks"] = { 209 },
-        ["Scaring Shaky"] = { 606 },
-        ["Voodoo Dues"] = { 609 },
-        ["Zanzil's Secret"] = { 621 },
-        ["Akiris by the Bundle"] = { 617 },
-        ["The Curse of the Tides"] = { 611 },
-        ["Keep An Eye Out"] = { 576 },
-        ["Up to Snuff"] = { 587 },
-        ["Venture Company Mining"] = { 600 },
         ["A Meal Served Cold"] = { 212 },
-        ["Big Game Hunter"] = { 208 },
         ["Pearl Diving"] = { 705 },
-        ["Return to MacKinley"] = { 607 },
         ["Stranglethorn Fever"] = { 349 },
     },
     renamed = {},
@@ -172,85 +64,12 @@ parts[#parts + 1] = (function()
 -- Sources: https://github.com/Ludovicus-Maior/WoW-Pro-Guides/tree/main/WoWPro_Leveling/Forever/Alliance (42_50_Alliance.lua, 50_55_Alliance.lua, 55_60_Alliance.lua), https://wow4ever.quest/en/quests/<slug>, https://www.wowhead.com/forever/quest=<id>
 return {
     ids = {
-        ["A Gnome's Assistance"] = { 3941 },
-        ["A Little Help From My Friends"] = { 4491 },
-        ["A Terrible Purpose"] = { 8287 },
-        ["A Visit to Gregan"] = { 4142 },
-        ["Alien Ecology"] = { 3883 },
-        ["Are We There, Yeti?"] = { 3783, 977, 5163 },
         ["Barov Family Fortune"] = { 5343 },
-        ["Beads for Salfa"] = { 8469 },
-        ["Beware of Pterrordax"] = { 4501 },
-        ["Chasing A-Me 01"] = { 4243, 4244, 4245 },
-        ["Chillwind Horns"] = { 4809 },
-        ["Crystals of Power"] = { 4284 },
         ["Dark Iron Legacy"] = { 3801, 3802 },
-        ["Deadly Desert Venom"] = { 8277 },
-        ["Desert Recipe"] = { 8307 },
-        ["Duke Nicholas Zverenhoff"] = { 6030 },
-        ["Enraged Wildkin"] = { 6604, 4861, 4863, 4864 },
-        ["Expedition Salvation"] = { 3881 },
-        ["Falling to Corruption"] = { 5084 },
-        ["Find Ranshalla"] = { 979 },
-        ["Finding the Source"] = { 974 },
-        ["Guardians of the Altar"] = { 4901 },
         ["Hameya's Plea"] = { 6024 },
-        ["High Chief Winterfall"] = { 5121 },
-        ["Hive in the Tower"] = { 1126 },
         ["Invader's Scourgestones"] = { 5403 },
-        ["It's a Secret to Everybody"] = { 3844, 3845, 3908 },
-        ["It's Dangerous to Go Alone"] = { 3962 },
-        ["Linken's Adventure"] = { 3961 },
-        ["Linken's Memory"] = { 3942 },
-        ["Linken's Sword"] = { 3914 },
-        ["Lost!"] = { 4492 },
-        ["Making Sense of It"] = { 4321 },
-        ["Moontouched Wildkin"] = { 978 },
-        ["Muigin and Larion"] = { 4141 },
-        ["Mystery Goo"] = { 5085 },
-        ["Noggle's Last Hope"] = { 8278 },
-        ["Noggle's Lost Satchel"] = { 8282 },
         ["Plagued Hatchlings"] = { 5529 },
-        ["Report to Marshal Bluewall"] = { 9415 },
-        ["Roll the Bones"] = { 3882 },
-        ["Scouring the Desert"] = { 9419 },
-        ["Secret Communication"] = { 8318 },
-        ["Securing the Supply Lines"] = { 8280 },
-        ["Sharing the Knowledge"] = { 8313 },
-        ["Shizzle's Flyer"] = { 4503 },
-        ["Sister Pamela"] = { 5601 },
-        ["Stepping Up Security"] = { 8281 },
-        ["The Apes of Un'Goro"] = { 4289 },
-        ["The Bait for Lar'korwi"] = { 4292 },
-        ["The Deserter"] = { 8285 },
-        ["The Eastern Pylon"] = { 4287 },
-        ["The Everlook Report"] = { 6028 },
-        ["The Fare of Lar'korwi"] = { 4290 },
-        ["The Final Piece"] = { 5123 },
-        ["The Mighty U'cha"] = { 4301 },
-        ["The New Springs"] = { 980 },
-        ["The Northern Pylon"] = { 4285 },
-        ["The Ruins of Kel'Theril"] = { 5244 },
-        ["The Scent of Lar'korwi"] = { 4291 },
         ["The Smoldering Ruins of Thaurissan"] = { 3701, 3702 },
-        ["The Spirits of Southwind"] = { 1125 },
-        ["The Twilight Lexicon"] = { 8279 },
-        ["The Twilight Mystery"] = { 8284 },
-        ["The Videre Elixir"] = { 3909 },
-        ["The Western Pylon"] = { 4288 },
-        ["Threat of the Winterfall"] = { 5082 },
-        ["To Winterspring!"] = { 5249 },
-        ["Toxic Horrors"] = { 5086 },
-        ["Trouble in Winterspring!"] = { 6603 },
-        ["Troubled Spirits of Kel'Theril"] = { 5245 },
-        ["True Believers"] = { 8323 },
-        ["Umber, Archivist"] = { 6844 },
-        ["Wasteland"] = { 1124 },
-        ["Williden's Journal"] = { 3884 },
-        ["Winterfall Activity"] = { 8464 },
-        ["Winterfall Firewater"] = { 5083 },
-        ["Winterfall Runners"] = { 5087 },
-        ["Words of the High Chief"] = { 5128 },
     },
     renamed = {},
 }
@@ -322,7 +141,6 @@ return {
         ["As Water Cascades"] = { 4812 },
         ["Cave Mushrooms"] = { 947 },
         ["Onu"] = { 948 },
-        ["The Tower of Althalaxx"] = { 965, 966, 967, 970, 973, 1140, 1167, 981, 1143 },
         ["Deep Ocean, Vast Sea"] = { 982 },
         ["The Fall of Ameth'Aran"] = { 953 },
         ["The Master's Glaive"] = { 944 },
@@ -342,7 +160,6 @@ parts[#parts + 1] = (function()
 return {
     ids = {
         ["The Sleeper Has Awakened"] = { 5321 },
-        ["The Tower of Althalaxx"] = { 967, 970, 973, 1140 },
         ["Bathran's Hair"] = { 1010 },
         ["Orendil's Cure"] = { 1020 },
         ["Trek to Ashenvale"] = { 990 },
@@ -401,7 +218,7 @@ return { ids = {
     ["Onu"] = { 948 },
     ["The Fall of Ameth'Aran"] = { 953 },
     ["A Lost Master"] = { 986, 993 },
-    ["The Tower of Althalaxx"] = { 965, 966, 967 },
+    ["The Tower of Althalaxx"] = { 965, 966, 967, 970, 973, 1140 },   -- Darkshore parts 1-2, Ashenvale parts 3-6
     ["Deep Ocean, Vast Sea"] = { 982 },
     ["Beached Sea Creature"] = { 4723, 4728, 4730, 4733 },
     ["Beached Sea Turtle"] = { 4725, 4727, 4722, 4731, 4732 },
@@ -494,6 +311,41 @@ return { ids = {
 }, renamed = {} }
 end)()
 
+-- zz_v3_arathi.lua
+parts[#parts + 1] = (function()
+-- Quest IDs for routes_v3/arathi.lua, one per route part in order.
+-- Sources: https://wow4ever.quest/en/quests/<slug> (Forever ids, givers) ; https://foreverchanges.pro/quests/arathi-highlands and /quest/<id> (chain boxes)
+-- "Hints of a New Plague?": Arathi owns the whole 5-part list (part 1 accepted in Hillsbrad, part 5 turned in at Southshore).
+-- "Malin's Request": both parts (part 1 accepted in Stormwind and turned in here; part 2 accepted here, turned in at Stormwind).
+-- "Sunken Treasure": whole 5-part chain; the route does parts 1-4 here, part 5 (670) is accepted from Fleet Master Seahorn in Booty Bay
+-- and turned in to Shakes O'Breen later. "Myzrael's Allies": 653 is the Alliance id (688 is the Horde variant, dropped).
+return {
+    ids = {
+        ["Plea To The Alliance"] = { 634 },
+        ["Malin's Request"] = { 690, 697 },                        -- parts 1-2
+        ["Northfold Manor"] = { 681 },
+        ["Wanted! Marez Cowl"] = { 684 },
+        ["Wanted! Otto and Falconcrest"] = { 685 },
+        ["Worth Its Weight in Gold"] = { 691 },
+        ["Stromgarde Badges"] = { 682 },
+        ["The Princess Trapped"] = { 642 },
+        ["Stones of Binding"] = { 651 },
+        ["Hints of a New Plague?"] = { 659, 657, 658, 660, 661 },  -- parts 1-5
+        ["Wand over Fist"] = { 693 },
+        ["Trelane's Defenses"] = { 694 },
+        ["Breaking the Keystone"] = { 652 },
+        ["An Apprentice's Enchantment"] = { 695 },
+        ["Attack on the Tower"] = { 696 },
+        ["Land Ho!"] = { 663 },
+        ["Deep Sea Salvage"] = { 662 },
+        ["Drowned Sorrows"] = { 664 },
+        ["Sunken Treasure"] = { 665, 666, 668, 669, 670 },         -- parts 1-5 (route does 1-4 here)
+        ["Myzrael's Allies"] = { 653 },
+    },
+    renamed = {},   -- all five "Hints of a New Plague?" quests (657-661) carry that exact title in Forever
+}
+end)()
+
 -- zz_v3_burningsteppes.lua
 parts[#parts + 1] = (function()
 -- Quest IDs for routes_v3/burningsteppes.lua, one per route part in order.
@@ -513,6 +365,92 @@ return {
         ["The True Masters"] = { 4183, 4184, 4185, 4186, 4223, 4224 },   -- parts 1-6, route does part 1
     },
     renamed = {},
+}
+end)()
+
+-- zz_v3_desolace.lua
+parts[#parts + 1] = (function()
+-- Quest IDs for routes_v3/desolace.lua, one per route part in order.
+-- Sources: https://foreverchanges.pro/quests/desolace ; https://wow4ever.quest/en/quests/<slug> ; https://foreverchanges.pro/quest/<id>
+-- Alliance variants kept: Centaur Bounty 1387 (1366 is Horde), Carved Centaur Totems 93224 (93225 is Horde), Buying Friendship: Gelkis 93227 (94873 is the Horde/Gurda Wildmane variant).
+return {
+    ids = {
+        ["Reclaimers' Business in Desolace"] = { 1453 },
+        ["Reagents for Reclaimers Inc."] = { 1458, 1459, 1466, 1467 },   -- parts 1-4
+        ["The Karnitol Shipwreck"] = { 1454, 1455, 1456, 1457 },         -- parts 1-4
+        ["Vahlarriel's Search"] = { 1437, 1465, 1438 },                  -- parts 1-3
+        ["Vahlarriel's Vengeance"] = { 97284 },
+        ["Centaur Bounty"] = { 1387 },
+        ["Strange Alliance"] = { 1382 },
+        ["Carved Centaur Totems"] = { 93224 },
+        ["Search for Tyranis"] = { 1439 },
+        ["Return to Vahlarriel"] = { 1440 },
+        ["Sceptre of Light"] = { 5741 },
+        ["Claim Rackmore's Treasure!"] = { 6161 },
+        ["Book of the Ancients"] = { 6027 },
+        ["Bone Collector"] = { 5501 },
+        ["Bodyguard for Hire"] = { 5821 },
+        ["Kodo Roundup"] = { 5561 },
+        ["Ghost-o-plasm Round Up"] = { 6134 },
+        ["Gizelton Caravan"] = { 5943 },
+        ["Buying Friendship: Gelkis"] = { 93227 },
+        ["Down the Scarlet Path"] = { 261, 1052 },                       -- parts 1-2
+        ["Raid on the Kolkar"] = { 1384 },
+        ["Get Me Out of Here!"] = { 6132 },
+    },
+    renamed = {},
+}
+end)()
+
+-- zz_v3_dunmorogh.lua
+parts[#parts + 1] = (function()
+-- Quest IDs for routes_v3/dunmorogh.lua, one per route part in order.
+-- Sources: https://wow4ever.quest/en/quests/<slug> (IDs via the Wowhead link), https://foreverchanges.pro/quests/dun-morogh and /quest/<id>
+-- "Senir's Observations" lists the whole chain (282 Coldridge leg, 420 turned in here as part 2); the Coldridge Valley route must use part 1 for 282.
+-- "Stolen Blasting Powder" 95213/95214 and "Rime's Wrath" 99160/99161 are two separate Alliance quests each (different objectives, both
+-- obtained by the player; wowhead forever shows no series), not race variants: both kept as parts 1-2 in route order.
+return {
+    ids = {
+        ["Grund and Gozwin"] = { 97277 },
+        ["Senir's Observations"] = { 282, 420 },          -- parts 1-2 (route turns in part 2)
+        ["Secure the Mountain"] = { 98322, 98319, 98323 },  -- parts 1-3
+        ["Supplies to Tannok"] = { 2160 },
+        ["Dawn in the Mountains"] = { 99158 },
+        ["Beer Basted Boar Ribs"] = { 384 },
+        ["Tools for Steelgrill"] = { 400 },
+        ["Flintfire's Shipment"] = { 98321 },
+        ["Stocking Jetsteam"] = { 317 },
+        ["The Grizzled Den"] = { 313 },
+        ["Ammo for Rumbleshot"] = { 5541 },
+        ["Frostmane Hold"] = { 287 },
+        ["Operation Recombobulation"] = { 412 },
+        ["Evershine"] = { 318 },
+        ["Finding Warmth"] = { 99159 },
+        ["Rime's Wrath"] = { 99160, 99161 },               -- parts 1-2
+        ["Treacherous Cold"] = { 99162 },
+        ["A Favor for Evershine"] = { 319 },
+        ["The Perfect Stout"] = { 315 },
+        ["Bitter Rivals"] = { 310 },
+        ["Frosthowl"] = { 98326 },
+        ["Tundra MacGrann's Stolen Stash"] = { 312 },
+        ["Return to Marleth"] = { 311 },
+        ["The Reports"] = { 291 },
+        ["Return to Bellowfiz"] = { 320 },
+        ["Shimmer Stout"] = { 413 },
+        ["A Visitor to Dun Morogh"] = { 96408 },
+        ["Never Saddle on Quality"] = { 95212 },
+        ["Protecting the Herd"] = { 314 },
+        ["Those Blasted Troggs!"] = { 432 },
+        ["The Public Servant"] = { 433 },
+        ["Stolen Blasting Powder"] = { 95213, 95214 },     -- parts 1-2 (part 1 starts from the Empty Powder Keg item)
+        ["Farsen's Watch"] = { 96392 },
+        ["Nip 'Em in the Bud"] = { 96390 },
+        ["Underground Map"] = { 96391 },
+        ["The Lost Pilot"] = { 419 },
+        ["A Pilot's Revenge"] = { 417 },
+        ["Stout to Kadrell"] = { 414 },
+    },
+    renamed = {},   -- route title -> Forever in-game title, only when they differ (rare)
 }
 end)()
 
@@ -788,6 +726,107 @@ return {
 }
 end)()
 
+-- zz_v3_silithus.lua
+parts[#parts + 1] = (function()
+-- Quest IDs for routes_v3/silithus.lua, one per route part in order.
+-- Sources: https://foreverchanges.pro/quests/silithus and /quest/<id> ; https://wow4ever.quest/en/quests/<slug> (levels <= 59) ; https://www.wowhead.com/forever/quest=<id>
+return {
+    ids = {
+        ["Report to Marshal Bluewall"] = { 9415 },          -- Alliance version (Horde: 9416 dropped)
+        ["Securing the Supply Lines"] = { 8280 },
+        ["Deadly Desert Venom"] = { 8277 },
+        ["Desert Recipe"] = { 8307 },
+        ["The Twilight Mystery"] = { 8284 },
+        ["Wasteland"] = { 1124 },                           -- accepted in Moonglade, turned in here only
+        ["The Spirits of Southwind"] = { 1125 },
+        ["Hive in the Tower"] = { 1126 },
+        ["Umber, Archivist"] = { 6844 },                    -- turned in in Moonglade
+        ["Stepping Up Security"] = { 8281 },
+        ["Noggle's Last Hope"] = { 8278 },
+        ["Secret Communication"] = { 8318 },
+        ["Sharing the Knowledge"] = { 8313 },
+        ["Scouring the Desert"] = { 9419 },                 -- Alliance version (Horde: 9422 dropped)
+        ["The Deserter"] = { 8285 },
+        ["Noggle's Lost Satchel"] = { 8282 },
+        ["Wanted - Deathclasp, Terror of the Sands"] = { 8283 },
+        ["The Twilight Lexicon"] = { 8279 },
+        ["True Believers"] = { 8323 },
+        ["Still Believing"] = { 8324 },
+        ["A Terrible Purpose"] = { 8287 },
+        ["Twilight Geolords"] = { 8320 },
+        ["Vyral the Vile"] = { 8321 },
+    },
+    renamed = {},
+}
+end)()
+
+-- zz_v3_stranglethorn.lua
+parts[#parts + 1] = (function()
+-- Quest IDs for routes_v3/stranglethorn.lua, one per route part in order.
+-- Sources: https://wow4ever.quest/en/quests/<slug>, https://foreverchanges.pro/quests/stranglethorn-vale and /quest/<id>.
+-- Not defined here (owned by other zones): "Talk of the Town" (Hillsbrad, 98463), "Sunken Treasure" (Arathi, 665/666/668/669/670;
+-- this route uses parts 4-5), "Stoley's Debt" (Tanaris, 2872), "Tran'rek" (Tanaris, 2864).
+-- "Ansirem's Key" is accepted in Alterac Mountains (no route there); defined here because the chain belongs to Stranglethorn.
+return {
+    ids = {
+        ["Jungle Secrets"] = { 215 },
+        ["Bookie Herod"] = { 200 },
+        ["The Second Rebellion"] = { 203 },
+        ["Bad Medicine"] = { 204 },
+        ["The Cook in the Cage"] = { 97047 },
+        ["The Hidden Key"] = { 328 },
+        ["The Spy Revealed!"] = { 329 },
+        ["Patrol Schedules"] = { 330 },
+        ["Report to Doren"] = { 331 },
+        ["Krazek's Cookery"] = { 210 },
+        ["Welcome to the Jungle"] = { 583 },
+        ["Tiger Mastery"] = { 185, 186, 187, 188 },     -- parts 1-4
+        ["Panther Mastery"] = { 190, 191, 192, 193 },   -- parts 1-4 (193 elite)
+        ["Raptor Mastery"] = { 194, 195, 196, 197 },    -- parts 1-4 (197 elite)
+        ["The Green Hills of Stranglethorn"] = { 338 },
+        ["Chapter I"] = { 339 },
+        ["Chapter II"] = { 340 },
+        ["Chapter III"] = { 341 },
+        ["Chapter IV"] = { 342 },
+        ["Favor for Krazek"] = { 627 },
+        ["Return to Corporal Kaleb"] = { 622 },
+        ["Supplies to Private Thorsen"] = { 198 },
+        ["Investigate the Camp"] = { 201 },
+        ["The Haunted Isle"] = { 616 },
+        ["The Stone of the Tides"] = { 578 },
+        ["Supply and Demand"] = { 575 },
+        ["Singing Blue Shards"] = { 605 },
+        ["Bloodscalp Ears"] = { 189 },
+        ["Hostile Takeover"] = { 213 },
+        ["Kurzen's Mystery"] = { 207 },
+        ["Special Forces"] = { 574 },
+        ["Anything of Value"] = { 97328 },
+        ["Where's the Key?"] = { 97329 },
+        ["Zimmix's Great Escape"] = { 97331 },
+        ["Troll Witchery"] = { 205 },
+        ["Water Elementals"] = { 601 },
+        ["Venture Company Mining"] = { 600 },
+        ["Some Assembly Required"] = { 577 },
+        ["Magical Analysis"] = { 602 },
+        ["Ansirem's Key"] = { 603 },
+        ["\"Pretty Boy\" Duncan"] = { 610 },
+        ["The Curse of the Tides"] = { 611 },
+        ["The Bloodsail Buccaneers"] = { 595, 597, 599, 604, 608 },   -- parts 1-5
+        ["Scaring Shaky"] = { 606 },
+        ["Return to MacKinley"] = { 607 },
+        ["Voodoo Dues"] = { 609 },
+        ["Skullsplitter Tusks"] = { 209 },
+        ["Zanzil's Secret"] = { 621 },
+        ["Akiris by the Bundle"] = { 617 },   -- 623 (Alliance follow-up to Theramore) dropped
+        ["Keep An Eye Out"] = { 576 },
+        ["Up to Snuff"] = { 587 },
+        ["Colonel Kurzen"] = { 202 },
+        ["Big Game Hunter"] = { 208 },
+    },
+    renamed = {},
+}
+end)()
+
 -- zz_v3_tanaris.lua
 parts[#parts + 1] = (function()
 -- Quest IDs for routes_v3/tanaris.lua, one per route part in order.
@@ -823,6 +862,48 @@ return {
         ["Handle With Care"] = { 3022 },
         ["Super Sticky"] = { 4504 },
         ["The Stone Circle"] = { 3444 },
+    },
+    renamed = {},
+}
+end)()
+
+-- zz_v3_ungoro.lua
+parts[#parts + 1] = (function()
+-- Quest IDs for routes_v3/ungoro.lua, one per route part in order.
+-- Sources: https://foreverchanges.pro/quests/ungoro-crater ; https://wow4ever.quest/en/quests/<slug> (Questie Forever 1.60.1)
+-- "Aquementas" (4005) is owned by Felwood and only turned in here; not listed.
+return {
+    ids = {
+        ["The Apes of Un'Goro"] = { 4289 },
+        ["The Fare of Lar'korwi"] = { 4290 },
+        ["The Scent of Lar'korwi"] = { 4291 },
+        ["The Bait for Lar'korwi"] = { 4292 },
+        ["The Mighty U'cha"] = { 4301 },
+        ["It's a Secret to Everybody"] = { 3844, 3845, 3908 },   -- parts 1-3 (part 3 turned in in Winterspring)
+        ["Williden's Journal"] = { 3884 },
+        ["Expedition Salvation"] = { 3881 },
+        ["Alien Ecology"] = { 3883 },
+        ["Dadanga is Hungry!"] = { 5150 },
+        ["Roll the Bones"] = { 3882 },
+        ["Beware of Pterrordax"] = { 4501 },
+        ["Muigin and Larion"] = { 4141 },
+        ["A Visit to Gregan"] = { 4142 },
+        ["Shizzle's Flyer"] = { 4503 },
+        ["Crystals of Power"] = { 4284 },
+        ["The Northern Pylon"] = { 4285 },
+        ["The Eastern Pylon"] = { 4287 },
+        ["The Western Pylon"] = { 4288 },
+        ["Making Sense of It"] = { 4321 },
+        ["Chasing A-Me 01"] = { 4243, 4244, 4245 },   -- parts 1-3
+        ["Lost!"] = { 4492 },
+        ["A Little Help From My Friends"] = { 4491 },
+        ["Finding the Source"] = { 974 },
+        ["The New Springs"] = { 980 },
+        ["Linken's Sword"] = { 3914 },
+        ["A Gnome's Assistance"] = { 3941 },
+        ["Linken's Memory"] = { 3942 },
+        ["Linken's Adventure"] = { 3961 },
+        ["It's Dangerous to Go Alone"] = { 3962 },
     },
     renamed = {},
 }
@@ -915,9 +996,48 @@ return {
 }
 end)()
 
+-- zz_v3_winterspring.lua
+parts[#parts + 1] = (function()
+-- Quest IDs for routes_v3/winterspring.lua, one per route part in order.
+-- Sources: https://foreverchanges.pro/quests/winterspring and /quest/<id> ; https://wow4ever.quest/en/quests/<slug> (ids, parts)
+-- Not defined here (other owners): Speak to Salfa (Felwood), The New Springs / It's a Secret to Everybody (Un'Goro), Felnok Steelspring (Burning Steppes).
+return {
+    ids = {
+        ["Winterfall Activity"] = { 8464 },
+        ["Beads for Salfa"] = { 8469 },
+        ["The Videre Elixir"] = { 3909 },        -- part 2 (4041) is Gregan Brewspewer's in Feralas, not accepted in this route
+        ["Strange Sources"] = { 4842 },
+        ["To Winterspring!"] = { 5249 },         -- accepted from Ivy Leafrunner (Felwood); "Starfall" 5250 (Daryn Lightwind, Rut'theran) is the same step
+        ["The Ruins of Kel'Theril"] = { 5244 },
+        ["Troubled Spirits of Kel'Theril"] = { 5245 },
+        ["Moontouched Wildkin"] = { 978 },
+        ["The Everlook Report"] = { 6028 },      -- 6029 is the Horde copy, dropped
+        ["Duke Nicholas Zverenhoff"] = { 6030 },
+        ["Chillwind Horns"] = { 4809 },
+        ["Return to Tinkee"] = { 4810 },
+        ["Are We There, Yeti?"] = { 3783, 977, 5163 },   -- parts 1-3
+        ["Enraged Wildkin"] = { 6604, 4861, 4863, 4864 }, -- parts 1-4
+        ["Sister Pamela"] = { 5601 },
+        ["Trouble in Winterspring!"] = { 6603 },
+        ["Winterfall Firewater"] = { 5083 },
+        ["Threat of the Winterfall"] = { 5082 },
+        ["Falling to Corruption"] = { 5084 },
+        ["Mystery Goo"] = { 5085 },
+        ["Toxic Horrors"] = { 5086 },
+        ["Winterfall Runners"] = { 5087 },
+        ["High Chief Winterfall"] = { 5121 },
+        ["The Final Piece"] = { 5123 },
+        ["Words of the High Chief"] = { 5128 },
+        ["Find Ranshalla"] = { 979 },
+        ["Guardians of the Altar"] = { 4901 },
+    },
+    renamed = {},
+}
+end)()
+
 -- These chains have more quests in Forever than the route has steps, so counting them would
 -- mark route steps done too early. They fall back to turn-ins this addon has seen.
-local MISMATCHED = { ["The Bloodsail Buccaneers"] = true }
+local MISMATCHED = {  }
 
 LevelGuideQuestIDs = { ids = {}, renamed = {} }
 for _, part in ipairs(parts) do

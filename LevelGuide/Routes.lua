@@ -416,57 +416,173 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     G("Lead Kerlonian south down the road to Maestra's Post, Ashenvale", 44.0, 95.0, 20, "Liladris Moonriver, Delgren, Onaeya and Therysil are in Ashenvale"),
 } }
 
+-- Dun Morogh (Alliance) for WoW: Forever. Starts at level 6 after Coldridge Valley (Coldridge 1-5 is a separate route).
+-- Sources: https://wow4ever.quest/en/quests/<slug> and /en/npcs/<slug> (Questie Forever data: IDs, givers, coords, min levels, "First you need");
+-- https://foreverchanges.pro/quests/dun-morogh (66-quest Forever list, New/Changed/Elite tags) and /quest/<id> (givers and coords of the Forever-new quests,
+-- whose wow4ever pages have no giver data); warcraft.wiki.gg only for Classic mob/cave positions (Vagash, Old Icebeard, Shimmer Ridge, Ironband's Compound).
+-- Forever NEW quests routed: Grund and Gozwin, Flintfire's Shipment, Secure the Mountain (3), Dawn in the Mountains, Finding Warmth, Rime's Wrath (2),
+-- Treacherous Cold, Frosthowl, Never Saddle on Quality, Stolen Blasting Powder (2), A Visitor to Dun Morogh, Farsen's Watch, Nip 'Em in the Bud, Underground Map.
+-- Forever CHANGED: Tools for Steelgrill. ELITE: Protecting the Herd (Vagash), Tundra MacGrann's Stolen Stash (Old Icebeard's cave).
+-- Part numbers: "Senir's Observations" 1-2 = 282, 420 (part 1 is the Coldridge leg, Grelin -> Thalos; this route turns in part 2 to Senir);
+-- "Secure the Mountain" 1-3 = 98322, 98319, 98323; "Rime's Wrath" 1-2 = 99160, 99161; "Stolen Blasting Powder" 1-2 = 95213 (item start), 95214.
+-- (Rime's Wrath and Stolen Blasting Powder: two separate Alliance quests each with the same title and different objectives, both obtained by
+-- the player, not race variants; wowhead forever shows no series, so they are routed as parts 1-2 in walking order.)
+-- Old Ironforge Incursion 96393 (level 16, follows Underground Map) left out: above this zone's band.
+-- Left out: The Quarry's Smith 95217 (class-limited Warrior/Paladin/Shaman, needs 12 Copper Bars: profession quest); Rejold's New Brew 415 (breadcrumb
+-- duplicate of Shimmer Stout); Data Hoarders 95041 (accepted and turned in in Ironforge, noted in the Ironforge G step); Distracting Jarven 308 /
+-- Guarded Thunderbrew Barrel 403 (object flavour, no reward); The Treaty of Understanding 98423 and Old Ironforge Incursion 96393 (level 16, Hall of Thanes);
+-- Search for Incendicite / Stonegear's Search (level 20+); Coldridge Valley quests (level 1-5 route); ram/mechanostrider exchanges (level 60).
+-- Cross-zone: The Reports 291 (accepted from Senir, turned in to Senator Barin Redstone in Ironforge: G step); Stout to Kadrell 414 (accepted at the east
+-- gate, turned in to Mountaineer Kadrell in Loch Modan: final G step).
 local DUN_MOROGH = { zone = "Dun Morogh", min = 6, max = 13, steps = {
-    -- Kharanos and Steelgrill's Depot (from level 6)
-    T("Senir's Observations", "Senir Whitebeard, Kharanos", 46.7, 53.8, 6),
-    T("Supplies to Tannok", "Tannok Frosthammer", 47.2, 52.2, 6),
-    A("Beer Basted Boar Ribs", "Ragnar Thunderbrew", 46.8, 52.4, 6),
-    A("Dawn in the Mountains", "Maxan Anvol", 47.3, 52.2, 6),
+    -- Out of Coldridge Pass: Grund's camp south-west of Kharanos
+    A("Grund and Gozwin", "Grund Drokda", 28.6, 67.5, 6),
+    D("Grund and Gozwin", "Find Grund and Gozwin's camp in the hills to the north-west, loot Gozwin's Mechanic's Log and kill the Snow Leopard Prowler", 26.0, 63.0, 6),
+    T("Grund and Gozwin", "Grund Drokda", 28.6, 67.5, 6),
+
+    -- Kharanos
+    T("Senir's Observations", "Senir Whitebeard, Kharanos", 46.7, 53.8, 6, 2),
+    A("Secure the Mountain", "Senir Whitebeard", 46.7, 53.8, 6, 1),
+    T("Supplies to Tannok", "Tannok Frosthammer (inn)", 47.2, 52.2, 6),
+    A("Dawn in the Mountains", "Maxan Anvol (inn)", 47.3, 52.2, 6),
+    A("Beer Basted Boar Ribs", "Ragnar Thunderbrew (buy a Rhapsody Malt from Innkeeper Belm)", 46.8, 52.4, 6),
     A("Tools for Steelgrill", "Tharek Blackstone", 46.0, 51.7, 6),
-    A("Operation Recombobulation", "Razzle Sprysprocket", 45.9, 49.4, 7),
+    A("Flintfire's Shipment", "Tognus Flintfire", 45.2, 52.0, 6),
+
+    -- Steelgrill's Depot
     T("Tools for Steelgrill", "Beldin Steelgrill", 50.4, 49.1, 6),
     A("Stocking Jetsteam", "Pilot Bellowfiz", 49.4, 48.4, 6),
-    A("The Grizzled Den", "Pilot Stonegear", 49.6, 48.6, 7),
+    A("The Grizzled Den", "Pilot Stonegear", 49.6, 48.6, 6),
     A("Ammo for Rumbleshot", "Loslor Rudge", 50.1, 49.4, 6),
-    D("The Grizzled Den", "8 Wendigo Manes in the Grizzled Den", 40.0, 48.0, 7),
-    D("Ammo for Rumbleshot", "Rumbleshot's Ammo crate", 44.1, 57.0, 7),
+
+    -- Fields south of Kharanos
+    D("Stocking Jetsteam", "4 Chunks of Boar Meat from Crag Boars and 2 Thick Bear Furs from Young Black Bears in the snow fields south and south-west of Kharanos", 45.5, 56.0, 6),
+    D("Beer Basted Boar Ribs", "6 Crag Boar Ribs from the same Crag Boars", 46.0, 57.0, 6),
+    D("Ammo for Rumbleshot", "Pick up Rumbleshot's Ammo from the crate by the wrecked wagon", 44.1, 57.0, 7),
+    T("Secure the Mountain", "Mountaineer Gretchen", 44.0, 57.0, 7, 1),
+    A("Secure the Mountain", "Mountaineer Gretchen", 44.0, 57.0, 7, 2),
     T("Ammo for Rumbleshot", "Hegnar Rumbleshot", 40.7, 65.1, 7),
-    -- Brewnall Village
-    A("Bitter Rivals", "Marleth Barleybrew, Brewnall", 30.2, 45.5, 8),
-    A("Frosthowl", "Gretta Ganter", 31.5, 44.6, 8),
-    D("Operation Recombobulation", "Leper Gnomes for cogs and gears", 27.6, 36.4, 8),
-    -- Misty Pine Refuge
-    T("Dawn in the Mountains", "Father Gavin, Misty Pine Refuge", 57.7, 44.9, 8),
-    A("Rime's Wrath", "Father Gavin", 57.7, 44.9, 8),
-    A("Finding Warmth", "Father Gavin", 57.7, 44.9, 8),
-    A("Treacherous Cold", "Father Gavin", 57.7, 44.9, 8),
-    D("Rime's Wrath", "10 Minor Ice Elementals at the frozen lake, and Avala's Core", 55.1, 45.4, 8),
-    T("Rime's Wrath", "Father Gavin", 57.7, 44.9, 9),
-    T("Finding Warmth", "Father Gavin", 57.7, 44.9, 9),
-    T("Treacherous Cold", "Father Gavin", 57.7, 44.9, 9),
-    T("The Grizzled Den", "Pilot Stonegear", 49.6, 48.6, 9),
-    T("Operation Recombobulation", "Razzle Sprysprocket", 45.9, 49.4, 9),
-    A("Frostmane Hold", "Senir Whitebeard", 46.7, 53.8, 9),
-    D("Frostmane Hold", "Kill 5 Frostmane Headhunters and explore the hold", 22.8, 52.1, 9),
+
+    -- The Grizzled Den
+    D("The Grizzled Den", "8 Wendigo Manes from the Wendigos in the Grizzled Den", 40.8, 47.5, 7),
+    D("Flintfire's Shipment", "Loot 8 Flintfire's Shipment crates dropped by the miners inside the den", 41.0, 47.0, 7),
+    D("Secure the Mountain", "Find Mountaineer Cornelius inside the Grizzled Den and talk to him", 41.2, 46.8, 7, 2),
+    T("Secure the Mountain", "Mountaineer Gretchen", 44.0, 57.0, 8, 2),
+    A("Secure the Mountain", "Mountaineer Gretchen", 44.0, 57.0, 8, 3),
+
+    -- Back in Kharanos and the depot
+    T("Secure the Mountain", "Senir Whitebeard", 46.7, 53.8, 8, 3),
+    A("Frostmane Hold", "Senir Whitebeard", 46.7, 53.8, 8),
+    T("Beer Basted Boar Ribs", "Ragnar Thunderbrew", 46.8, 52.4, 8),
+    T("Flintfire's Shipment", "Tognus Flintfire", 45.2, 52.0, 8),
+    A("Operation Recombobulation", "Razzle Sprysprocket", 45.9, 49.4, 8),
+    T("Stocking Jetsteam", "Pilot Bellowfiz", 49.4, 48.4, 8),
+    A("Evershine", "Pilot Bellowfiz", 49.4, 48.4, 8),
+    T("The Grizzled Den", "Pilot Stonegear", 49.6, 48.6, 8),
+
+    -- Misty Pine Refuge (east of the depot)
+    T("Dawn in the Mountains", "Father Gavin, Misty Pine Refuge", 57.7, 44.8, 8),
+    A("Finding Warmth", "Father Gavin", 57.7, 44.8, 8),
+    A("Rime's Wrath", "Father Gavin", 57.7, 44.8, 8, 1),
+    A("Treacherous Cold", "Father Gavin", 57.7, 44.8, 8),
+    D("Rime's Wrath", "Kill 10 Minor Ice Elementals around the frozen lake and the rockslide west of the refuge", 55.1, 45.4, 8, 1),
+    D("Finding Warmth", "Pick up 14 Mostly Dry Firewood lying in the snow around the refuge", 56.5, 45.0, 8),
+    D("Treacherous Cold", "Loot Stoneanvil's, Sunhammer's and Coalbeard's Rifles from the fallen mountaineers in the avalanche snow near the refuge", 56.0, 43.5, 9),
+    T("Rime's Wrath", "Father Gavin", 57.7, 44.8, 9, 1),
+    A("Rime's Wrath", "Father Gavin", 57.7, 44.8, 9, 2),
+    D("Rime's Wrath", "Kill Avala, the large ice elemental near the rockslide, and loot Avala's Core", 55.0, 44.5, 9, 2),
+    T("Rime's Wrath", "Father Gavin", 57.7, 44.8, 9, 2),
+    T("Finding Warmth", "Father Gavin", 57.7, 44.8, 9),
+    T("Treacherous Cold", "Father Gavin", 57.7, 44.8, 9),
+
+    -- Brewnall Village (west)
+    T("Evershine", "Rejold Barleybrew, Brewnall", 30.2, 45.7, 9),
+    A("A Favor for Evershine", "Rejold Barleybrew", 30.2, 45.7, 9),
+    A("The Perfect Stout", "Rejold Barleybrew", 30.2, 45.7, 9),
+    A("Bitter Rivals", "Marleth Barleybrew", 30.2, 45.5, 9),
+    A("Frosthowl", "Gretta Ganter", 31.5, 44.7, 9),
+    D("A Favor for Evershine", "6 Ice Claw Bears, 8 Elder Crag Boars and 8 Snow Leopards around Brewnall and Iceflow Lake (keep killing them along the whole western loop)", 33.0, 47.0, 9),
+
+    -- Gnomeregan, Shimmer Ridge and Frostmane Hold
+    D("Operation Recombobulation", "8 Restabilization Cogs and 8 Gyromechanic Gears from the Leper Gnomes outside Gnomeregan", 27.6, 36.4, 9),
+    D("The Perfect Stout", "6 Shimmerweed from the Shimmerweed Baskets in the Frostmane camp on Shimmer Ridge", 35.5, 38.5, 9),
+    D("Frostmane Hold", "Go deep into Frostmane Hold (explore it) and kill 5 Frostmane Headhunters", 23.0, 52.0, 10),
+
+    -- Tundra MacGrann and Old Icebeard's cave
+    A("Tundra MacGrann's Stolen Stash", "Tundra MacGrann (ELITE cave)", 34.6, 51.6, 10),
+    D("Tundra MacGrann's Stolen Stash", "Open MacGrann's Meat Locker in Old Icebeard's cave; Old Icebeard is ELITE, group or sneak past him", 38.5, 53.9, 10),
+    T("Tundra MacGrann's Stolen Stash", "Tundra MacGrann", 34.6, 51.6, 10),
+    D("Frosthowl", "Kill Frosthowl, the wendigo deep in the Grizzled Den, and loot the Sack of Fish", 41.5, 46.5, 10),
+
+    -- Kharanos: distillery basement, Senir
+    T("Bitter Rivals", "Unguarded Thunder Ale Barrel (Thunderbrew Distillery basement)", 47.7, 52.7, 10),
+    A("Return to Marleth", "Unguarded Thunder Ale Barrel (object)", 47.7, 52.7, 10),
+    T("Operation Recombobulation", "Razzle Sprysprocket", 45.9, 49.4, 10),
     T("Frostmane Hold", "Senir Whitebeard", 46.7, 53.8, 10),
-    -- Amberstill Ranch and Gol'Bolar Quarry
+    A("The Reports", "Senir Whitebeard (turn-in is in Ironforge)", 46.7, 53.8, 10),
+
+    -- Brewnall Village again
+    T("Return to Marleth", "Marleth Barleybrew", 30.2, 45.5, 10),
+    T("Frosthowl", "Gretta Ganter", 31.5, 44.7, 10),
+    T("A Favor for Evershine", "Rejold Barleybrew", 30.2, 45.7, 10),
+    A("Return to Bellowfiz", "Rejold Barleybrew", 30.2, 45.7, 10),
+    T("The Perfect Stout", "Rejold Barleybrew", 30.2, 45.7, 10),
+    A("Shimmer Stout", "Rejold Barleybrew (turn-in at the east gate)", 30.2, 45.7, 10),
+
+    -- Steelgrill's Depot and Ironforge
+    T("Return to Bellowfiz", "Pilot Bellowfiz", 49.4, 48.4, 10),
+    A("A Visitor to Dun Morogh", "Beldin Steelgrill", 50.4, 49.1, 10),
+    G("Ironforge gate", 52.8, 36.0, 10, "In Ironforge turn in The Reports to Senator Barin Redstone (39.5, 57.5); optional: Data Hoarders from Jemma Quikswitch in Tinker Town (68.2, 44.6): 7 Gnomeregan Archival Data in the snow outside Gnomeregan"),
+
+    -- Amberstill Ranch
     A("Never Saddle on Quality", "Rudra Amberstill", 63.1, 49.9, 10),
-    A("Protecting the Herd", "Rudra Amberstill", 63.1, 49.9, 10),
-    A("The Quarry's Smith", "Frast Dokner", 69.0, 55.9, 10),
-    A("Those Blasted Troggs!", "Foreman Stonebrow", 69.1, 56.3, 10),
-    A("The Public Servant", "Senator Mehr Stonehallow", 68.7, 56.0, 10),
-    A("Stolen Blasting Powder", "Quarrymaster Thesten", 69.2, 54.8, 10),
-    D("Those Blasted Troggs!", "6 Rockjaw Skullthumpers", 69.7, 57.1, 10),
-    D("The Public Servant", "10 Rockjaw Bonesnappers", 70.7, 56.6, 10),
+    A("Protecting the Herd", "Rudra Amberstill (ELITE Vagash, done at 12)", 63.1, 49.9, 10),
+    D("Never Saddle on Quality", "6 Pristine Leopard Pelts from the big Snow Leopards east of the ranch, toward Helm's Bed Lake", 70.0, 49.0, 11),
+
+    -- Gol'Bolar Quarry
+    A("Those Blasted Troggs!", "Foreman Stonebrow", 69.1, 56.3, 11),
+    A("The Public Servant", "Senator Mehr Stonehallow", 68.7, 56.0, 11),
+    D("Those Blasted Troggs!", "6 Rockjaw Skullthumpers in and east of the quarry", 69.7, 57.1, 11),
+    D("The Public Servant", "10 Rockjaw Bonesnappers in the quarry", 70.7, 56.6, 11),
+    A("Stolen Blasting Powder", "Empty Powder Keg (item, drops from the Rockjaw troggs east of the quarry)", 68.1, 56.2, 11, 1),
+    T("Stolen Blasting Powder", "Quarrymaster Thesten", 69.0, 54.8, 11, 1),
+    A("Stolen Blasting Powder", "Quarrymaster Thesten", 69.0, 54.8, 11, 2),
+    D("Stolen Blasting Powder", "16 Stolen Blasting Powder from Rockjaw Backbreakers, Skullthumpers and Ambushers just east of the quarry", 68.5, 55.0, 11, 2),
+    T("Stolen Blasting Powder", "Quarrymaster Thesten", 69.0, 54.8, 11, 2),
     T("Those Blasted Troggs!", "Foreman Stonebrow", 69.1, 56.3, 11),
     T("The Public Servant", "Senator Mehr Stonehallow", 68.7, 56.0, 11),
-    -- Farsen's Ridge and the north gate
-    A("Farsen's Watch", "Earthseer Farsen", 64.9, 58.5, 11),
-    A("The Lost Pilot", "Pilot Hammerfoot", 83.9, 39.2, 11),
-    G("The pilot's body", 79.7, 36.2, 11, "Take A Pilot's Revenge from the corpse"),
-    D("A Pilot's Revenge", "Kill Mangeclaw", 78.3, 37.8, 12),
-    T("A Pilot's Revenge", "Pilot Hammerfoot", 83.9, 39.2, 12),
-    G("Loch Modan, through the east gate", 86.3, 48.8, 12, "Mountaineer Barleybrew gives Stout to Kadrell"),
+
+    -- Farsen's camp above the quarry
+    D("A Visitor to Dun Morogh", "Investigate the campsite on the hill overlooking the quarry (Earthseer Farsen)", 64.9, 58.4, 11),
+    T("A Visitor to Dun Morogh", "Earthseer Farsen", 64.9, 58.4, 11),
+    A("Farsen's Watch", "Earthseer Farsen", 64.9, 58.4, 11),
+    D("Farsen's Watch", "Use Farsen's Farsight (quest item) at the camp", 64.9, 58.4, 11),
+    T("Farsen's Watch", "Earthseer Farsen", 64.9, 58.4, 11),
+    A("Nip 'Em in the Bud", "Earthseer Farsen", 64.9, 58.4, 11),
+
+    -- Ironband's Compound (south of Helm's Bed Lake)
+    D("Nip 'Em in the Bud", "Kill 10 Dark Iron Spies at Ironband's Compound", 77.5, 61.0, 12),
+    A("Underground Map", "Dark Iron Map (item, drops from the Dark Iron dwarves at Ironband's Compound)", 77.5, 61.0, 12),
+    T("Nip 'Em in the Bud", "Earthseer Farsen", 64.9, 58.4, 12),
+    T("Underground Map", "Earthseer Farsen", 64.9, 58.4, 12),
+
+    -- Amberstill Ranch: Vagash
+    T("Never Saddle on Quality", "Rudra Amberstill", 63.1, 49.9, 12),
+    D("Protecting the Herd", "Kill Vagash on the overlook just west of the ranch and loot the Fang of Vagash (ELITE, group)", 62.3, 46.9, 12),
+    T("Protecting the Herd", "Rudra Amberstill", 63.1, 49.9, 12),
+
+    -- North Gate: the lost pilot
+    A("The Lost Pilot", "Pilot Hammerfoot", 83.9, 39.2, 12),
+    D("The Lost Pilot", "Find Pilot Hildelve's body (A Dwarven Corpse) north-west of the North Gate outpost", 79.7, 36.2, 12),
+    T("The Lost Pilot", "A Dwarven Corpse", 79.7, 36.2, 12),
+    A("A Pilot's Revenge", "A Dwarven Corpse", 79.7, 36.2, 12),
+    D("A Pilot's Revenge", "Kill Mangeclaw, the bear roaming near the body", 78.3, 37.8, 13),
+    T("A Pilot's Revenge", "Pilot Hammerfoot", 83.9, 39.2, 13),
+
+    -- East gate to Loch Modan
+    T("Shimmer Stout", "Mountaineer Barleybrew (east gate)", 86.3, 48.8, 13),
+    A("Stout to Kadrell", "Mountaineer Barleybrew (turn-in in Loch Modan)", 86.3, 48.8, 13),
+    G("Loch Modan, through the east gate", 87.5, 48.8, 13, "Turn in Stout to Kadrell to Mountaineer Kadrell on the Thelsamar road (Loch Modan 34.2, 47.8)"),
 } }
 
 -- Loch Modan (Alliance) for WoW: Forever.
@@ -1132,175 +1248,287 @@ local HILLSBRAD = { zone = "Hillsbrad Foothills", min = 28, max = 32, steps = {
 } }
 
 -- Sources: https://wowhandbook.com/zones/eastern-kingdoms/arathi-highlands/ ; https://urgametips.com/wow-forever/zones/arathi-highlands/ (and its linked quest-guides pages) ; https://wowforever.wiki.fextralife.com/Arathi+Highlands ; https://wow4ever.quest/en/npcs (NPC pages) and https://wow4ever.quest/en/quests (quest pages)
+-- Arathi Highlands (Alliance) for WoW: Forever.
+-- Sources: https://wow4ever.quest/en/quests/<slug> and /en/npcs/<slug> (Questie Forever data: ids, min levels, givers, coords, "First you need");
+-- https://foreverchanges.pro/quests/arathi-highlands (53-quest Forever list, New/Changed/Elite tags) and /quest/<id> (chain boxes, drop sources);
+-- https://wow4ever.quest/en/articles/guia-subida-30-40-wow-forever (Questie-computed Alliance route: objective coordinates for mobs/objects);
+-- warcraft.wiki.gg (Northfold Manor, Syndicate Prowler, Marez Cowl, Daggerspine Raider, Drowned Reef wrecks) only where Forever sources gave no coordinates.
+-- Part numbers: "Hints of a New Plague?" 1-5 = 659, 657, 658, 660, 661 (part 1 accepted in Hillsbrad, part 5 turned in at Southshore);
+-- "Malin's Request" 1-2 = 690, 697 (part 1 accepted in Stormwind, part 2 turned in at Stormwind);
+-- "Sunken Treasure" 1-5 = 665, 666, 668, 669, 670 (parts 1-4 here; part 4 is turned in and part 5 accepted/turned in via Booty Bay).
+-- Elite (Forever "Elite" tag, group): Stromgarde Badges, Wanted! Marez Cowl, Wanted! Otto and Falconcrest, Trelane's Defenses,
+-- An Apprentice's Enchantment, Attack on the Tower, Malin's Request (part 2), Breaking the Keystone (foreverchanges.pro Elite tags).
+-- Forever "New" quests not routed (Questie/wow4ever has no giver or coordinates for them): Dutiful Steps (92872, Alliance, 38),
+-- Ground to Keep (92867, elite, 39), Anyone Can Cook (79624, 40). Left out: Crystal in the Mountains (635, starts from the world-drop
+-- Pendant of Myzrael: G note instead), Legends of the Earth <NYI> (636), Death From Below (667, lvl 44, needs Sunken Treasure part 5),
+-- Theldurin the Lost (687, accepted in Ironforge), Summoning the Princess (656, lvl 50), all Horde quests.
+-- Cross-zone: Plea To The Alliance (Wetlands) and Malin's Request part 1 (Stormwind) are turned in here; Hints of a New Plague? part 1 is
+-- accepted in Hillsbrad; Malin's Request part 2 -> Stormwind, Sunken Treasure part 4 -> Booty Bay, Hints part 5 -> Southshore,
+-- Myzrael's Allies -> Ironforge (closing G note).
 local ARATHI = { zone = "Arathi Highlands", min = 30, max = 40, steps = {
-    G("Refuge Pointe flight path", 45.8, 46.1, 30, "Get the flight path; set hearth at Refuge Pointe"),
+    -- Refuge Pointe (arriving from the Wetlands over Thandol Span)
+    G("Refuge Pointe flight path", 45.8, 46.1, 30, "Get the flight path and set your hearthstone at Refuge Pointe"),
     T("Plea To The Alliance", "Captain Nials", 45.8, 47.6, 30),
     T("Malin's Request", "Skuerto", 46.6, 47.0, 30, 1),
-    A("Worth Its Weight in Gold", "Apprentice Kryten", 46.2, 47.8, 30),
     A("Northfold Manor", "Captain Nials", 45.8, 47.6, 30),
-    A("Wanted! Marez Cowl", "Wanted Board", 46.0, 47.7, 30),
-    A("Wanted! Otto and Falconcrest", "Wanted Board", 46.0, 47.7, 30),
-    D("Northfold Manor", "Kill 10 Syndicate Highwaymen", 34.7, 31.7, 31),
-    D("Northfold Manor", "Kill 6 Syndicate Mercenaries", 33.7, 29.8, 31),
-    T("Northfold Manor", "Captain Nials", 45.8, 47.6, 32),
-    A("Stromgarde Badges", "Captain Nials", 45.8, 47.6, 32),
-    A("Crystal in the Mountains", "Pendant of Myzrael (looted item)", 62.5, 33.7, 32),
-    T("Crystal in the Mountains", "Shards of Myzrael", 62.5, 33.7, 32),
-    A("The Princess Trapped", "Shards of Myzrael", 62.5, 33.7, 32),
-    D("The Princess Trapped", "Collect 12 Motes of Myzrael from Drywhisker kobolds", 77.5, 35.6, 33),
-    G("Lesser Bloodstone Deposits in Drywhisker Gorge", 82.9, 35.6, 33, "Mine 4 Lesser Bloodstone Ore if you have Favor for Krazek (Booty Bay)"),
-    T("The Princess Trapped", "Iridescent Shards", 84.3, 30.9, 33),
+    A("Wanted! Marez Cowl", "Wanted Board (ELITE, group)", 46.0, 47.8, 30),
+    A("Wanted! Otto and Falconcrest", "Wanted Board (ELITE, group)", 46.0, 47.8, 30),
+    A("Worth Its Weight in Gold", "Apprentice Kryten", 46.2, 47.8, 30),
+
+    -- Northfold Manor (north-west)
+    D("Northfold Manor", "Kill 10 Syndicate Highwaymen around Northfold Manor", 32.5, 26.3, 30),
+    D("Northfold Manor", "Kill 6 Syndicate Mercenaries in and around the manor", 33.7, 29.8, 31),
+    T("Northfold Manor", "Captain Nials", 45.8, 47.6, 31),
+    A("Stromgarde Badges", "Captain Nials (ELITE, group)", 45.8, 47.6, 31),
+
+    -- Shards of Myzrael and Drywhisker Gorge (north-east)
+    G("Shards of Myzrael", 62.5, 33.7, 31, "If you looted a Pendant of Myzrael (world drop), use it and turn in Crystal in the Mountains here"),
+    A("The Princess Trapped", "Shards of Myzrael (crystal cluster)", 62.5, 33.7, 31),
+    D("The Princess Trapped", "Collect 12 Motes of Myzrael from Drywhisker kobolds in Drywhisker Gorge and its cave", 82.6, 34.0, 32),
+    T("The Princess Trapped", "Iridescent Shards (deep in the Drywhisker cave)", 84.3, 30.9, 33),
     A("Stones of Binding", "Iridescent Shards", 84.3, 30.9, 33),
-    D("Stones of Binding", "Cresting Key at the Stone of East Binding", 66.7, 29.7, 33),
-    D("Worth Its Weight in Gold", "Collect 10 Witherbark Tusks", 74.1, 45.7, 34),
-    D("Worth Its Weight in Gold", "Collect 4 Witherbark Medicine Pouches in Witherbark Village", 71.6, 61.8, 34),
+    D("Stones of Binding", "Cresting Key: kill Cresting Exiles at the Circle of East Binding", 66.7, 29.7, 33),
+
+    -- Witherbark Village (south-east)
+    D("Worth Its Weight in Gold", "4 Witherbark Medicine Pouches from Witherbark Witch Doctors north of the village", 69.2, 68.3, 34),
+    D("Worth Its Weight in Gold", "10 Witherbark Tusks and 1 Shadow Hunter Knife from Witherbark trolls; Shadow Hunters are in the cave south of the village", 67.7, 78.3, 34),
+
+    -- Go'Shek Farm: Quae and Kinelory
     T("Hints of a New Plague?", "Quae", 60.2, 53.9, 34, 1),
-    -- Forever adds a short hand-off to Kinelory before the courier; without it she won't offer the escort.
     A("Hints of a New Plague?", "Quae", 60.2, 53.9, 34, 2),
-    T("Hints of a New Plague?", "Kinelory", 60.2, 53.8, 34, 2),
+    T("Hints of a New Plague?", "Kinelory", 60.2, 53.9, 34, 2),
     A("Hints of a New Plague?", "Quae", 60.2, 53.9, 34, 3),
-    D("Hints of a New Plague?", "Kill the Forsaken Courier, loot the Sealed Folder", 52.5, 61.5, 34, 3),
+    D("Hints of a New Plague?", "Kill the Forsaken Courier (walks with 4 Forsaken Bodyguards from the small house south of Go'Shek Farm toward Hillsbrad) and loot the Sealed Folder. Location approximate: start at the house and follow the road west", 52.5, 61.5, 34, 3),
     T("Hints of a New Plague?", "Quae", 60.2, 53.9, 35, 3),
-    A("Hints of a New Plague?", "Kinelory", 60.2, 53.8, 35, 4),
-    D("Hints of a New Plague?", "Escort Kinelory into Go'Shek Farm and back to Quae", 60.2, 53.8, 35, 4),
+    A("Hints of a New Plague?", "Kinelory (ESCORT)", 60.2, 53.9, 35, 4),
+    D("Hints of a New Plague?", "Escort Kinelory into Go'Shek Farm; she loots the farmhouse and walks back to Quae (ESCORT)", 60.2, 53.9, 35, 4),
     T("Hints of a New Plague?", "Quae", 60.2, 53.9, 35, 4),
-    A("Hints of a New Plague?", "Quae", 60.2, 53.9, 35, 5),
-    D("Stones of Binding", "Thundering Key at the Stone of Outer Binding", 52.0, 50.7, 35),
+    A("Hints of a New Plague?", "Quae (turn in to Phin Odelic in Southshore later)", 60.2, 53.9, 35, 5),
+
+    -- Back to Refuge Pointe via the Circle of Outer Binding
+    D("Stones of Binding", "Thundering Key: kill Thundering Exiles at the Circle of Outer Binding", 52.0, 50.7, 35),
     T("Worth Its Weight in Gold", "Apprentice Kryten", 46.2, 47.8, 35),
     A("Wand over Fist", "Skuerto", 46.6, 47.0, 35),
-    D("Wand over Fist", "Boulderfist Hall, right cave: kill Kor'gresh Coldrage for Trelane's Wand of Invocation", 54.8, 81.9, 36),
+
+    -- Boulderfist Hall (south)
+    D("Wand over Fist", "Boulderfist Hall, the larger cave: kill Kor'gresh Coldrage for Trelane's Wand of Invocation", 54.8, 81.9, 36),
     T("Wand over Fist", "Skuerto", 46.6, 47.0, 36),
-    A("Trelane's Defenses", "Skuerto", 46.6, 47.0, 36),
-    D("Stones of Binding", "Burning Key at the Stone of West Binding", 25.5, 30.1, 36),
-    T("Stones of Binding", "Stone of Inner Binding", 36.2, 57.4, 37),
-    D("Trelane's Defenses", "Stromgarde Keep, near the Tower of Arathor: Azure Agate from Boulderfist Shamans (elite area)", 18.0, 68.5, 37),
-    D("Stromgarde Badges", "Stromgarde Keep: 15 Stromgarde Badges from Syndicate Prowlers (elite, group)", 18.0, 68.5, 37, "Location approximate: Stromgarde Keep area"),
-    D("Wanted! Marez Cowl", "Stromgarde Keep: kill Marez Cowl, loot Marez's Head (elite, group)", 18.0, 68.5, 38, "Location approximate: Stromgarde Keep area"),
-    D("Wanted! Otto and Falconcrest", "Upper floor of Stromgarde Keep: Otto's Head and Falconcrest's Head (elite, group)", 18.0, 68.5, 38, "Location approximate: Stromgarde Keep area"),
-    T("Trelane's Defenses", "Apprentice Kryten", 46.2, 47.8, 38),
-    A("An Apprentice's Enchantment", "Apprentice Kryten", 46.2, 47.8, 38),
-    T("An Apprentice's Enchantment", "Skuerto", 46.6, 47.0, 38),
-    A("Attack on the Tower", "Skuerto", 46.6, 47.0, 38),
+    A("Trelane's Defenses", "Skuerto (ELITE, group)", 46.6, 47.0, 36),
+
+    -- Circle of West Binding, then Stromgarde Keep (first trip)
+    D("Stones of Binding", "Burning Key: kill Burning Exiles at the Circle of West Binding", 25.6, 30.4, 36),
+    D("Stromgarde Badges", "Stromgarde Keep, Syndicate quarter (first left inside the gate): 7 Stromgarde Badges from Syndicate Prowlers, Conjurors and Magi (ELITE, group)", 29.6, 63.0, 37),
+    D("Wanted! Marez Cowl", "Stromgarde Keep: Marez Cowl stands behind the house at the dead end of the Syndicate quarter, near a well (also spawns at 29,62); loot Marez's Head (ELITE, group)", 27.0, 64.0, 37),
+    D("Wanted! Otto and Falconcrest", "Stromgarde Keep: straight down the main road to the inner keep at the back, upper floor; loot Otto's Head and Falconcrest's Head (ELITE, group). Location approximate", 25.0, 59.0, 38),
+    D("Trelane's Defenses", "Stromgarde Keep, ogre quarter (right before the ramp, then left): Azure Agate from Boulderfist Shamans (ELITE, group)", 20.0, 67.4, 38),
+    T("Stones of Binding", "Stone of Inner Binding (opens; Thenan spawns)", 36.2, 57.4, 38),
+    A("Breaking the Keystone", "Stone of Inner Binding (ELITE, group)", 36.2, 57.4, 38),
+
+    -- Refuge Pointe turn-ins
     T("Stromgarde Badges", "Captain Nials", 45.8, 47.6, 38),
     T("Wanted! Marez Cowl", "Captain Nials", 45.8, 47.6, 38),
     T("Wanted! Otto and Falconcrest", "Captain Nials", 45.8, 47.6, 38),
-    D("Attack on the Tower", "Tower of Arathor: get Trelane's Phylactery, Orb and Ember Agate (elite, group)", 18.0, 68.5, 39),
-    A("Land Ho!", "Lolo the Lookout", 31.6, 82.6, 39),
-    T("Land Ho!", "Shakes O'Breen", 32.2, 81.4, 39),
+    T("Trelane's Defenses", "Apprentice Kryten", 46.2, 47.8, 38),
+    A("An Apprentice's Enchantment", "Apprentice Kryten (ELITE, group)", 46.2, 47.8, 38),
+    T("An Apprentice's Enchantment", "Skuerto", 46.6, 47.0, 38),
+    A("Attack on the Tower", "Skuerto (ELITE, group)", 46.6, 47.0, 38),
+
+    -- Tower of Arathor, then Faldir's Cove (second south-west trip)
+    D("Attack on the Tower", "Tower of Arathor in Stromgarde Keep: open the Footlocker (Trelane's Phylactery), Lockbox (Trelane's Orb) and Chest (Trelane's Ember Agate); each spawns an ogre shaman and a brute (ELITE, group)", 18.2, 68.1, 39),
+    A("Land Ho!", "Lolo the Lookout", 31.8, 82.7, 39),
+    T("Land Ho!", "Shakes O'Breen", 32.3, 81.4, 39),
     A("Deep Sea Salvage", "First Mate Nilzlix", 32.8, 81.5, 39),
-    A("Drowned Sorrows", "Captain Steelgut", 33.8, 80.8, 39),
-    A("Sunken Treasure", "Professor Phizzlethorpe", 33.8, 80.6, 39, 1),
-    D("Sunken Treasure", "Escort Professor Phizzlethorpe to the cave uphill and back", 33.8, 80.6, 39, 1),
+    A("Drowned Sorrows", "Captain Steelgut", 34.0, 80.8, 39),
+    A("Sunken Treasure", "Professor Phizzlethorpe (ESCORT)", 33.9, 80.5, 39, 1),
+    D("Sunken Treasure", "Escort Professor Phizzlethorpe up the hill to the cave above Faldir's Cove and back (ESCORT)", 33.9, 80.5, 39, 1),
     T("Sunken Treasure", "Doctor Draxlegauge", 33.9, 80.5, 39, 1),
-    A("Sunken Treasure", "Doctor Draxlegauge", 33.9, 80.5, 39, 2),
-    D("Drowned Sorrows", "Kill 10 Daggerspine Raiders and 3 Daggerspine Sorceresses", 24.6, 85.3, 40),
-    D("Deep Sea Salvage", "Salvage from the offshore wrecks", 23.1, 84.5, 40, "Location approximate: the wrecks"),
-    D("Sunken Treasure", "Wear the goggles, collect 10 Elven Gems at the wrecks", 25.0, 86.0, 40, 2),
+    A("Sunken Treasure", "Doctor Draxlegauge (gives Goggles of Gem Hunting)", 33.9, 80.5, 39, 2),
+    D("Drowned Sorrows", "Kill 10 Daggerspine Raiders and 3 Daggerspine Sorceresses in the sea off Faldir's Cove", 21.9, 86.1, 40),
+    D("Deep Sea Salvage", "Drowned Reef wrecks: Maiden's Folly Charts and Log (16.4, 87.1), Spirit of Silverpine Charts and Log (13.9, 87.7); Questie places all four at 23.4, 85.1", 16.4, 87.1, 40),
+    D("Sunken Treasure", "Wear the Goggles of Gem Hunting and collect 10 Elven Gems (Calcified Elven Gems) on the sea floor around the wrecks", 23.4, 85.1, 40, 2),
+    T("Drowned Sorrows", "Captain Steelgut", 34.0, 80.8, 40),
+    T("Deep Sea Salvage", "First Mate Nilzlix", 32.8, 81.5, 40),
     T("Sunken Treasure", "Doctor Draxlegauge", 33.9, 80.5, 40, 2),
     A("Sunken Treasure", "Doctor Draxlegauge", 33.9, 80.5, 40, 3),
-    T("Sunken Treasure", "Shakes O'Breen", 32.2, 81.4, 40, 3),
-    A("Sunken Treasure", "Shakes O'Breen", 32.2, 81.4, 40, 4),
-    T("Deep Sea Salvage", "First Mate Nilzlix", 32.8, 81.5, 40),
-    T("Drowned Sorrows", "Captain Steelgut", 33.8, 80.8, 40),
+    T("Sunken Treasure", "Shakes O'Breen", 32.3, 81.4, 40, 3),
+    A("Sunken Treasure", "Shakes O'Breen (turn in to Fleet Master Seahorn in Booty Bay later)", 32.3, 81.4, 40, 4),
+
+    -- Fozruk and the Keystone on the way back
+    D("Breaking the Keystone", "Kill Fozruk for the Rod of Order; the stone giant patrols the main road between Thoradin's Wall, Refuge Pointe and Hammerfall (ELITE, group). Location approximate: road east of Refuge Pointe", 50.0, 47.0, 40),
+    T("Breaking the Keystone", "Keystone (next to the Stone of Inner Binding)", 36.1, 58.1, 40),
+    A("Myzrael's Allies", "Keystone (turn in to Gerrig Bonegrip, Forlorn Cavern, Ironforge)", 36.1, 58.1, 40),
+
+    -- Refuge Pointe: last turn-in and leaving the zone
     T("Attack on the Tower", "Skuerto", 46.6, 47.0, 40),
-    A("Malin's Request", "Skuerto", 46.6, 47.0, 40, 2),
-    G("Refuge Pointe flight path", 45.8, 46.1, 40, "Leave the zone: Malin's Request to Stormwind, Sunken Treasure to Fleet Master Seahorn in Booty Bay, Hints of a New Plague? to Phin Odelic in Southshore"),
+    A("Malin's Request", "Skuerto (ELITE, group; turn in to Archmage Malin, Stormwind)", 46.6, 47.0, 40, 2),
+    G("Refuge Pointe flight path", 45.8, 46.1, 40, "Leave the zone: Malin's Request to Archmage Malin (Stormwind, Mage Quarter 50.5, 87.5); Sunken Treasure to Fleet Master Seahorn (Booty Bay 27.2, 77.0; he gives part 5 back to Shakes O'Breen); Hints of a New Plague? to Phin Odelic (Southshore 50.4, 59.0); Myzrael's Allies to Gerrig Bonegrip (Ironforge 50.8, 5.6)"),
 } }
 
 -- Sources: https://wowhandbook.com/zones/kalimdor/desolace/ ; https://games.gg/world-of-warcraft/guides/wow-forever-desolace-leveling-guide/ ; https://wow4ever.quest/en/npcs (NPC pages) and https://wow4ever.quest/en/quests (quest pages) ; https://www.wowhead.com/forever/quest=1454 ; https://warcraft.wiki.gg/wiki/Desolace_questing_guide (cross-check)
+-- Desolace (Alliance) for WoW: Forever.
+-- Sources: https://wow4ever.quest/en/quests/<slug> and /en/npcs/<slug> (Questie Forever data: IDs, min levels, givers, coords, "First you need"/"Then comes");
+-- https://foreverchanges.pro/quests/desolace and /quest/<id> (Forever list with New/Changed tags, New-quest givers and chain lists);
+-- https://wow4ever.quest/en/articles/guia-subida-30-40-wow-forever (QuestieDB objective coordinates); warcraft.wiki.gg only for a few
+-- objective spots (Burning Blade Seer 55.2,30.1; ghost-magnet spot 63.7,91.8; Valley of Bones; key/satchel drop mobs). wowhead/forever was unreachable (403).
+-- Part numbers: "Reagents for Reclaimers Inc." 1-4 = 1458, 1459, 1466, 1467; "The Karnitol Shipwreck" 1-4 = 1454, 1455, 1456, 1457;
+-- "Vahlarriel's Search" 1-3 = 1437, 1465, 1438; "Down the Scarlet Path" 1-2 = 261, 1052.
+-- Forever NEW quests used: Vahlarriel's Vengeance 97284, Carved Centaur Totems 93224, Buying Friendship: Gelkis 93227.
+-- Forever CHANGED (foreverchanges.pro, no route effect): Bodyguard for Hire 5821 (rename note only), Gizelton Caravan 5943 (extra reward
+-- Farseer's Forgotten Shield), The Karnitol Shipwreck part 4 1457 (2250 XP instead of 1500).
+-- Left out (Forever NEW, past Ongeku or lvl 38-43): Valley of Bones 93034, Ravaging Ravagers 93035, Facing the Truth 93041, A Cleansing Cry 93044,
+-- Test Your Theory 93045, Khan Jehn 93128/93196 (Saving Our Own chain, lvl 42), Notes on Draenethyst 93465 (needs The Visiting Mage 93464, lvl 40).
+-- Left out: Brutal Politics/Assault on the Kolkar/Broken Tears/Gizmo for Warug/Khan Shaka/A Conqueror's Crown (Magram side, conflicts with the
+-- Gelkis path and Strange Alliance); Stealing Supplies/Ongeku/Khan Jehn/Khan Hratha and the new Gelkis chain 93034-93045 (Ongeku needs a
+-- Draenethyst Shard from the Swamp of Sorrows; left as a G note); I Need a Tailor/Leather Technique/Mysterious Mysticism/Big, No, MASSIVE Iron
+-- Axes/A New Need for Shadow Protection (crafted-item reputation hand-ins); Economic Warfare/Buying Friendship: Magram (Magram or repeatable);
+-- Khan Hratha 96222 (lvl 42 elite); Horde quests; Cherry for Your Thoughts?/Highway Robbery/No Honor Among Thieves/On the Lam (lvl 40, giver unknown).
+-- Cross-zone: "Reclaimers' Business in Desolace" is accepted in Ironforge (Roetten Stonehammer) and only turned in here; Reagents part 4,
+-- Karnitol part 4 (Roetten Stonehammer, Ironforge) and Down the Scarlet Path part 2 (Raleigh the Devout, Southshore) are accepted here and end elsewhere.
 local DESOLACE = { zone = "Desolace", min = 30, max = 40, steps = {
-    G("Nijel's Point flight path", 64.7, 10.4, 30, "Get the flight path; set hearth with Innkeeper Lyshaerya (66.3, 6.6)"),
+    -- Nijel's Point
+    G("Nijel's Point flight path", 64.7, 10.4, 30, "Grab the flight path; inn and hearth with Innkeeper Lyshaerya next to it"),
     T("Reclaimers' Business in Desolace", "Kreldig Ungor", 66.2, 9.6, 30),
     A("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 30, 1),
     A("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 30, 1),
     A("Vahlarriel's Search", "Vahlarriel Demonslayer", 66.4, 11.8, 30, 1),
+    A("Vahlarriel's Vengeance", "Vahlarriel Demonslayer (Forever NEW)", 66.4, 11.8, 30),
     A("Centaur Bounty", "Corporal Melkins", 66.7, 10.9, 30),
-    A("Strange Alliance", "Captain Pentigast", 66.7, 10.9, 30),
-    A("Down the Scarlet Path", "Brother Anton", 66.5, 7.9, 30),
-    D("Reagents for Reclaimers Inc.", "Sargeron: 10 Hatefury Claws and 10 Hatefury Horns", 72.4, 18.2, 31, 1),
-    D("Reagents for Reclaimers Inc.", "Finish at the northern ruins of Sargeron", 74.2, 11.0, 32, 1),
+    A("Strange Alliance", "Captain Pentigast (needs Gelkis Friendly later)", 66.7, 10.9, 30),
+    A("Carved Centaur Totems", "Captain Pentigast (Forever NEW)", 66.7, 10.9, 30),
+
+    -- Sargeron (east of Nijel's Point)
+    D("Reagents for Reclaimers Inc.", "Kill Hatefury satyrs in the Sargeron ruins for 10 Hatefury Claws and 10 Hatefury Horns", 75.9, 18.7, 31, 1),
     T("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 32, 1),
     A("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 32, 2),
-    T("Vahlarriel's Search", "Tyranis' wagon near Thunder Axe Fortress", 53.0, 29.1, 32, 1),
-    A("Vahlarriel's Search", "Tyranis' wagon near Thunder Axe Fortress", 53.0, 29.1, 32, 2),
-    A("Sceptre of Light", "Azore Aldamort", 38.9, 27.2, 32),
-    T("The Karnitol Shipwreck", "Karnitol's Chest", 36.1, 30.4, 32, 1),
-    A("The Karnitol Shipwreck", "Karnitol's Chest", 36.1, 30.4, 32, 2),
-    A("Claim Rackmore's Treasure!", "Rackmore's Log", 36.1, 30.4, 32),
-    D("Sceptre of Light", "Thunder Axe Fortress main building: kill the Burning Blade Seer for the Sceptre", 55.2, 30.1, 33),
-    T("Sceptre of Light", "Azore Aldamort", 38.9, 27.2, 33),
-    A("Book of the Ancients", "Azore Aldamort", 38.9, 27.2, 33),
-    D("Book of the Ancients", "Get the Book of the Ancients on the north-west coast", 28.2, 6.7, 34),
-    D("Claim Rackmore's Treasure!", "Open Rackmore's chest on Ranazjar Isle (needs Rackmore's Silver and Golden Keys)", 30.0, 8.7, 34),
-    T("Book of the Ancients", "Azore Aldamort", 38.9, 27.2, 34),
-    T("Vahlarriel's Search", "Vahlarriel Demonslayer", 66.4, 11.8, 34, 2),
-    A("Vahlarriel's Search", "Vahlarriel Demonslayer", 66.4, 11.8, 34, 3),
-    T("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 34, 2),
-    A("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 34, 3),
-    T("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 34, 3),
-    T("Vahlarriel's Search", "Dalinda Malem", 54.9, 26.1, 34, 3),
-    A("Search for Tyranis", "Dalinda Malem", 54.9, 26.1, 34),
-    D("Search for Tyranis", "Kill Tyranis Malem (level 36, pull him alone) for the pendant", 53.0, 29.1, 34),
-    T("Search for Tyranis", "Dalinda Malem", 54.9, 26.1, 34),
-    A("Return to Vahlarriel", "Dalinda Malem", 54.9, 26.1, 34),
-    D("Return to Vahlarriel", "Escort Dalinda out of Thunder Axe Fortress", 54.9, 26.1, 34),
-    T("Return to Vahlarriel", "Vahlarriel Demonslayer", 66.4, 11.8, 35),
-    A("Bone Collector", "Bibbly F'utzbuckle", 62.3, 39.0, 35),
-    A("Bodyguard for Hire", "Cork Gizelton", 66.8, 58.1, 35),
-    D("Bodyguard for Hire", "Escort the caravan to Scrabblescrew's Camp", 60.9, 61.9, 35),
-    T("Bodyguard for Hire", "Smeed Scrabblescrew", 60.9, 61.9, 35),
-    A("Kodo Roundup", "Smeed Scrabblescrew", 60.9, 61.9, 35),
-    D("Kodo Roundup", "Kodo Graveyard: use the Kombobulator on kodos, walk 5 back to Smeed", 53.9, 58.1, 35),
-    D("Reagents for Reclaimers Inc.", "3 Aged Kodo Hides from Aged Kodos", 57.8, 71.0, 36, 2),
+
+    -- Malem wagon and Thunder Axe Fortress
+    T("Vahlarriel's Search", "Malem Chest (the Malems' wagon north of Thunder Axe Fortress)", 56.5, 17.8, 32, 1),
+    A("Vahlarriel's Search", "Malem Chest", 56.5, 17.8, 32, 2),
+    T("Vahlarriel's Search", "Vahlarriel Demonslayer", 66.4, 11.8, 32, 2),
+    A("Vahlarriel's Search", "Vahlarriel Demonslayer", 66.4, 11.8, 32, 3),
+    D("Vahlarriel's Vengeance", "Thunder Axe Fortress: kill 4 Burning Blade Augurs, 4 Reavers, 4 Adepts and 4 Felsworn", 54.9, 27.6, 32),
+    T("Vahlarriel's Search", "Dalinda Malem (inside Thunder Axe Fortress)", 54.9, 26.1, 33, 3),
+    A("Search for Tyranis", "Dalinda Malem", 54.9, 26.1, 33),
+    D("Search for Tyranis", "Kill Tyranis Malem (level 36) in the fortress for the Malem Pendant; pull him alone", 53.0, 29.1, 33),
+    T("Search for Tyranis", "Dalinda Malem", 54.9, 26.1, 33),
+    A("Return to Vahlarriel", "Dalinda Malem (ESCORT)", 54.9, 26.1, 33),
+    D("Return to Vahlarriel", "Escort Dalinda Malem out of Thunder Axe Fortress (ESCORT)", 54.9, 26.1, 33),
+    T("Return to Vahlarriel", "Vahlarriel Demonslayer", 66.4, 11.8, 33),
+    T("Vahlarriel's Vengeance", "Vahlarriel Demonslayer", 66.4, 11.8, 33),
+
+    -- Ethel Rethor and the north-west coast
+    A("Sceptre of Light", "Azore Aldamort (tower in Ethel Rethor)", 38.9, 27.2, 33),
+    T("The Karnitol Shipwreck", "Karnitol's Chest (shore below Ethel Rethor)", 36.1, 30.4, 33, 1),
+    A("The Karnitol Shipwreck", "Karnitol's Chest", 36.1, 30.4, 33, 2),
+    A("Claim Rackmore's Treasure!", "Rackmore's Log (next to the chest)", 36.1, 30.4, 33),
+    D("Claim Rackmore's Treasure!", "Kill Drysnap Pincers/Crawlers on the shore south-west of the lighthouse for Rackmore's Silver Key", 34.0, 37.0, 34),
+    D("Claim Rackmore's Treasure!", "Kill Slitherblade naga along Sar'theris Strand for Rackmore's Golden Key", 33.5, 21.0, 34),
+    D("Sceptre of Light", "Thunder Axe Fortress: kill the Burning Blade Seer (level 33) for the Sceptre of Light", 55.2, 30.1, 34),
+    T("Sceptre of Light", "Azore Aldamort", 38.9, 27.2, 34),
+    A("Book of the Ancients", "Azore Aldamort", 38.9, 27.2, 34),
+    D("Book of the Ancients", "Swim to Ranazjar Isle and kill Lord Kragaru (level 38) for the Book of the Ancients", 29.5, 8.0, 34),
+    T("Claim Rackmore's Treasure!", "Rackmore's Chest on Ranazjar Isle (both keys)", 30.0, 8.7, 34),
+    T("Book of the Ancients", "Azore Aldamort", 38.9, 27.2, 35),
+    T("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 35, 2),
+    A("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 35, 3),
+
+    -- South to Kormek's Hut, Kolkar Village and the caravan
+    D("Reagents for Reclaimers Inc.", "Kill Scorpashi scorpids in the hills south of Sargeron for 7 Scorpashi Venom", 70.2, 29.3, 35, 2),
+    A("Bone Collector", "Bibbly F'utzbuckle (Kormek's Hut)", 62.3, 39.0, 35),
+    D("Centaur Bounty", "Kolkar Village: collect 15 Centaur Ears from any centaur", 69.1, 46.5, 35),
+    D("Carved Centaur Totems", "Kolkar Village: loot 5 Carved Centaur Totems from centaur of any clan", 69.1, 46.5, 35),
+    A("Bodyguard for Hire", "Cork Gizelton (caravan on the road north of Kolkar Village; it also parks at Kormek's Hut 60.4,38.1) (ESCORT)", 66.8, 58.1, 36),
+    D("Bodyguard for Hire", "Escort the Gizelton Caravan past Kolkar Village to Scrabblescrew's Camp (ESCORT)", 60.9, 61.9, 36),
+    T("Bodyguard for Hire", "Smeed Scrabblescrew", 60.9, 61.9, 36),
+    A("Kodo Roundup", "Smeed Scrabblescrew", 60.9, 61.9, 36),
+    D("Kodo Roundup", "Kodo Graveyard: use the Kodo Kombobulator on Aged/Ancient Kodos and walk 5 Tamed Kodos back to Smeed", 52.0, 59.0, 36),
+    D("Reagents for Reclaimers Inc.", "Kodo Graveyard: skin/loot 3 Aged Kodo Hides from Aged Kodos", 52.0, 59.0, 36, 2),
+    D("Bone Collector", "Kodo Graveyard: collect 10 Kodo Bones from the bone piles", 51.5, 59.6, 36),
+    A("Ghost-o-plasm Round Up", "Hornizz Brimbuzzle (south-west of the Kodo Graveyard)", 47.8, 61.8, 36),
     T("Kodo Roundup", "Smeed Scrabblescrew", 60.9, 61.9, 36),
-    D("Bone Collector", "Collect 10 Kodo Bones in the Kodo Graveyard", 49.0, 60.1, 36),
-    A("Ghost-o-plasm Round Up", "Hornizz Brimbuzzle", 47.8, 61.8, 36),
-    D("Reagents for Reclaimers Inc.", "7 Scorpashi Venoms in the Scorpashi hills", 40.4, 40.8, 36, 2),
-    A("Get Me Out of Here!", "Melizza Brimbuzzle", 34.0, 53.5, 37),
-    D("Get Me Out of Here!", "Escort Melizza back to Hornizz", 47.8, 61.8, 37),
-    T("Get Me Out of Here!", "Hornizz Brimbuzzle", 47.8, 61.8, 37),
-    D("Centaur Bounty", "Kolkar Village: collect 15 Centaur Ears", 65.6, 70.3, 37),
-    D("Ghost-o-plasm Round Up", "Collect 8 Ghost-o-plasms", 64.2, 91.6, 37),
-    D("Down the Scarlet Path", "Complete Brother Anton's Scarlet objective in the south", 60.0, 88.5, 38),
-    T("Ghost-o-plasm Round Up", "Hornizz Brimbuzzle", 47.8, 61.8, 38),
-    T("Bone Collector", "Bibbly F'utzbuckle", 62.3, 39.0, 38),
-    T("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 38, 2),
-    A("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 38, 3),
-    T("Centaur Bounty", "Corporal Melkins", 66.7, 10.9, 38),
-    T("Down the Scarlet Path", "Brother Anton", 66.5, 7.9, 38),
-    A("Gizelton Caravan", "Rigger Gizelton", 66.7, 58.6, 38),
-    D("Gizelton Caravan", "Protect the caravan on its way to Scrabblescrew's Camp", 60.9, 61.9, 38),
-    T("Gizelton Caravan", "Smeed Scrabblescrew", 60.9, 61.9, 38),
-    D("Reagents for Reclaimers Inc.", "Mannoroc Coven: 10 Felhound Brains, 10 Nether Wings, 10 Doomwarder Blood", 56.5, 73.0, 39, 3),
-    D("Reagents for Reclaimers Inc.", "Rest of the Mannoroc Coven if still short", 51.6, 84.3, 39, 3),
-    G("Gelkis Village (optional): Strange Alliance needs Friendly with the Gelkis, gained by killing Magram centaurs", 36.2, 79.2, 39),
+    A("Gizelton Caravan", "Rigger Gizelton (caravan at Scrabblescrew's Camp / Kormek's Hut) (ESCORT)", 66.7, 58.6, 37),
+    D("Gizelton Caravan", "Escort the Gizelton Caravan south through Mannoroc Coven and back to Scrabblescrew's Camp (ESCORT)", 60.9, 61.9, 37),
+    T("Gizelton Caravan", "Smeed Scrabblescrew", 60.9, 61.9, 37),
+
+    -- Back to Nijel's Point (via Kormek's Hut)
+    T("Bone Collector", "Bibbly F'utzbuckle (Kormek's Hut)", 62.3, 39.0, 37),
+    T("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 37, 2),
+    A("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 37, 3),
+    T("Centaur Bounty", "Corporal Melkins", 66.7, 10.9, 37),
+    T("Carved Centaur Totems", "Captain Pentigast", 66.7, 10.9, 37),
+    A("Buying Friendship: Gelkis", "Captain Pentigast (Forever NEW, gives the Totem Tote)", 66.7, 10.9, 37),
+    A("Down the Scarlet Path", "Brother Anton", 66.5, 7.9, 37, 1),
+
+    -- Mannoroc Coven and the Valley of Bones
+    D("Reagents for Reclaimers Inc.", "Mannoroc Coven: 10 Felhound Brains (Mana Eaters/Felhounds) and 10 Nether Wings (Nether Maidens)", 51.2, 77.2, 38, 3),
+    D("Reagents for Reclaimers Inc.", "Southern Mannoroc Coven: 10 Doomwarder Blood from Doomwarders", 51.6, 83.8, 38, 3),
+    D("Down the Scarlet Path", "Valley of Bones: destroy 30 Undead Ravagers", 63.5, 88.5, 38, 1),
+    D("Ghost-o-plasm Round Up", "Drop the Crate of Ghost Magnets between the two Dead Goliaths at the south end of the valley, kill the Magrami Spectres for 8 Ghost-o-plasm", 63.7, 91.8, 38),
+
+    -- Gelkis Village
+    T("Buying Friendship: Gelkis", "Molkar, Gelkis Quartermaster (south end of Gelkis Village)", 35.7, 92.2, 39),
+    G("Gelkis Village: Strange Alliance needs Friendly with the Gelkis", 36.2, 79.2, 39, "The Totem Tote gives a big boost; if still short, kill Magram centaur east of Scrabblescrew's Camp (Magram Village 72,68). Never kill Gelkis"),
     T("Strange Alliance", "Uthek the Wise", 36.2, 79.2, 39),
     A("Raid on the Kolkar", "Uthek the Wise", 36.2, 79.2, 39),
-    D("Raid on the Kolkar", "Collect 10 Crude Charms from Kolkar centaurs", 65.6, 70.3, 39),
+
+    -- Valley of Spears escort, then the Kolkar
+    A("Get Me Out of Here!", "Melizza Brimbuzzle (Valley of Spears, by the big horn) (ESCORT)", 34.0, 53.5, 39),
+    D("Get Me Out of Here!", "Escort Melizza Brimbuzzle east out of the Valley of Spears to Hornizz (ESCORT)", 47.8, 61.8, 39),
+    T("Get Me Out of Here!", "Hornizz Brimbuzzle", 47.8, 61.8, 39),
+    T("Ghost-o-plasm Round Up", "Hornizz Brimbuzzle", 47.8, 61.8, 39),
+    D("Raid on the Kolkar", "Kolkar Village: loot 10 Crude Charms from Kolkar centaur", 71.7, 45.6, 39),
     T("Raid on the Kolkar", "Uthek the Wise", 36.2, 79.2, 40),
+    G("Gelkis chain continues (optional)", 36.2, 79.2, 40, "Stealing Supplies (6 Crudely Dried Meat, Magram Village) then Ongeku needs a Draenethyst Shard from Ongeku in the Swamp of Sorrows; Khan Jehn, Valley of Bones 93034 and Khan Hratha (lvl 42 ELITE) follow"),
+
+    -- Sar'theris Strand for the satchel, then leave from Nijel's Point
+    D("The Karnitol Shipwreck", "Sar'theris Strand: kill Slitherblade Sea Witches and Tidehunters for Karnitol's Satchel", 33.5, 21.0, 40, 3),
+    T("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 40, 3),
+    A("The Karnitol Shipwreck", "Kreldig Ungor (deliver to Roetten Stonehammer, Ironforge)", 66.2, 9.6, 40, 4),
     T("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 40, 3),
-    A("Reagents for Reclaimers Inc.", "Kreldig Ungor", 66.2, 9.6, 40, 4),
-    A("The Karnitol Shipwreck", "Kreldig Ungor", 66.2, 9.6, 40, 4),
-    G("Nijel's Point flight path", 64.7, 10.4, 40, "Leave the zone: Kreldig's deliveries go to Roetten Stonehammer in Ironforge"),
+    A("Reagents for Reclaimers Inc.", "Kreldig Ungor (Leftwitch's Package to Roetten Stonehammer, Ironforge)", 66.2, 9.6, 40, 4),
+    T("Down the Scarlet Path", "Brother Anton", 66.5, 7.9, 40, 1),
+    A("Down the Scarlet Path", "Brother Anton (letter to Raleigh the Devout, Southshore)", 66.5, 7.9, 40, 2),
+    G("Nijel's Point flight path", 64.7, 10.4, 40, "Leave Desolace: Karnitol's Satchel and Leftwitch's Package go to Roetten Stonehammer in Ironforge (70.0,21.3); Brother Anton's letter to Raleigh the Devout in Southshore, Hillsbrad (51.5,58.4)"),
 } }
 
 -- Sources: https://wowhandbook.com/zones/eastern-kingdoms/stranglethorn-vale/ , https://games.gg/world-of-warcraft/guides/wow-forever-stranglethorn-vale-leveling-guide/ , https://wowforever.wiki.fextralife.com/Stranglethorn+Vale , https://wow4ever.quest/en/npcs (QuestieDB Forever data: givers, objects, coords) ; Classic-only locations (Forever sources silent): https://warcraft.wiki.gg/wiki/Kurzen%27s_Mystery , https://warcraft.wiki.gg/wiki/Raptor_Mastery_(3) , https://warcraft.wiki.gg/wiki/Bhag%27thera , https://warcraft.wiki.gg/wiki/The_Curse_of_the_Tides , https://warcraft.wiki.gg/wiki/A_Meal_Served_Cold
+-- Stranglethorn Vale (Alliance) for WoW: Forever.
+-- Sources: https://wow4ever.quest/en/quests/<slug> and /en/npcs/<npc> (Questie Forever data: ids, givers, coords, min levels, "First you need");
+-- https://foreverchanges.pro/quests/stranglethorn-vale (163-quest Forever list, New/Changed/Elite tags) and /quest/<id> (New quests: givers/coords);
+-- https://www.wowhead.com/forever/quest=<id> (objectives). Classic wiki (warcraft.wiki.gg) only where Forever sources are silent:
+-- Kurzen's Mystery tablet spots, "Pretty Boy" Duncan (beach north of the Booty Bay gate), Altar of the Tides, Colonel Kurzen (Stockpile cave),
+-- Tethis / King Bangalash / Bhag'thera / Sin'Dall, Maury/Jon-Jon/Chucky (Ruins of Jubuwal/Aboraz): those coordinates are approximate.
+-- Part numbers: "The Bloodsail Buccaneers" 1-5 = 595, 597, 599, 604, 608; "Tiger Mastery" 1-4 = 185, 186, 187, 188;
+-- "Panther Mastery" 1-4 = 190, 191, 192, 193; "Raptor Mastery" 1-4 = 194, 195, 196, 197; "Sunken Treasure" 4-5 = 669, 670 (Arathi owns 1-5).
+-- Forever NEW quests used: The Cook in the Cage (97047), Where's the Key? (97329), Zimmix's Great Escape (97331), Anything of Value (97328);
+-- Talk of the Town (98463, accepted in Hillsbrad) is turned in here.
+-- Elite in Forever (marked "ELITE, group"): Colonel Kurzen, Panther Mastery 4, Raptor Mastery 4, Big Game Hunter, The Curse of the Tides.
+-- Left out: Mai'Zoth (46 elite), Excelsior (elite), Cracking Maury's Foot (elite, key source unverified), Stranglethorn Fever 348/349
+-- (two-ID chain whose parts interleave: 348 must be held while 349 is turned in, which the part engine cannot express), Fool's Stout
+-- (needs an Ironforge chain), Reduce, Reuse, Reconcile (giver location unverified), Returning to Port (giver/turn-in coords unverified),
+-- Partial Mystical Notes / Message in a Bottle / Cortello's Riddle / The Captain's Chest chain / An OOX of Your Own (random item drops),
+-- Whiskey Slim's Lost Grog, Akiris by the Bundle 623 (Theramore), A Meal Served Cold (Stormwind) and Pearl Diving (Badlands) belong to other routes.
+-- Cross-zone: Talk of the Town (from Hillsbrad) and Sunken Treasure 4 (from Arathi) are turned in here; Magical Analysis is turned in to
+-- Archmage Ansirem Runeweaver in Dalaran (Alterac Mountains) between visits 2 and 3 and Ansirem's Key is accepted there;
+-- Sunken Treasure 5 -> Shakes O'Breen (Arathi); Stoley's Debt and Tran'rek -> Tanaris.
 local STRANGLETHORN = { zone = "Stranglethorn Vale", min = 30, max = 45, steps = {
-    -- Visit 1 (30-34): Rebel Camp and Kurzen Compound
+    -- Visit 1 (30-35): Rebel Camp and the Kurzen Compound
     G("Rebel Camp, walk south from Duskwood", 38.0, 3.0, 30, "Buy 4 Lesser Bloodstone Ore at the AH beforehand for Favor for Krazek"),
-    A("Jungle Secrets", "Private Thorsen", 40.3, 8.4, 30),
+    A("Jungle Secrets", "Private Thorsen", 38.0, 3.4, 30),
     T("Jungle Secrets", "Lieutenant Doren", 38.0, 3.0, 30),
     A("Bookie Herod", "Lieutenant Doren", 38.0, 3.0, 30),
     A("The Second Rebellion", "Sergeant Yohwa", 38.0, 3.3, 30),
     A("Bad Medicine", "Sergeant Yohwa", 38.0, 3.3, 30),
-    A("Krazek's Cookery", "Corporal Kaleb", 37.7, 3.3, 30),
+    A("The Cook in the Cage", "Wendel Mathers (caged in the Kurzen Compound)", 44.3, 8.0, 31),
     D("The Second Rebellion", "Kill 15 Kurzen Jungle Fighters", 43.6, 9.7, 31),
-    D("Bad Medicine", "Loot 7 Jungle Remedy", 43.7, 9.5, 31),
+    D("Bad Medicine", "Loot 7 Jungle Remedy from Kurzen troops", 43.7, 9.5, 31),
     D("Bad Medicine", "Venom Fern Extract from a Kurzen supplies crate", 44.1, 9.5, 31),
     T("Bookie Herod", "Bookie Herod's Records (object, hut on the compound's west side)", 43.7, 9.4, 31),
     A("The Hidden Key", "Bookie Herod's Records (object)", 43.7, 9.4, 31),
-    T("The Hidden Key", "Bookie Herod's Strongbox (object, east side of the compound by the cave mouth)", 49.6, 7.6, 31),
-    A("The Spy Revealed!", "Bookie Herod's Strongbox (object)", 49.6, 7.6, 31),
+    D("The Cook in the Cage", "Find the Compound Cage Key and a Kurzen Fighter's Uniform inside the Kurzen Compound", 44.0, 9.0, 31),
+    T("The Cook in the Cage", "Wendel Mathers", 44.2, 8.0, 32),
+    T("The Hidden Key", "Bookie Herod's Strongbox (object, east side of the compound by the cave mouth)", 49.6, 7.6, 32),
+    A("The Spy Revealed!", "Bookie Herod's Strongbox (object)", 49.6, 7.6, 32),
     T("The Second Rebellion", "Sergeant Yohwa", 38.0, 3.3, 32),
     T("Bad Medicine", "Sergeant Yohwa", 38.0, 3.3, 32),
     T("The Spy Revealed!", "Lieutenant Doren", 38.0, 3.0, 32),
@@ -1308,6 +1536,7 @@ local STRANGLETHORN = { zone = "Stranglethorn Vale", min = 30, max = 45, steps =
     T("Patrol Schedules", "Corporal Sethman", 37.7, 3.4, 32),
     A("Report to Doren", "Corporal Sethman", 37.7, 3.4, 32),
     T("Report to Doren", "Lieutenant Doren", 38.0, 3.0, 32),
+    A("Krazek's Cookery", "Corporal Kaleb (min level 32)", 37.7, 3.3, 32),
 
     -- Nesingwary's Expedition
     G("Nesingwary's Expedition, south over the river bridge then west", 35.7, 10.8, 32),
@@ -1317,156 +1546,184 @@ local STRANGLETHORN = { zone = "Stranglethorn Vale", min = 30, max = 45, steps =
     A("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 32, 1),
     A("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 32, 1),
     A("The Green Hills of Stranglethorn", "Barnil Stonepot", 35.7, 10.5, 32),
+    A("Chapter I", "Barnil Stonepot (pages 1, 4, 6, 8)", 35.7, 10.5, 32),
+    A("Chapter II", "Barnil Stonepot (pages 10, 11, 14, 16)", 35.7, 10.5, 32),
+    A("Chapter III", "Barnil Stonepot (pages 18, 20, 21, 24)", 35.7, 10.5, 32),
+    A("Chapter IV", "Barnil Stonepot (pages 25, 26, 27)", 35.7, 10.5, 32),
     D("Tiger Mastery", "Kill 10 Young Stranglethorn Tigers", 35.6, 12.1, 32, 1),
     D("Panther Mastery", "Kill 10 Young Panthers", 36.6, 13.8, 32, 1),
-    T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 32, 1),
-    T("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 32, 1),
-    A("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 32, 2),
-    A("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 32, 2),
+    T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 33, 1),
+    T("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 33, 1),
+    A("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 33, 2),
+    A("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 33, 2),
     D("Tiger Mastery", "Kill 10 Stranglethorn Tigers", 36.4, 13.8, 33, 2),
     D("Panther Mastery", "Kill 10 Panthers", 30.4, 8.8, 33, 2),
     D("Raptor Mastery", "Kill 10 Stranglethorn Raptors", 27.8, 14.3, 33, 1),
-    D("Chapter I", "Collect the Chapter I pages of The Green Hills of Stranglethorn", 34.7, 21.9, 33),
     T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 34, 2),
     T("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 34, 2),
     T("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 34, 1),
-    A("Chapter I", "Barnil Stonepot", 35.7, 10.5, 34),
-    T("Chapter I", "Barnil Stonepot", 35.7, 10.5, 34),
 
-    -- Booty Bay pickups
-    G("Booty Bay flight path (Alliance)", 27.5, 77.7, 34, "Walk the road south or fly; set hearth here"),
+    -- Booty Bay pick-ups
+    G("Booty Bay flight path (Alliance)", 27.5, 77.7, 34, "Walk the road south or fly; set your hearth at the Salty Sailor Tavern"),
+    T("Talk of the Town", "Nixxrax Fillamug (Salty Sailor Tavern; quest from Hillsbrad)", 27.1, 77.3, 34),
     T("Krazek's Cookery", "Krazek", 26.9, 77.2, 34),
-    A("Favor for Krazek", "Krazek", 26.9, 77.2, 34),
+    A("Favor for Krazek", "Krazek (needs 4 Lesser Bloodstone Ore)", 26.9, 77.2, 34),
     T("Favor for Krazek", "Krazek", 26.9, 77.2, 34),
     A("Return to Corporal Kaleb", "Krazek", 26.9, 77.2, 34),
     A("Supplies to Private Thorsen", "Krazek", 26.9, 77.2, 34),
     A("Investigate the Camp", "Krazek", 26.9, 77.2, 34),
     A("The Haunted Isle", "Krazek", 26.9, 77.2, 34),
+    T("The Haunted Isle", "Baron Revilgaz (top floor of the inn)", 27.2, 76.9, 34),
+    A("The Stone of the Tides", "Baron Revilgaz", 27.2, 76.9, 34),
     A("Supply and Demand", "Drizzlik", 28.3, 77.6, 34),
     A("Singing Blue Shards", "Crank Fizzlebub", 27.1, 77.2, 34),
     A("Bloodscalp Ears", "Kebok", 27.0, 77.1, 34),
     A("Hostile Takeover", "Kebok", 27.0, 77.1, 34),
     D("Singing Blue Shards", "Collect 10 Singing Crystal Shards from Crystal Spine Basilisks", 39.1, 52.0, 34),
-    D("Bloodscalp Ears", "Collect 15 Bloodscalp Ears from the coastal trolls", 29.8, 21.6, 35),
-    D("Supply and Demand", "Collect 2 Large River Crocolisk Skins", 39.9, 11.5, 35),
-    T("Supplies to Private Thorsen", "Private Thorsen", 40.3, 8.4, 35),
+    D("Investigate the Camp", "Walk among the hunters' tents at Nesingwary's Expedition", 35.7, 10.8, 35),
+    D("Supply and Demand", "Collect 2 Large River Crocolisk Skins in the river", 39.9, 11.5, 35),
+    T("Supplies to Private Thorsen", "Private Thorsen", 38.0, 3.4, 35),
     T("Return to Corporal Kaleb", "Corporal Kaleb", 37.7, 3.3, 35),
 
-    -- Visit 2 (35-40): Nesingwary tier 3, Kurzen, Lake Nazferiti
+    -- Visit 2 (35-40): Kurzen again, Nesingwary tier 2-3, Zul'Kunda
     A("Kurzen's Mystery", "Brother Nimetz", 37.8, 3.6, 35),
-    A("Troll Witchery", "Brother Nimetz", 37.8, 3.6, 35),
     A("Special Forces", "Sergeant Yohwa", 38.0, 3.3, 35),
-    D("Special Forces", "Kill Kurzen Headshrinkers", 46.3, 7.0, 35),
-    D("Special Forces", "Kill Kurzen Commandos", 46.5, 6.9, 35),
-    D("Hostile Takeover", "Loot 8 Tumbled Crystals at the Venture Co. camp on Lake Nazferiti", 47.7, 19.0, 36),
-    D("Chapter II", "Collect the Chapter II pages", 44.7, 11.0, 36),
-    D("Chapter III", "Collect the Chapter III pages", 44.7, 11.0, 36),
+    D("Special Forces", "Kill 6 Kurzen Headshrinkers", 46.3, 7.0, 35),
+    D("Special Forces", "Kill 10 Kurzen Commandoes", 46.5, 6.9, 36),
+    D("Chapter I", "Green Hills pages 1, 4, 6, 8 drop at random from STV mobs (or buy them on the AH)", 44.7, 11.0, 36),
     T("Special Forces", "Lieutenant Doren", 38.0, 3.0, 36),
-    A("Colonel Kurzen", "Lieutenant Doren", 38.0, 3.0, 36),
     G("Nesingwary's Expedition", 35.7, 10.8, 36),
-    D("Investigate the Camp", "Walk among the hunters' tents at Nesingwary's Expedition", 35.7, 10.8, 36),
-    A("Chapter II", "Barnil Stonepot", 35.7, 10.5, 36),
-    T("Chapter II", "Barnil Stonepot", 35.7, 10.5, 36),
-    A("Chapter III", "Barnil Stonepot", 35.7, 10.5, 36),
-    T("Chapter III", "Barnil Stonepot", 35.7, 10.5, 36),
     A("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 36, 3),
     A("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 36, 2),
     A("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 36, 3),
+    A("Anything of Value", "Thoroughly Scavenged Supplies (object)", 31.5, 12.8, 36),
     D("Tiger Mastery", "Kill 10 Elder Stranglethorn Tigers", 31.3, 16.6, 36, 3),
-    D("Raptor Mastery", "Kill 10 Lashtail Raptors", 32.0, 20.7, 36, 2),
-    T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 37, 3),
-    T("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 37, 2),
-    A("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 37, 4),
-    D("Tiger Mastery", "Kill Sin'Dall on the hilltop and take his paw", 31.5, 15.5, 37, 4),
-    T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 37, 4),
+    D("Raptor Mastery", "Kill 10 Lashtail Raptors", 32.0, 20.7, 37, 2),
     D("Kurzen's Mystery", "Tablet 'Moon Over the Vale', NW corner of the Bal'lal Ruins", 29.0, 19.0, 37),
+    D("Bloodscalp Ears", "Collect 15 Bloodscalp Ears from the coastal trolls", 29.8, 21.6, 37),
     D("Kurzen's Mystery", "Tablet 'Gri'lek the Wanderer', underwater on the Vile Reef's outer wall", 24.0, 22.0, 37),
+    D("The Stone of the Tides", "Find the haunted island off the Vile Reef", 21.0, 22.8, 37),
+    A("Where's the Key?", "Zimmix Sputterspark (Ruins of Zul'Kunda)", 23.4, 12.7, 37),
     D("Kurzen's Mystery", "Tablet 'Fall of Gurubashi', Zul'Kunda main compound on the plateau", 22.0, 12.0, 37),
     D("Kurzen's Mystery", "Tablet 'The Emperor's Tomb', Zul'Kunda NW room by the pool", 24.0, 9.0, 37),
+    D("Where's the Key?", "Take the Primitive Key from the Zul'Kunda trolls", 22.5, 11.5, 37),
+    D("Anything of Value", "Recover 8 Stolen Shipments in the Ruins of Zul'Kunda", 22.5, 11.0, 37),
+    T("Where's the Key?", "Zimmix Sputterspark", 23.4, 12.7, 38),
+    A("Zimmix's Great Escape", "Zimmix Sputterspark (ESCORT)", 23.4, 12.7, 38),
+    D("Zimmix's Great Escape", "Escort Zimmix Sputterspark out of the Ruins of Zul'Kunda (ESCORT); report to Wharfmaster Lozgil later", 23.4, 12.7, 38),
+    T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 38, 3),
+    T("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 38, 2),
+    A("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 38, 4),
+    A("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 38, 3),
+    D("Tiger Mastery", "Kill Sin'Dall on the hilltop and take his paw", 31.5, 15.5, 38, 4),
+    T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 38, 4),
     D("Panther Mastery", "Kill 10 Shadowmaw Panthers", 48.1, 20.2, 38, 3),
-    D("Troll Witchery", "Collect 4 Skullsplitter Fetishes", 42.5, 33.3, 38),
+    D("Hostile Takeover", "Loot 8 Tumbled Crystals at the Venture Co. camp on Lake Nazferiti", 47.7, 19.0, 38),
+    D("Chapter II", "Green Hills pages 10, 11, 14, 16 drop at random from STV mobs (or buy them on the AH)", 44.7, 11.0, 38),
+    T("Kurzen's Mystery", "Brother Nimetz", 37.8, 3.6, 38),
+    A("Troll Witchery", "Brother Nimetz", 37.8, 3.6, 38),
     T("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 38, 3),
     A("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 38, 4),
-    T("Troll Witchery", "Brother Nimetz", 37.8, 3.6, 38),
-    T("Kurzen's Mystery", "Brother Nimetz", 37.8, 3.6, 38),
 
-    -- Back to Booty Bay
-    G("Booty Bay flight path (Alliance)", 27.5, 77.7, 38),
-    T("Investigate the Camp", "Krazek", 26.9, 77.2, 38),
-    T("The Haunted Isle", "Baron Revilgaz", 27.2, 76.9, 38),
-    T("Singing Blue Shards", "Crank Fizzlebub", 27.1, 77.2, 38),
-    T("Bloodscalp Ears", "Kebok", 27.0, 77.1, 38),
-    T("Hostile Takeover", "Kebok", 27.0, 77.1, 38),
-    T("Supply and Demand", "Drizzlik", 28.3, 77.6, 38),
-    A("Some Assembly Required", "Drizzlik", 28.3, 77.6, 38),
-    A("The Stone of the Tides", "Baron Revilgaz", 27.2, 76.9, 38),
+    -- Booty Bay, the haunted isle and the crocolisks
+    G("Booty Bay flight path (Alliance)", 27.5, 77.7, 39),
+    T("Investigate the Camp", "Krazek", 26.9, 77.2, 39),
     T("The Stone of the Tides", "Baron Revilgaz", 27.2, 76.9, 39),
     A("Water Elementals", "Baron Revilgaz", 27.2, 76.9, 39),
-    D("Water Elementals", "Collect 6 Water Elemental Bracers", 21.5, 24.7, 39),
-    D("Some Assembly Required", "Collect Snapjaw Crocolisk Skins", 37.9, 32.6, 39),
+    T("Singing Blue Shards", "Crank Fizzlebub", 27.1, 77.2, 39),
+    A("Venture Company Mining", "Crank Fizzlebub", 27.1, 77.2, 39),
+    T("Bloodscalp Ears", "Kebok", 27.0, 77.1, 39),
+    T("Hostile Takeover", "Kebok", 27.0, 77.1, 39),
+    T("Supply and Demand", "Drizzlik", 28.3, 77.6, 39),
+    A("Some Assembly Required", "Drizzlik", 28.3, 77.6, 39),
+    T("Anything of Value", "Wharfmaster Lozgil (docks)", 26.3, 73.5, 39),
+    T("Zimmix's Great Escape", "Wharfmaster Lozgil (docks)", 26.3, 73.5, 39),
+    D("Some Assembly Required", "Collect 5 Snapjaw Crocolisk Skins", 37.9, 32.6, 39),
+    D("Water Elementals", "Collect 6 Water Elemental Bracers on the haunted island", 21.5, 24.7, 39),
     T("Water Elementals", "Baron Revilgaz", 27.2, 76.9, 40),
+    A("Magical Analysis", "Baron Revilgaz (turn in to Ansirem in Dalaran, Alterac Mountains)", 27.2, 76.9, 40),
     T("Some Assembly Required", "Drizzlik", 28.3, 77.6, 40),
+    G("Booty Bay flight path: leave the zone for now", 27.5, 77.7, 40, "Take Magical Analysis to Archmage Ansirem Runeweaver in Dalaran (Alterac Mountains 18.8, 78.5, via Southshore) while you level in Hillsbrad/Arathi; accept Ansirem's Key there and bring it back to Catelyn the Blade"),
 
-    -- Visit 3 (41-45): Bloodsail Buccaneers, gorillas, Zanzil
+    -- Visit 3 (41-45): Bloodsail Buccaneers, Duncan, the jungle's south half, Nesingwary finale
+    G("Booty Bay flight path (Alliance)", 27.5, 77.7, 41, "Back with Ansirem's Key (Alterac) and Sunken Treasure (Arathi)"),
+    T("Ansirem's Key", "Catelyn the Blade (Salty Sailor Tavern; quest from Ansirem, Alterac)", 27.3, 77.5, 41),
+    A("\"Pretty Boy\" Duncan", "Catelyn the Blade", 27.3, 77.5, 41),
+    T("Sunken Treasure", "Fleet Master Seahorn (quest from Shakes O'Breen, Arathi)", 27.2, 77.0, 41, 4),
+    A("Sunken Treasure", "Fleet Master Seahorn (turn in to Shakes O'Breen, Arathi)", 27.2, 77.0, 41, 5),
     A("The Bloodsail Buccaneers", "First Mate Crazz", 28.1, 76.2, 41, 1),
-    T("The Bloodsail Buccaneers", "First Mate Crazz", 28.1, 76.2, 41, 1),
-    A("The Bloodsail Buccaneers", "First Mate Crazz", 28.1, 76.2, 41, 2),
-    T("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 41, 2),
-    A("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 41, 3),
-    A("Skullsplitter Tusks", "Kebok", 27.0, 77.1, 41),
     A("Scaring Shaky", "\"Sea Wolf\" MacKinley", 27.8, 77.1, 41),
-    A("Voodoo Dues", "\"Sea Wolf\" MacKinley", 27.8, 77.1, 41),
+    A("Skullsplitter Tusks", "Kebok", 27.0, 77.1, 41),
     A("Zanzil's Secret", "Crank Fizzlebub", 27.1, 77.2, 41),
     A("Akiris by the Bundle", "Privateer Bloads", 26.8, 76.4, 41),
-    A("The Curse of the Tides", "Catelyn the Blade (inn; after the \"Pretty Boy\" Duncan chain)", 27.3, 77.5, 41),
-    D("The Bloodsail Buccaneers", "Loot the Bloodsail Charts in the Wild Shore camp", 27.7, 83.1, 41, 3),
-    D("Keep An Eye Out", "Loot Dizzy's Eye from Bloodsails", 29.6, 80.9, 41),
-    D("Up to Snuff", "Collect 15 Snuff from any Bloodsail", 28.2, 82.4, 41),
+    T("The Bloodsail Buccaneers", "Bloodsail Correspondence (cove north of Booty Bay)", 27.3, 69.5, 41, 1),
+    A("The Bloodsail Buccaneers", "Bloodsail Correspondence (object)", 27.3, 69.5, 41, 2),
+    D("\"Pretty Boy\" Duncan", "Kill \"Pretty Boy\" Duncan on the beach north of the Booty Bay gate and take Catelyn's Blade", 27.0, 69.8, 41),
+    D("Akiris by the Bundle", "Collect 10 Bundles of Akiris Reed along the shore", 28.2, 64.4, 41),
+    D("Scaring Shaky", "Collect 5 Mistvale Giblets from Mistvale gorillas", 30.9, 66.7, 42),
+    T("\"Pretty Boy\" Duncan", "Catelyn the Blade", 27.3, 77.5, 42),
+    A("The Curse of the Tides", "Catelyn the Blade (ELITE, group)", 27.3, 77.5, 42),
+    T("The Bloodsail Buccaneers", "First Mate Crazz", 28.1, 76.2, 42, 2),
+    A("The Bloodsail Buccaneers", "First Mate Crazz", 28.1, 76.2, 42, 3),
     T("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 42, 3),
     A("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 42, 4),
-    D("The Bloodsail Buccaneers", "Kill 10 Bloodsail Swashbucklers", 28.2, 82.4, 42, 4),
-    T("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 42, 4),
-    D("Scaring Shaky", "Collect Mistvale Giblets from Mistvale gorillas", 30.9, 66.7, 42),
-    D("Akiris by the Bundle", "Collect 10 Akiris Reeds on the naga beaches", 28.2, 64.4, 42),
-    D("Chapter IV", "Collect the Chapter IV pages", 32.5, 81.6, 42),
-    D("Voodoo Dues", "Kill Maury Club Foot Wilkins and Jon-Jon the Crow for Maury's Clubbed Foot and Jon-Jon's Golden Spyglass", 34.9, 51.8, 42),
-    D("Zanzil's Secret", "Collect 12 vials of Zanzil's Mixture in Zanzil's village", 38.7, 59.8, 43),
+    A("Keep An Eye Out", "Dizzy One-Eye", 28.6, 75.9, 42),
+    A("Up to Snuff", "Deeg", 26.9, 77.3, 42),
+    T("Akiris by the Bundle", "Privateer Bloads", 26.8, 76.4, 42),
+    T("Scaring Shaky", "\"Shaky\" Phillipe (on the docks)", 26.9, 73.6, 42),
+    A("Return to MacKinley", "\"Shaky\" Phillipe (on the docks)", 26.9, 73.6, 42),
+    T("Return to MacKinley", "\"Sea Wolf\" MacKinley", 27.8, 77.1, 42),
+    A("Voodoo Dues", "\"Sea Wolf\" MacKinley", 27.8, 77.1, 42),
+    A("Stoley's Debt", "\"Sea Wolf\" MacKinley (turn in to Stoley, Tanaris)", 27.8, 77.1, 42),
+    A("Tran'rek", "Krazek (turn in to Tran'rek, Gadgetzan, Tanaris)", 26.9, 77.2, 42),
+    D("The Bloodsail Buccaneers", "Kill 10 Bloodsail Swashbucklers; loot the Bloodsail Charts and Bloodsail Orders in the Wild Shore camps", 27.7, 83.1, 42, 4),
+    D("Keep An Eye Out", "Loot Dizzy's Eye from the Bloodsails", 29.6, 80.9, 43),
+    D("Up to Snuff", "Collect 15 Snuff from any Bloodsail", 28.2, 82.4, 43),
+    D("Chapter III", "Green Hills pages 18, 20, 21, 24 drop at random from STV mobs (or buy them on the AH)", 32.5, 81.6, 43),
+    T("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 43, 4),
+    T("Keep An Eye Out", "Dizzy One-Eye", 28.6, 75.9, 43),
+    T("Up to Snuff", "Deeg", 26.9, 77.3, 43),
+
+    -- North through the jungle
+    D("Voodoo Dues", "Kill Maury \"Club Foot\" Wilkins, Jon-Jon the Crow and Chucky \"Ten Thumbs\" (Ruins of Jubuwal/Aboraz) for the foot, spyglass and ring", 34.9, 51.8, 43),
     D("Venture Company Mining", "Collect 10 Singing Blue Crystals at the Crystalvein Mine", 36.5, 57.1, 43),
-    D("Skullsplitter Tusks", "Collect 18 Skullsplitter Tusks", 45.6, 41.6, 43),
-    D("A Meal Served Cold", "Chilled Basilisk Haunch from Cold Eye Basilisks (quest from Angus Stern, Stormwind)", 38.1, 40.4, 43),
-    D("Panther Mastery", "Kill Bhag'thera north of the Mosh'Ogg Ogre Mound (alt spawn 47, 28)", 49.0, 23.0, 43, 4),
-    G("Nesingwary's Expedition", 35.7, 10.8, 43),
-    T("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 43, 4),
-    A("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 43, 3),
+    D("Zanzil's Secret", "Collect 12 Zanzil's Mixture in Zanzil's village", 38.7, 59.8, 43),
     D("Raptor Mastery", "Kill 10 Jungle Stalkers north and west of Gurubashi Arena", 32.0, 40.0, 43, 3),
-    T("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 43, 3),
-    A("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 43, 4),
-    T("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 44, 4),
-    A("Big Game Hunter", "Hemet Nesingwary", 35.7, 10.8, 44),
-    A("Chapter IV", "Barnil Stonepot", 35.7, 10.5, 44),
+    D("Skullsplitter Tusks", "Collect 18 Skullsplitter Tusks", 45.6, 41.6, 44),
+    D("Troll Witchery", "Collect 4 Skullsplitter Fetishes", 42.5, 33.3, 44),
+    D("Chapter IV", "Green Hills pages 25, 26, 27 drop at random from STV mobs (or buy them on the AH)", 42.5, 33.3, 44),
+    D("Panther Mastery", "Kill Bhag'thera north of the Mosh'Ogg Ogre Mound for his fang (alt spawn 47, 28) (ELITE, group)", 49.0, 23.0, 44, 4),
+    T("Troll Witchery", "Brother Nimetz", 37.8, 3.6, 44),
+    A("Colonel Kurzen", "Lieutenant Doren (ELITE, group)", 38.0, 3.0, 44),
+    D("Colonel Kurzen", "Kill 6 Kurzen Elites, 4 Kurzen Subchiefs and Colonel Kurzen in the Stockpile cave for his head (ELITE, group)", 49.6, 7.6, 44),
+    T("Colonel Kurzen", "Lieutenant Doren", 38.0, 3.0, 44),
+    G("Nesingwary's Expedition", 35.7, 10.8, 44),
+    T("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 44, 4),
+    T("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 44, 3),
+    A("Raptor Mastery", "Hemet Nesingwary (ELITE, group)", 35.7, 10.8, 44, 4),
+    T("Chapter I", "Barnil Stonepot", 35.7, 10.5, 44),
+    T("Chapter II", "Barnil Stonepot", 35.7, 10.5, 44),
+    T("Chapter III", "Barnil Stonepot", 35.7, 10.5, 44),
     T("Chapter IV", "Barnil Stonepot", 35.7, 10.5, 44),
     T("The Green Hills of Stranglethorn", "Barnil Stonepot", 35.7, 10.5, 44),
-    D("Big Game Hunter", "Kill King Bangalash and take his head", 38.2, 35.6, 44),
-    T("Big Game Hunter", "Hemet Nesingwary", 35.7, 10.8, 44),
-    D("The Curse of the Tides", "Destroy the Altar of the Tides with Catelyn's Blade, kill Gazban, take the Stone of the Tides", 25.0, 23.6, 44),
-    D("Pearl Diving", "Loot 9 Blue Pearls from Giant Clams (quest from Rigglefuzz, Badlands)", 27.6, 29.2, 44),
-    G("Booty Bay flight path (Alliance)", 27.5, 77.7, 44),
-    T("Scaring Shaky", "\"Shaky\" Phillipe (on the docks)", 26.9, 73.6, 44),
-    A("Return to MacKinley", "\"Shaky\" Phillipe (on the docks)", 26.9, 73.6, 44),
-    T("Return to MacKinley", "\"Sea Wolf\" MacKinley", 27.8, 77.1, 44),
-    T("Voodoo Dues", "\"Sea Wolf\" MacKinley", 27.8, 77.1, 44),
-    T("Zanzil's Secret", "Crank Fizzlebub", 27.1, 77.2, 44),
-    T("Akiris by the Bundle", "Privateer Bloads", 26.8, 76.4, 44),
-    T("The Curse of the Tides", "Baron Revilgaz", 27.2, 76.9, 44),
-    T("Skullsplitter Tusks", "Kebok", 27.0, 77.1, 44),
-    A("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 44, 5),
-    D("The Bloodsail Buccaneers", "Kill Captain Keelhaul (group recommended)", 29.3, 88.3, 45, 5),
-    D("The Bloodsail Buccaneers", "Kill Captain Stillwater and Fleet Master Firallon on the ships", 32.9, 88.2, 45, 5),
+    D("Raptor Mastery", "Kill Tethis north of Gurubashi Arena for his talon (ELITE, group)", 31.5, 42.0, 45, 4),
+    T("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 45, 4),
+    A("Big Game Hunter", "Hemet Nesingwary (ELITE, group)", 35.7, 10.8, 45),
+    D("Big Game Hunter", "Kill King Bangalash on the hill west of the road, north of Gurubashi Arena (ELITE, group)", 38.2, 35.6, 45),
+    T("Big Game Hunter", "Hemet Nesingwary", 35.7, 10.8, 45),
+    D("The Curse of the Tides", "Destroy the Altar of the Tides with Catelyn's Blade, kill Gazban, take the Stone of the Tides (ELITE, group)", 25.0, 23.6, 45),
+
+    -- Booty Bay wrap-up
+    G("Booty Bay flight path (Alliance)", 27.5, 77.7, 45),
+    T("The Curse of the Tides", "Baron Revilgaz", 27.2, 76.9, 45),
+    T("Voodoo Dues", "\"Sea Wolf\" MacKinley", 27.8, 77.1, 45),
+    T("Venture Company Mining", "Crank Fizzlebub", 27.1, 77.2, 45),
+    T("Zanzil's Secret", "Crank Fizzlebub", 27.1, 77.2, 45),
+    T("Skullsplitter Tusks", "Kebok", 27.0, 77.1, 45),
+    A("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 45, 5),
+    D("The Bloodsail Buccaneers", "Kill Captain Keelhaul, Captain Stillwater and Fleet Master Firallon on the Bloodsail ships (group recommended)", 32.9, 88.2, 45, 5),
     T("The Bloodsail Buccaneers", "Fleet Master Seahorn", 27.2, 77.0, 45, 5),
-    A("Stranglethorn Fever", "Witch Doctor Unbagwa", 35.3, 60.4, 45),
-    D("Stranglethorn Fever", "Collect Gorilla Fangs, then summon and kill Mokk for the Heart of Mokk (group)", 35.0, 60.9, 45),
-    T("Stranglethorn Fever", "Witch Doctor Unbagwa", 35.3, 60.4, 45),
-    G("Booty Bay flight path: head on to Tanaris", 27.5, 77.7, 45, "Krazek's Tran'rek and MacKinley's Stoley's Debt lead to Tanaris"),
+    G("Booty Bay flight path: leave Stranglethorn", 27.5, 77.7, 45, "Stoley's Debt and Tran'rek go to Tanaris; Sunken Treasure part 5 goes to Shakes O'Breen (Faldir's Cove, Arathi Highlands)"),
 } }
 
 -- Sources: https://wowhandbook.com/zones/kalimdor/tanaris/ , https://wow4ever.quest/en/npcs (per-NPC pages, QuestieDB Forever data) , https://wowpedia.fandom.com/wiki/WANTED:_Caliph_Scorpidsting
@@ -1808,82 +2065,95 @@ local HINTERLANDS = { zone = "The Hinterlands", min = 43, max = 51, steps = {
 } }
 
 -- Sources: https://wowhandbook.com/zones/kalimdor/ungoro-crater/ ; https://wow4ever.quest/en/npcs (NPC pages: linken, j-d-collie, torwa-pathfinder, muigin, spraggle-frock, krakle, karna-remtravel) ; https://github.com/Ludovicus-Maior/WoW-Pro-Guides/tree/main/WoWPro_Leveling/Forever/Alliance (50_55_Alliance.lua, 55_60_Alliance.lua) ; https://warcraft.wiki.gg/wiki/It%27s_a_Secret_to_Everybody ; https://warcraft.wiki.gg/wiki/Linken%27s_Sword
+-- Un'Goro Crater (Alliance) for WoW: Forever.
+-- Sources: https://wow4ever.quest/en/quests/<slug> and /en/npcs/<slug> (Questie Forever data 1.60.1: IDs, min levels, givers, coords, "First you need");
+-- https://foreverchanges.pro/quests/ungoro-crater (51-quest Forever list, Changed/Elite tags) and /quest/<id> (3883, 3881, 3962, 5150, 9063);
+-- warcraft.wiki.gg (objective spots only: Crate of Foodstuffs 68.5,36.6; Research Equipment 38.5,66; Threshadon carcass; Slithering Scar hatchery 49,85;
+-- Fire Plume hot spot 48.3,43.3; Blazerunner 49.2,49.0; Ornate Chest 50.2,50; Frenzied Pterrordax 21,39; Terror Run bones; Flat Un'Goro Rock 79.8,49.8). Forever "New": none in this zone.
+-- Forever "Changed": Alien Ecology 3883 (5,100 XP instead of 3,050) and Expedition Salvation 3881 (5,250 XP instead of 4,200); Forever "Elite": It's Dangerous to Go Alone 3962.
+-- Part numbers: "It's a Secret to Everybody" 1-3 = 3844, 3845, 3908 (part 3 turned in to Donova Snowden, Winterspring); "Chasing A-Me 01" 1-3 = 4243, 4244, 4245.
+-- Left out: Haze of Evil 4143 + Bloodpetal Sprouts 4144 (Sunken Temple dungeon chain after A Visit to Gregan); Crystal Charge/Force/Restore/Spire/Ward/Yield 4381-4386 (pylon repeatables);
+-- Torwa Pathfinder 9063 / Bloodpetal Poison 9052 / Toxic Test / A Better Ingredient 9053 (Druid class chain); Larion and Muigin 4145, Marvon's Workshop 4147, Bloodpetal Zapper 4148 (Horde);
+-- Volcanic Activity 4502 (starts and ends at Liv Rizzlefix, Ratchet); The Videre Elixir 3909, Meet at the Grave 3912, A Grave Situation 3913 (Winterspring/Tanaris legs of the Linken chain).
+-- Cross-zone: It's a Secret to Everybody 3 and The New Springs end at Donova Snowden (Winterspring); A Visit to Gregan ends at Gregan Brewspewer (Feralas 45.1,25.6);
+-- Linken's Memory ends at Eridan Bluewind (Felwood 51.4,81.5); Linken's Sword (picked up at A Conspicuous Gravestone, Tanaris) and Aquementas (Felwood) are only turned in here.
 local UNGORO = { zone = "Un'Goro Crater", min = 48, max = 56, steps = {
-    -- Southeast entrance (from Tanaris ramp)
-    G("Torwa Pathfinder, bottom of the ramp", 71.6, 76.0, 48, "Loot Power Crystals (red/blue/green/yellow) whenever you pass them"),
+    -- South-east entrance (down the ramp from Tanaris)
+    G("Torwa Pathfinder at the bottom of the Tanaris ramp", 71.6, 76.0, 48, "Loot every Power Crystal (red, blue, green, yellow) you pass; you need 7 of each later"),
     A("The Apes of Un'Goro", "Torwa Pathfinder", 71.6, 76.0, 48),
     A("The Fare of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 48),
-    A("It's a Secret to Everybody", "A Wrecked Raft", 63.0, 68.5, 48, 1),
+    A("It's a Secret to Everybody", "A Wrecked Raft (in the pond)", 63.0, 68.6, 48, 1),
     T("It's a Secret to Everybody", "A Small Pack", 63.1, 69.1, 48, 1),
     A("It's a Secret to Everybody", "A Small Pack", 63.1, 69.1, 48, 2),
-    D("The Fare of Lar'korwi", "Loot meat from the Fresh Threshadon Carcass", 68.7, 56.9, 48),
-    T("The Fare of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 49),
-    A("The Scent of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 49),
-    D("The Scent of Lar'korwi", "Step on raptor eggs, kill Lar'korwi Mate for Pheromone Glands", 67.0, 73.0, 49),
+    D("The Fare of Lar'korwi", "Loot a Piece of Threshadon Carcass from the Fresh Threshadon Carcass south of the pond", 64.2, 74.2, 48),
+    T("The Fare of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 48),
+    A("The Scent of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 48),
+    D("The Scent of Lar'korwi", "Walk up to the ravasaur nests west of Torwa; kill the Lar'korwi's Mates that spawn for 2 Ravasaur Pheromone Glands", 66.5, 74.0, 48),
     T("The Scent of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 49),
-    A("Williden's Journal", "A Mangled Journal (raptor drop)", 65.8, 71.1, 49),
+    A("Williden's Journal", "A Mangled Journal (random drop from Un'Goro beasts, keep killing on the way)", 65.8, 71.1, 49),
 
-    -- North to Marshal's Refuge
-    A("Chasing A-Me 01", "Karna Remtravel", 46.4, 13.4, 49, 1),
-    G("Marshal's Refuge flight path", 45.2, 5.8, 49, "Get the flight path (Gryfe)"),
+    -- North along the east side to Marshal's Refuge
+    G("Marshal's Refuge flight path (Gryfe)", 45.2, 5.8, 49, "Grab the flight path"),
     T("It's a Secret to Everybody", "Linken", 44.7, 8.1, 49, 2),
-    A("It's a Secret to Everybody", "Linken", 44.7, 8.1, 49, 3),
+    A("It's a Secret to Everybody", "Linken (part 3 is turned in to Donova Snowden, Winterspring)", 44.7, 8.1, 49, 3),
     T("Williden's Journal", "Williden Marshal", 44.0, 7.1, 49),
     A("Expedition Salvation", "Williden Marshal", 44.0, 7.1, 49),
     A("Alien Ecology", "Hol'anyee Marshal", 43.9, 7.2, 49),
-    A("Crystals of Power", "J.D. Collie", 41.9, 2.7, 49),
-    T("Crystals of Power", "J.D. Collie", 41.9, 2.7, 49),
-    A("The Northern Pylon", "J.D. Collie", 41.9, 2.7, 49),
-    A("The Eastern Pylon", "J.D. Collie", 41.9, 2.7, 49),
-    A("The Western Pylon", "J.D. Collie", 41.9, 2.7, 49),
+    A("Dadanga is Hungry!", "Dadanga (the kodo)", 43.6, 7.2, 49),
     A("Roll the Bones", "Spark Nilminer", 43.5, 7.4, 49),
     A("Beware of Pterrordax", "Beware of Pterrordax (sign)", 43.5, 8.4, 49),
-    A("Lost!", "Spraggle Frock", 43.6, 8.5, 49),
     A("Muigin and Larion", "Muigin", 42.9, 9.6, 49),
     A("Shizzle's Flyer", "Shizzle", 44.2, 11.6, 49),
-    T("Linken's Sword", "Linken", 44.7, 8.1, 49),
-    A("A Gnome's Assistance", "Linken", 44.7, 8.1, 49),
-    T("A Gnome's Assistance", "J.D. Collie", 41.9, 2.7, 49),
-    A("Linken's Memory", "J.D. Collie", 41.9, 2.7, 49),
+    A("Crystals of Power", "J.D. Collie (in the cave)", 41.9, 2.7, 49),
+    A("Chasing A-Me 01", "Karna Remtravel", 46.4, 13.4, 49, 1),
 
-    -- Northern loop
-    D("The Northern Pylon", "Examine the Northern Crystal Pylon", 56.5, 12.4, 50),
-    D("The Apes of Un'Goro", "Kill gorillas for 2 Gorilla, 2 Stomper, 2 Thunderer pelts", 65.7, 15.5, 50),
-    T("Chasing A-Me 01", "A-Me 01", 67.7, 16.8, 50, 1),
+    -- North-east loop: Northern Pylon crystals, Fungal Rock gorillas, A-Me 01
+    D("Crystals of Power", "Loot 7 Red, 7 Blue, 7 Green and 7 Yellow Power Crystals (glowing crystals around the pylons and all over the crater)", 56.5, 12.5, 49),
+    D("Dadanga is Hungry!", "Open the big green Bloodpetal Sprout plants for 15 Bloodpetal Sprouts", 58.0, 18.0, 49),
+    D("The Apes of Un'Goro", "Kill gorillas in Fungal Rock for 2 Un'Goro Gorilla, 2 Un'Goro Stomper and 2 Un'Goro Thunderer Pelts", 64.5, 15.5, 50),
+    T("Chasing A-Me 01", "A-Me 01 (by the pool outside Fungal Rock)", 67.7, 16.8, 50, 1),
     A("Chasing A-Me 01", "A-Me 01", 67.7, 16.8, 50, 2),
+    D("Chasing A-Me 01", "Give A-Me 01 a Mithril Casing (Engineering-made; bring one from the Auction House)", 67.7, 16.8, 50, 2),
     T("Chasing A-Me 01", "A-Me 01", 67.7, 16.8, 50, 2),
-    A("Chasing A-Me 01", "A-Me 01", 67.7, 16.8, 50, 3),
-    D("Chasing A-Me 01", "Escort A-Me 01 back to Karna Remtravel", 46.4, 13.4, 50, 3),
+    A("Chasing A-Me 01", "A-Me 01 (ESCORT)", 67.7, 16.8, 50, 3),
+    D("Chasing A-Me 01", "Escort A-Me 01 west to Karna Remtravel at Marshal's Refuge (ESCORT)", 46.4, 13.4, 50, 3),
     T("Chasing A-Me 01", "Karna Remtravel", 46.4, 13.4, 51, 3),
-    D("Muigin and Larion", "Kill Bloodpetals for Blossoms", 65.0, 27.0, 51),
-    D("Shizzle's Flyer", "Kill Pterrordax for Webbed Pterrordax Scales", 67.3, 32.6, 51),
-    D("Beware of Pterrordax", "Kill Pterrordax", 67.3, 32.6, 51),
-    D("Expedition Salvation", "Loot the Crate of Foodstuffs", 68.6, 36.5, 51),
-    D("The Eastern Pylon", "Examine the Eastern Crystal Pylon", 77.2, 50.0, 51),
-    T("The Apes of Un'Goro", "Torwa Pathfinder", 71.6, 76.0, 51),
-    A("The Mighty U'cha", "Torwa Pathfinder", 71.6, 76.0, 51),
-    A("The Bait for Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 51),
 
-    -- Southwest loop
-    D("Alien Ecology", "Enter the Slithering Scar, use the vial on a Hive Wall", 48.7, 85.3, 52),
-    D("Roll the Bones", "Collect Dinosaur Bones", 34.8, 72.4, 52),
-    D("Expedition Salvation", "Loot the Research Equipment", 38.0, 66.0, 52),
-    D("The Western Pylon", "Examine the Western Crystal Pylon", 23.8, 59.2, 52),
-    D("Beware of Pterrordax", "Kill Frenzied Pterrordax around the Western Pylon", 22.2, 59.4, 52),
-    A("Finding the Source", "Krakle", 30.9, 50.4, 52),
-    D("Finding the Source", "Find the hot spot at the top of Fire Plume Ridge", 49.7, 45.7, 53),
-    T("Finding the Source", "Krakle", 30.9, 50.4, 53),
-    A("The New Springs", "Krakle", 30.9, 50.4, 53),
+    -- Marshal's Refuge, second visit
+    T("Crystals of Power", "J.D. Collie", 41.9, 2.7, 51),
+    A("The Northern Pylon", "J.D. Collie", 41.9, 2.7, 51),
+    A("The Eastern Pylon", "J.D. Collie", 41.9, 2.7, 51),
+    A("The Western Pylon", "J.D. Collie", 41.9, 2.7, 51),
+    T("Dadanga is Hungry!", "Dadanga", 43.6, 7.2, 51),
+    A("Lost!", "Spraggle Frock (gives Spraggle's Canteen)", 43.6, 8.5, 51),
+
+    -- Big clockwise loop: north pylon, east side, Torwa, south, west
+    D("The Northern Pylon", "Examine the Northern Crystal Pylon (if you carry Super Sticky from Tanaris, kill tar beasts in the Lakkari Tar Pits (north-central crater) for 12 Super Sticky Tar)", 56.5, 12.5, 51),
+    D("Muigin and Larion", "Kill Bloodpetal Lashers, Flayers and Threshers along the east side for 15 Bloodpetals", 60.0, 30.0, 51),
+    D("Expedition Salvation", "Loot the Crate of Foodstuffs on the east edge", 68.5, 36.6, 51),
+    D("The Eastern Pylon", "Examine the Eastern Crystal Pylon", 77.2, 50.0, 52),
+    T("The Apes of Un'Goro", "Torwa Pathfinder", 71.6, 76.0, 52),
+    A("The Mighty U'cha", "Torwa Pathfinder", 71.6, 76.0, 52),
+    A("The Bait for Lar'korwi", "Torwa Pathfinder (gives Torwa's Pouch)", 71.6, 76.0, 52),
+    D("Shizzle's Flyer", "Kill Diemetradons in the Marshlands for 8 Webbed Diemetradon Scales", 50.0, 79.0, 52),
+    D("Alien Ecology", "Enter the Slithering Scar (50,81) and use the Scraping Vial in the middle of a hatchery chamber with hanging larvae", 49.0, 85.0, 52),
+    D("Roll the Bones", "Loot Dinosaur Bones on the ground around the threshadon corpse at the south end of Terror Run (stegodons and diemetradons drop them too) - 8 needed", 36.0, 72.0, 52),
+    D("Expedition Salvation", "Loot the Research Equipment", 38.5, 66.0, 52),
+    D("The Western Pylon", "Examine the Western Crystal Pylon", 23.9, 59.2, 52),
+    A("Finding the Source", "Krakle (gives Krakle's Thermometer)", 30.9, 50.4, 52),
+    D("Beware of Pterrordax", "Kill 15 Frenzied Pterrordax in the west and 10 Pterrordax in the Screaming Reaches (north-west)", 21.0, 39.0, 53),
+    D("Shizzle's Flyer", "Kill Pterrordax in the Screaming Reaches for 8 Webbed Pterrordax Scales", 25.0, 32.0, 53),
+    D("Finding the Source", "Use the Thermometer at the hot spots around Fire Plume Ridge; the hottest one is on the north side of the ridge", 48.3, 43.3, 53),
     T("Lost!", "Ringo", 51.9, 49.9, 53),
-    A("A Little Help From My Friends", "Ringo", 51.9, 49.9, 53),
-    D("A Little Help From My Friends", "Escort Ringo to Spraggle Frock (use the canteen when he faints)", 43.6, 8.5, 53),
+    A("A Little Help From My Friends", "Ringo (ESCORT)", 51.9, 49.9, 53),
+    D("A Little Help From My Friends", "Escort Ringo north to Spraggle Frock; slap him when he is weak, use Spraggle's Canteen when he faints (ESCORT)", 43.6, 8.5, 53),
 
     -- Marshal's Refuge turn-ins
     T("A Little Help From My Friends", "Spraggle Frock", 43.6, 8.5, 54),
     T("Beware of Pterrordax", "Spraggle Frock", 43.6, 8.5, 54),
     T("Shizzle's Flyer", "Shizzle", 44.2, 11.6, 54),
     T("Muigin and Larion", "Muigin", 42.9, 9.6, 54),
-    A("A Visit to Gregan", "Muigin", 42.9, 9.6, 54),
+    A("A Visit to Gregan", "Muigin (turn in to Gregan Brewspewer, Feralas 45.1,25.6)", 42.9, 9.6, 54),
     T("Expedition Salvation", "Williden Marshal", 44.0, 7.1, 54),
     T("Alien Ecology", "Hol'anyee Marshal", 43.9, 7.2, 54),
     T("Roll the Bones", "Spark Nilminer", 43.5, 7.4, 54),
@@ -1891,18 +2161,28 @@ local UNGORO = { zone = "Un'Goro Crater", min = 48, max = 56, steps = {
     T("The Eastern Pylon", "J.D. Collie", 41.9, 2.7, 54),
     T("The Western Pylon", "J.D. Collie", 41.9, 2.7, 54),
     A("Making Sense of It", "J.D. Collie", 41.9, 2.7, 54),
-    T("Making Sense of It", "J.D. Collie", 41.9, 2.7, 54),
-    T("Aquementas", "J.D. Collie", 41.9, 2.7, 54),
-    A("Linken's Adventure", "J.D. Collie", 41.9, 2.7, 54),
-    T("Linken's Adventure", "Linken", 44.7, 8.1, 54),
-    A("It's Dangerous to Go Alone", "Linken", 44.7, 8.1, 54),
+    T("Making Sense of It", "J.D. Collie (talk to him again after a moment)", 41.9, 2.7, 54),
 
-    -- Final loop: U'cha, Fire Plume, Lar'korwi
-    D("The Mighty U'cha", "Kill U'cha at the back of the gorilla cave, loot his pelt", 68.0, 12.0, 55),
-    D("It's Dangerous to Go Alone", "Loot the Golden Flame from the chest in the Fire Plume Ridge cave", 50.2, 50.0, 55),
-    D("The Bait for Lar'korwi", "Use meat and Pheromone Mixture at Torwa's pouch, kill Lar'korwi", 79.9, 49.9, 55),
+    -- Final loop: U'cha, Lar'korwi, Torwa, Krakle
+    D("The Mighty U'cha", "Kill U'cha (level 55) at the back of Fungal Rock and loot U'cha's Pelt", 68.0, 12.0, 55),
+    D("The Bait for Lar'korwi", "At the Flat Un'Goro Rock behind the Eastern Pylon use the Preserved Threshadon Meat, then the Pheromone Mixture; kill Lar'korwi and loot his head", 79.8, 49.8, 55),
     T("The Bait for Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 56),
     T("The Mighty U'cha", "Torwa Pathfinder", 71.6, 76.0, 56),
+    T("Finding the Source", "Krakle", 30.9, 50.4, 56),
+    A("The New Springs", "Krakle (turn in to Donova Snowden, Winterspring 31.3,45.2)", 30.9, 50.4, 56),
+    G("Marshal's Refuge flight path", 45.2, 5.8, 56, "Fly out: Winterspring for It's a Secret to Everybody 3 and The New Springs (Donova Snowden 31.3,45.2), Feralas for A Visit to Gregan (Gregan Brewspewer 45.1,25.6). Donova's The Videre Elixir -> Gregan (Feralas) -> Meet at the Grave (Gaeriyan, Tanaris 53.9,23.3) -> A Grave Situation -> Linken's Sword from A Conspicuous Gravestone (Tanaris 53.8,29.1); bring the sword back here"),
+
+    -- Return trip, Linken's finale (Linken's Sword from the Tanaris gravestone; then Felwood for Silver Heart / Aquementas)
+    T("Linken's Sword", "Linken (sword from A Conspicuous Gravestone, Tanaris)", 44.7, 8.1, 56),
+    A("A Gnome's Assistance", "Linken", 44.7, 8.1, 56),
+    T("A Gnome's Assistance", "J.D. Collie", 41.9, 2.7, 56),
+    A("Linken's Memory", "J.D. Collie (turn in to Eridan Bluewind, Felwood 51.4,81.5)", 41.9, 2.7, 56),
+    G("Marshal's Refuge flight path", 45.2, 5.8, 56, "Fly to Felwood (Talonbranch Glade): turn in Linken's Memory to Eridan Bluewind (51.4,81.5), do Silver Heart (11 Silvery Claws, Irontree Heart), accept Aquementas and fly back to Marshal's Refuge"),
+    T("Aquementas", "J.D. Collie (from Eridan Bluewind, Felwood)", 41.9, 2.7, 56),
+    A("Linken's Adventure", "J.D. Collie", 41.9, 2.7, 56),
+    T("Linken's Adventure", "Linken", 44.7, 8.1, 56),
+    A("It's Dangerous to Go Alone", "Linken (ELITE, group)", 44.7, 8.1, 56),
+    D("It's Dangerous to Go Alone", "At the top of Fire Plume Ridge use the Silver Totem of Aquementas on Blazerunner, kill him (ELITE, group), then loot the Golden Flame from the Ornate Chest at the back of his cave (50.2,50.0)", 49.2, 49.0, 56),
     T("It's Dangerous to Go Alone", "Linken", 44.7, 8.1, 56),
 } }
 
@@ -2290,142 +2570,224 @@ local EASTERN_PLAGUELANDS = { zone = "Eastern Plaguelands", min = 55, max = 60, 
 } }
 
 -- Sources: https://wowhandbook.com/zones/kalimdor/winterspring/ ; https://wow4ever.quest/en/npcs (NPC + quest pages, QuestieDB Forever data) ; https://wowforever.wiki.fextralife.com/Winterspring ; https://warcraft.wiki.gg/wiki/Winterspring_quests
-local WINTERSPRING = { zone = "Winterspring", min = 55, max = 61, steps = {
-    G("Timbermaw Hold tunnel exit into Winterspring", 27.9, 34.5, 55, "walk in from Felwood"),
+-- Winterspring (Alliance) for WoW: Forever.
+-- Sources: https://wow4ever.quest/en/quests/<slug> and /en/npcs/<slug> (Questie Forever data: ids, min levels, givers, coords, "First you need");
+-- https://foreverchanges.pro/quests/winterspring (58-quest Forever list, Elite/Changed tags; none marked New) and /quest/<id> (chains, objectives);
+-- warcraft.wiki.gg (mob/objective locations only: Timbermaw Post, Winterfall Village, Lake Kel'Theril fragments, Darkwhisper Gorge, Owl Wing Thicket).
+-- Part numbers: "Are We There, Yeti?" 1-3 = 3783, 977, 5163; "Enraged Wildkin" 1-4 = 6604, 4861, 4863, 4864.
+-- Forever "Changed": Toxic Horrors (XP only). Elite: High Chief Winterfall.
+-- Left out: Remorseful Highborne/The Crystal of Zin-Malor (need EPL's Tormented By the Past, done after Aurora Skycaller); Rivern Frostwind's repeatable
+-- Wintersaber rep quests (Frostsaber Provisions, Winterfall Intrusion, Rampaging Giants); Luck Be With You/Cache of Mau'ari/E'ko quests (need Horde-only
+-- A Little Luck in Forever); Storm Shadowhoof chain (Horde); A Yeti of Your Own, Lorax's Tale, Fiery Plate Gauntlets, Malyfous quests (profession/raid);
+-- Winterfall Ritual Totem (random drop, turn-in inside Timbermaw Hold); Making Amends (repeatable); Meet at the Grave (follows the Feralas Videre leg).
+-- Cross-zone: Speak to Salfa, The New Springs, It's a Secret to Everybody 3, To Winterspring!, Felnok Steelspring are accepted elsewhere and only turned in here;
+-- Moontouched Wildkin / Find Ranshalla are Erelas Ambersky's (Rut'theran Village, Teldrassil); The Everlook Report ends at Chillwind Camp (WPL), Duke Nicholas
+-- Zverenhoff and Sister Pamela end in EPL, Troubled Spirits of Kel'Theril ends at Aurora Skycaller (EPL), Return to Tinkee ends in Burning Steppes, Are We There, Yeti? 3 needs Sprinkle (Tanaris) and Quixxil (Un'Goro) scared before Umi takes it back,
+-- The Videre Elixir continues with Gregan Brewspewer (Feralas), Falling to Corruption/Mystery Goo/Toxic Horrors/Words of the High Chief have their
+-- objectives or turn-ins in Felwood (through Timbermaw Hold), Guardians of the Altar ends at Erelas Ambersky (Teldrassil).
+local WINTERSPRING = { zone = "Winterspring", min = 55, max = 60, steps = {
+    -- Arrival from Felwood through Timbermaw Hold: Salfa and Donova Snowden (first pass)
+    G("Timbermaw Hold exit into Winterspring", 27.9, 34.5, 55, "Walk through Timbermaw Hold from Felwood; Salfa stands just outside the tunnel"),
     T("Speak to Salfa", "Salfa", 27.7, 34.5, 55),
-    A("Beads for Salfa", "Salfa", 27.7, 34.5, 55),
     A("Winterfall Activity", "Salfa", 27.7, 34.5, 55),
-    T("The New Springs", "Donova Snowden", 31.3, 45.2, 55),
+    T("The New Springs", "Donova Snowden (Frostfire Hot Springs)", 31.3, 45.2, 55),
     T("It's a Secret to Everybody", "Donova Snowden", 31.3, 45.2, 55, 3),
-    A("The Videre Elixir", "Donova Snowden", 31.3, 45.2, 55, 1),
-    A("Threat of the Winterfall", "Donova Snowden", 31.3, 45.2, 55),
-    D("Threat of the Winterfall", "Kill 8 Winterfall Pathfinders and 8 Den Watchers", 30.6, 35.6, 56),
-    D("Threat of the Winterfall", "Kill 8 Winterfall Totemics", 30.6, 35.9, 56),
-    D("Beads for Salfa", "Loot Winterfall beads; keep any Empty Firewater Flask (starts Winterfall Firewater)", 30.1, 35.6, 56),
-    T("Beads for Salfa", "Salfa", 27.7, 34.5, 56),
-    T("Threat of the Winterfall", "Donova Snowden", 31.3, 45.2, 56),
-    T("Winterfall Firewater", "Donova Snowden", 31.3, 45.2, 56),
-    A("Falling to Corruption", "Donova Snowden", 31.3, 45.2, 56),
-    G("Starfall Village", 52.0, 30.4, 56),
-    T("To Winterspring!", "Wynd Nightchaser", 52.0, 30.4, 56),
-    A("The Ruins of Kel'Theril", "Wynd Nightchaser", 52.0, 30.4, 56),
-    T("The Ruins of Kel'Theril", "Jaron Stoneshaper", 52.1, 30.4, 56),
-    A("Troubled Spirits of Kel'Theril", "Jaron Stoneshaper", 52.1, 30.4, 56),
-    G("Everlook flight path (Alliance)", 62.3, 36.6, 56, "get the flight path, set hearth"),
-    A("The Everlook Report", "Gregor Greystone", 61.4, 39.0, 56),
-    A("Duke Nicholas Zverenhoff", "Gregor Greystone", 61.4, 39.0, 56),
+    A("The Videre Elixir", "Donova Snowden (continues with Gregan Brewspewer, Feralas 45.1, 25.6)", 31.3, 45.2, 55),
+    A("Strange Sources", "Donova Snowden", 31.3, 45.2, 55),
+
+    -- Starfall Village and Lake Kel'Theril
+    G("Starfall Village", 52.0, 30.4, 55, "Follow the road east past the hot springs"),
+    T("To Winterspring!", "Wynd Nightchaser", 52.0, 30.4, 55),
+    A("The Ruins of Kel'Theril", "Wynd Nightchaser", 52.0, 30.4, 55),
+    T("The Ruins of Kel'Theril", "Jaron Stoneshaper", 52.1, 30.4, 55),
+    A("Troubled Spirits of Kel'Theril", "Jaron Stoneshaper (keep Jaron's Pick)", 52.1, 30.4, 55),
+    D("Moontouched Wildkin", "If you carry Erelas Ambersky's quest: 10 Moontouched Feathers from the owlbeasts around Starfall and Lake Kel'Theril", 49.5, 40.8, 56),
+    D("Troubled Spirits of Kel'Theril", "Use Jaron's Pick on the First Relic Fragment in the ice of Lake Kel'Theril", 53.4, 42.0, 56),
+    D("Troubled Spirits of Kel'Theril", "Second Relic Fragment", 55.6, 42.3, 56),
+    D("Troubled Spirits of Kel'Theril", "Third Relic Fragment", 54.6, 44.2, 56),
+    D("Troubled Spirits of Kel'Theril", "Fourth Relic Fragment (turn-in is Aurora Skycaller, Eastern Plaguelands 46.5, 16.0)", 56.4, 43.6, 56),
+
+    -- Everlook
+    G("Everlook flight master", 62.3, 36.6, 56, "Take the flight path and set your hearthstone at the inn"),
+    A("The Everlook Report", "Gregor Greystone (ends at Chillwind Camp, WPL)", 61.4, 39.0, 56),
+    A("Duke Nicholas Zverenhoff", "Gregor Greystone (ends at Light's Hope Chapel, EPL)", 61.4, 39.0, 56),
     T("Felnok Steelspring", "Felnok Steelspring", 61.6, 38.6, 56),
     A("Chillwind Horns", "Felnok Steelspring", 61.6, 38.6, 56),
     A("Are We There, Yeti?", "Umi Rumplesnicker", 60.9, 37.6, 56, 1),
     A("Enraged Wildkin", "Harlo Wigglesworth", 61.1, 38.4, 56, 1),
-    A("Sister Pamela", "Jessica Redpath", 61.3, 39.0, 56),
+    A("Sister Pamela", "Jessica Redpath (ends at Pamela Redpath, Darrowshire, EPL)", 61.3, 39.0, 56),
     A("Trouble in Winterspring!", "Meggi Peppinrocker", 60.7, 38.2, 56),
-    D("Chillwind Horns", "Kill Chillwind Chimaeras for 8 Uncracked Chillwind Horns", 61.2, 41.7, 56),
-    D("Are We There, Yeti?", "Ice Thistle Hills: collect 10 Thick Yeti Furs", 65.3, 39.6, 56, 1),
+    D("Chillwind Horns", "Kill Chillwind Chimaeras south of Everlook for 8 Uncracked Chillwind Horns", 61.2, 41.7, 56),
+    D("Are We There, Yeti?", "Ice Thistle Hills east of Everlook: kill Ice Thistle Yetis for 10 Thick Yeti Fur", 65.3, 39.6, 56, 1),
+    T("Chillwind Horns", "Felnok Steelspring", 61.6, 38.6, 57),
+    A("Return to Tinkee", "Felnok Steelspring (ends at Tinkee Steamboil, Burning Steppes 65.2, 24.0)", 61.6, 38.6, 57),
     T("Are We There, Yeti?", "Umi Rumplesnicker", 60.9, 37.6, 57, 1),
     A("Are We There, Yeti?", "Umi Rumplesnicker", 60.9, 37.6, 57, 2),
-    D("Are We There, Yeti?", "Kill Ice Thistle Matriarchs/Patriarchs for 2 Pristine Yeti Horns", 64.7, 40.6, 57, 2),
-    T("Chillwind Horns", "Felnok Steelspring", 61.6, 38.6, 57),
+    D("Are We There, Yeti?", "Kill Ice Thistle Matriarchs and Patriarchs in the yeti caves for 2 Pristine Yeti Horns", 64.7, 40.6, 57, 2),
     T("Are We There, Yeti?", "Umi Rumplesnicker", 60.9, 37.6, 57, 2),
     A("Are We There, Yeti?", "Umi Rumplesnicker", 60.9, 37.6, 57, 3),
-    D("Are We There, Yeti?", "Use Umi's Mechanical Yeti on Legacki by the inn (other targets are in Un'Goro and Tanaris)", 61.5, 38.6, 57, 3),
-    T("Are We There, Yeti?", "Umi Rumplesnicker", 60.9, 37.6, 57, 3),
-    D("Winterfall Activity", "Winterfall Village: kill 8 Shamans and 8 Den Watchers (kill healers first)", 67.1, 36.2, 57),
-    D("Winterfall Activity", "Kill 8 Winterfall Ursa", 66.7, 37.1, 57),
-    G("Back to Starfall Village", 52.1, 30.4, 57),
-    T("Enraged Wildkin", "Jaron Stoneshaper", 52.1, 30.4, 57, 1),
-    A("Enraged Wildkin", "Jaron Stoneshaper", 52.1, 30.4, 57, 2),
-    D("Troubled Spirits of Kel'Theril", "Use Jaron's Pick on relic fragment #1", 55.1, 43.0, 57),
-    D("Troubled Spirits of Kel'Theril", "Relic fragment #2", 50.9, 41.7, 57),
-    D("Troubled Spirits of Kel'Theril", "Relic fragment #3 (turn-in is Aurora Skycaller, Eastern Plaguelands)", 53.3, 43.4, 57),
-    D("Moontouched Wildkin", "If you have it from Erelas Ambersky: 10 Moontouched Feathers from wildkin", 49.5, 40.8, 57),
-    T("Enraged Wildkin", "Damaged Crate", 59.0, 59.8, 58, 2),
-    A("Enraged Wildkin", "Damaged Crate", 59.0, 59.8, 58, 3),
-    T("Enraged Wildkin", "Jaron's Wagon", 61.4, 60.7, 58, 3),
-    A("Enraged Wildkin", "Jaron's Wagon", 61.4, 60.7, 58, 4),
-    D("Enraged Wildkin", "Pick up Jaron's Supplies near the wagon", 61.4, 60.7, 58, 4),
-    D("Enraged Wildkin", "Kill wildkin/owlbeasts for the Blue-feathered Amulet", 59.4, 59.8, 58, 4),
-    T("Enraged Wildkin", "Jaron Stoneshaper", 52.1, 30.4, 58, 4),
+    D("Are We There, Yeti?", "Use Umi's Mechanical Yeti on Legacki by the Everlook inn (Sprinkle in Gadgetzan, Tanaris and Quixxil in Marshal's Refuge, Un'Goro are the other two targets; turn-in at Umi after the zone)", 61.5, 38.6, 57, 3),
+
+    -- Winterfall Village (north-east of Everlook)
+    D("Winterfall Activity", "Winterfall Village: kill 8 Winterfall Shaman and 8 Winterfall Den Watchers (shamans heal, kill them first)", 67.1, 36.2, 57),
+    D("Winterfall Activity", "Kill 8 Winterfall Ursa; loot Winterfall Spirit Beads (keep 5) and the Empty Firewater Flask", 66.7, 37.1, 57),
+    A("Winterfall Firewater", "Empty Firewater Flask (drops from any Winterfall furbolg; right-click it to accept)", 66.9, 36.6, 57),
+
+    -- Back west: Donova Snowden, Timbermaw Post, Salfa
+    G("Donova Snowden at the Frostfire Hot Springs", 31.3, 45.2, 57, "Fly or ride back west along the road"),
+    T("Trouble in Winterspring!", "Donova Snowden", 31.3, 45.2, 57),
+    A("Threat of the Winterfall", "Donova Snowden", 31.3, 45.2, 57),
+    T("Winterfall Firewater", "Donova Snowden", 31.3, 45.2, 57),
+    A("Falling to Corruption", "Donova Snowden", 31.3, 45.2, 57),
+    D("Threat of the Winterfall", "Timbermaw Post north of the hot springs: kill 8 Winterfall Pathfinders and 8 Winterfall Den Watchers", 29.5, 35.0, 57),
+    D("Threat of the Winterfall", "Kill 8 Winterfall Totemics in the same camp", 30.6, 35.9, 58),
     T("Winterfall Activity", "Salfa", 27.7, 34.5, 58),
-    T("Trouble in Winterspring!", "Donova Snowden", 31.3, 45.2, 58),
-    G("Through Timbermaw Hold to Felwood", 27.9, 34.5, 58, "Falling to Corruption ends at the Deadwood Cauldron (Felwood 60.2, 5.8); take Mystery Goo from it"),
+    A("Beads for Salfa", "Salfa (REPEATABLE)", 27.7, 34.5, 58),
+    D("Beads for Salfa", "Hand in 5 Winterfall Spirit Beads (loot more from the Winterfall furbolgs at Timbermaw Post if needed)", 29.5, 35.0, 58),
+    T("Beads for Salfa", "Salfa", 27.7, 34.5, 58),
+    G("Through Timbermaw Hold to Felwood", 27.9, 34.5, 58, "Deadwood Cauldron in the Deadwood furbolg camp (Felwood 60.2, 5.8): turn in Falling to Corruption, take Mystery Goo"),
+    T("Falling to Corruption", "Deadwood Cauldron (Felwood 60.2, 5.8, through Timbermaw Hold)", 27.9, 34.5, 58),
+    A("Mystery Goo", "Deadwood Cauldron (Felwood 60.2, 5.8)", 27.9, 34.5, 58),
+    T("Threat of the Winterfall", "Donova Snowden", 31.3, 45.2, 58),
     T("Mystery Goo", "Donova Snowden", 31.3, 45.2, 58),
     A("Toxic Horrors", "Donova Snowden", 31.3, 45.2, 58),
-    G("Back to Felwood via Timbermaw Hold", 27.9, 34.5, 58, "kill Toxic Horrors in Felwood for 3 Toxic Horror Droplets"),
+    G("Through Timbermaw Hold to Felwood", 27.9, 34.5, 58, "Kill Toxic Horrors (water elementals in Irontree Woods, Felwood ~50, 20) for 3 Toxic Horror Droplets, then come back"),
     T("Toxic Horrors", "Donova Snowden", 31.3, 45.2, 58),
     A("Winterfall Runners", "Donova Snowden", 31.3, 45.2, 58),
-    D("Winterfall Runners", "Stop the Winterfall Runners heading to Winterfall Village (location unconfirmed; watch the Timbermaw/Felwood side)", 27.9, 34.5, 58),
-    T("Winterfall Runners", "Donova Snowden", 31.3, 45.2, 59),
-    A("High Chief Winterfall", "Donova Snowden", 31.3, 45.2, 59),
-    D("High Chief Winterfall", "Group: kill High Chief Winterfall in the back cave; loot Crudely-written Log (starts The Final Piece)", 67.5, 39.8, 59),
-    T("High Chief Winterfall", "Donova Snowden", 31.3, 45.2, 59),
-    T("The Final Piece", "Donova Snowden", 31.3, 45.2, 59),
-    A("Words of the High Chief", "Donova Snowden", 31.3, 45.2, 59),
-    G("Everlook flight path", 62.3, 36.6, 59, "fly to Rut'theran: turn in Moontouched Wildkin, take Find Ranshalla, come back"),
+    D("Winterfall Runners", "Kill the Winterfall Runners on the road east of the Timbermaw Hold exit (they walk from Felwood to Winterfall Village) and loot the Winterfall Crate", 28.5, 34.4, 58),
+    T("Winterfall Runners", "Donova Snowden", 31.3, 45.2, 58),
+    A("High Chief Winterfall", "Donova Snowden (ELITE)", 31.3, 45.2, 58),
+
+    -- Starfall Village, then the south: Owl Wing Thicket and Darkwhisper Gorge
+    T("Enraged Wildkin", "Jaron Stoneshaper", 52.1, 30.4, 58, 1),
+    A("Enraged Wildkin", "Jaron Stoneshaper", 52.1, 30.4, 58, 2),
+    G("Everlook flight master", 62.3, 36.6, 59, "If you carry Moontouched Wildkin: fly to Rut'theran Village, turn it in to Erelas Ambersky, take Find Ranshalla, come back"),
+    T("Enraged Wildkin", "Damaged Crate (Owl Wing Thicket)", 59.0, 59.8, 59, 2),
+    A("Enraged Wildkin", "Damaged Crate", 59.0, 59.8, 59, 3),
+    T("Enraged Wildkin", "Jaron's Wagon", 61.4, 60.7, 59, 3),
+    A("Enraged Wildkin", "Jaron's Wagon", 61.4, 60.7, 59, 4),
+    D("Enraged Wildkin", "Pick up Jaron's Supplies from the crates half-buried in the snow by the wagon", 61.4, 60.7, 59, 4),
+    D("Enraged Wildkin", "Kill Berserk Owlbeasts in Owl Wing Thicket until the Blue-feathered Amulet drops", 59.4, 59.8, 59, 4),
     T("Find Ranshalla", "Ranshalla", 63.1, 59.5, 59),
-    A("Guardians of the Altar", "Ranshalla", 63.1, 59.5, 59),
-    D("Guardians of the Altar", "Escort Ranshalla to the Altar of Elune; turn in to Erelas Ambersky in Rut'theran", 63.1, 59.5, 59),
+    A("Guardians of the Altar", "Ranshalla (ESCORT; ends at Erelas Ambersky, Rut'theran Village)", 63.1, 59.5, 59),
+    D("Guardians of the Altar", "Escort Ranshalla to the Altar of Elune and protect her while she lights the torches (ESCORT)", 63.1, 59.5, 59),
+    D("Strange Sources", "Ride to the far south and discover Darkwhisper Gorge (level 60 elite demons inside; just reach the entrance)", 61.0, 77.0, 59),
+
+    -- High Chief Winterfall, then the final Donova turn-ins
+    D("High Chief Winterfall", "Winterfall Village, cave at the back: kill High Chief Winterfall (ELITE, group) and loot the Crudely-written Log", 67.9, 38.6, 59),
+    A("The Final Piece", "Crudely-written Log (drops from High Chief Winterfall; right-click to accept)", 67.9, 38.6, 59),
+    G("Donova Snowden at the Frostfire Hot Springs", 31.3, 45.2, 59, "Fly to Everlook if needed, then ride west"),
+    T("Enraged Wildkin", "Jaron Stoneshaper (Starfall Village, on the way)", 52.1, 30.4, 60, 4),
+    T("Strange Sources", "Donova Snowden", 31.3, 45.2, 60),
+    T("High Chief Winterfall", "Donova Snowden", 31.3, 45.2, 60),
+    T("The Final Piece", "Donova Snowden", 31.3, 45.2, 60),
+    A("Words of the High Chief", "Donova Snowden (ends at Kelek Skykeeper, Felwood 51.1, 81.8)", 31.3, 45.2, 60),
+    G("Through Timbermaw Hold to Felwood", 27.9, 34.5, 60, "Words of the High Chief: Kelek Skykeeper at Emerald Sanctuary (Felwood 51.1, 81.8). Then: Troubled Spirits to Aurora Skycaller and the Duke/Sister Pamela in EPL, The Everlook Report to Chillwind Camp (WPL), Return to Tinkee in Burning Steppes, Guardians of the Altar to Erelas Ambersky (Rut'theran), The Videre Elixir with Gregan Brewspewer (Feralas), Are We There, Yeti? 3: scare Sprinkle (Gadgetzan) and Quixxil (Marshal's Refuge), then back to Umi Rumplesnicker in Everlook"),
 } }
 
 -- Sources: https://wowhandbook.com/zones/kalimdor/silithus/ ; https://wow4ever.quest/en/npcs (NPC + quest pages, QuestieDB Forever data) ; https://wowforever.wiki.fextralife.com/Silithus ; https://games.gg/world-of-warcraft/guides/traces-of-silithyst-in-wow-forever/ ; https://warcraft.wiki.gg/wiki/Silithus_quests
-local SILITHUS = { zone = "Silithus", min = 55, max = 61, steps = {
-    G("Cenarion Hold flight path (Alliance)", 50.7, 34.6, 55, "get the flight path"),
-    A("Report to Marshal Bluewall", "Rifleman Torrig", 50.7, 34.7, 55),
+-- Silithus (Alliance) for WoW: Forever.
+-- Sources: https://wow4ever.quest/en/quests/<slug> and /en/npcs/<slug> (Questie Forever data: givers, coords, min levels, "First you need"; its index stops at quest level 59, so
+-- every level-60 quest below comes from https://foreverchanges.pro/quest/<id>, which lists the same giver coords); https://foreverchanges.pro/quests/silithus (119-quest Forever list,
+-- Elite/Changed/PvP tags); https://www.wowhead.com/forever/quest=<id> (chain series: 8284 -> 8285 -> 8279 -> 8287; 9415 -> 9419);
+-- objective areas (mobs, camps, Noggle's Satchel 44.6,91.3) from warcraft.wiki.gg subzone/quest pages because the Forever sources list no mob coordinates.
+-- Level-60 quests (wow4ever's quest index holds no level-60 quests at all, so they are also missing from its NPC pages): The Twilight Lexicon 8279 and
+-- A Terrible Purpose 8287 are given by Hermit Ortell 67.2,69.8 per foreverchanges.pro/quest/8279 and /8287 (min level 54, unchanged), chain 8284->8285->8279->8287 per wowhead.
+-- Part numbers: none (no repeated titles).
+-- Forever "Changed": "Report to Marshal Bluewall" and "Scouring the Desert" (min level 1 instead of 53/55; Scouring is the Silithyst PvP objective, it flags you for PvP).
+-- Forever "Elite": "Wanted - Deathclasp, Terror of the Sands" (level 59 elite scorpid in the southern mountains, same cave as Noggle's Satchel).
+-- Left out: Taking Back Silithus 8275 (accepted in Ironforge, only turned in to Proudhorn; not a prerequisite of Securing the Supply Lines); Kitchen Assistance 8317 (Cooking 285);
+-- Encrypted Twilight Texts 8319 (repeatable reputation quest); every level-60 Cenarion Circle / AQ-gate quest (Dearest Natalia, Glyph Chasing, Breaking the Code, Twilight Battle Orders,
+-- Dukes/Lords of the Council, Field Duty, Target: Hive..., Scout Reports, Templar summons, Abyssal..., Armaments of War, Battlegear, What Tomorrow Brings/Anachronos, Secrets of the Colossus,
+-- Bang a Gong!, A Humble Offering, Brann Bronzebeard's Lost Letter): elite, raid, rep-gated or world-event; see the optional G notes.
+-- Cross-zone: "Wasteland" 1124 is accepted from Rabine Saturna in Moonglade (turn-in only here); "Umber, Archivist" 6844 is accepted here and turned in to Umber in Nighthaven, Moonglade (G note at the end).
+local SILITHUS = { zone = "Silithus", min = 55, max = 60, steps = {
+    -- Cenarion Hold (arrive by flight or through Un'Goro's western exit)
+    G("Cenarion Hold flight path", 50.7, 34.6, 55, "Grab the flight path at the north gate of Cenarion Hold"),
+    A("Report to Marshal Bluewall", "Rifleman Torrig (north gate)", 50.7, 34.7, 55),
     A("Securing the Supply Lines", "Windcaller Proudhorn", 51.1, 38.3, 55),
     A("Deadly Desert Venom", "Beetix Ficklespragg", 51.6, 38.6, 55),
-    A("Desert Recipe", "Calandrath", 51.9, 39.2, 55),
+    A("Desert Recipe", "Calandrath (inn)", 51.9, 39.2, 55),
     A("The Twilight Mystery", "Geologist Larksbane", 49.7, 37.5, 55),
-    A("Secret Communication", "Bor Wildmane", 48.6, 37.8, 55),
-    D("Securing the Supply Lines", "Kill 15 Dredge Strikers", 51.4, 32.0, 55),
-    D("Deadly Desert Venom", "Kill Stonelash Scorpids and Sand Skitterers", 56.1, 30.2, 55),
-    D("Deadly Desert Venom", "Finish Sand Skitterer Fangs", 56.0, 27.0, 55),
-    T("Wasteland", "Layo Starstrike", 81.9, 18.9, 56),
+
+    -- North and north-east of the hold, then east to Valor's Rest
+    D("Securing the Supply Lines", "Kill 15 Dredge Strikers on the sands north of Cenarion Hold", 51.4, 30.0, 55),
+    D("Deadly Desert Venom", "Kill Stonelash Scorpids (8 Stonelash Scorpid Stingers) and Sand Skitterers (8 Sand Skitterer Fangs) in the north-east", 58.0, 28.0, 55),
+    D("Deadly Desert Venom", "Finish the Sand Skitterer Fangs between here and Valor's Rest", 66.0, 22.0, 56),
+    T("Wasteland", "Layo Starstrike (Valor's Rest graveyard; quest from Rabine Saturna, Moonglade)", 81.9, 18.9, 56),
     A("The Spirits of Southwind", "Layo Starstrike", 81.9, 18.9, 56),
-    D("The Spirits of Southwind", "Southwind Village: free 8 Tortured Druids and 8 Tortured Sentinels", 64.9, 47.2, 56),
-    D("The Spirits of Southwind", "Rest of Southwind Village", 65.9, 48.5, 56),
+    D("The Spirits of Southwind", "Southwind Village: kill 8 Tortured Druids and 8 Tortured Sentinels in the ruins south-west of Valor's Rest", 65.0, 47.0, 56),
+    D("The Spirits of Southwind", "Finish the Tortured Druids and Sentinels in the rest of Southwind Village", 62.0, 50.0, 56),
     T("The Spirits of Southwind", "Layo Starstrike", 81.9, 18.9, 56),
     A("Hive in the Tower", "Layo Starstrike", 81.9, 18.9, 56),
-    D("Hive in the Tower", "Hive'Ashi tower: get the Encrusted Silithid Object", 60.2, 52.4, 57),
+    D("Hive in the Tower", "Southwind Village tower with the wasps circling it: kill the 3 Hive'Ashi Drones at the entrance, open the Hive'Ashi Pod at the base and kill the 2 Hive'Ashi Ambushers it spawns for the Encrusted Silithid Object (the pod at the top only holds Silithid Goo)", 60.2, 52.4, 57),
     T("Hive in the Tower", "Layo Starstrike", 81.9, 18.9, 57),
-    A("Umber, Archivist", "Layo Starstrike", 81.9, 18.9, 57),
-    G("Back to Cenarion Hold", 50.7, 34.6, 57),
+    A("Umber, Archivist", "Layo Starstrike (turn in to Umber, Nighthaven, Moonglade)", 81.9, 18.9, 57),
+
+    -- Back to Cenarion Hold
+    G("Back to Cenarion Hold", 50.7, 34.6, 57, "Ride back west along the road"),
     T("Securing the Supply Lines", "Windcaller Proudhorn", 51.1, 38.3, 57),
     A("Stepping Up Security", "Windcaller Proudhorn", 51.1, 38.3, 57),
     T("Deadly Desert Venom", "Beetix Ficklespragg", 51.6, 38.6, 57),
     A("Noggle's Last Hope", "Beetix Ficklespragg", 51.6, 38.6, 57),
-    D("The Twilight Mystery", "Collect 8 Twilight Tablet Fragments", 33.6, 16.8, 57),
-    D("Secret Communication", "Kill Twilight cultists for 10 Encrypted Twilight Texts", 18.3, 31.4, 57),
-    T("Desert Recipe", "Sandy Cookbook", 37.9, 45.3, 57),
+    A("Secret Communication", "Bor Wildmane", 48.6, 37.8, 57),
+
+    -- The north-west: Crystal Vale, Twilight Base Camp, Hive'Zora camp
+    D("The Twilight Mystery", "Crystal Vale / Ravaged Twilight Camp in the north-west: pick up 8 glowing blue Twilight Tablet Fragments from the ground (Whirling Invader elementals roam here)", 30.0, 13.0, 57),
+    D("Secret Communication", "Twilight Base Camp west of the hold: kill Twilight Avengers, Geolords and Stonecallers for 10 Encrypted Twilight Texts (about 25% drop)", 42.0, 41.0, 57),
+    T("Desert Recipe", "Sandy Cookbook (sandy book on a crate at the south edge of Twilight Base Camp)", 37.9, 45.3, 57),
     A("Sharing the Knowledge", "Sandy Cookbook", 37.9, 45.3, 57),
-    T("Report to Marshal Bluewall", "Marshal Bluewall", 33.3, 51.1, 57),
-    A("Scouring the Desert", "Marshal Bluewall", 33.3, 51.1, 57),
-    D("Scouring the Desert", "Take Silithyst from a red geyser near Hive'Zora and carry it to the Alliance extractor here (don't mount)", 33.3, 51.1, 57),
-    T("Scouring the Desert", "Marshal Bluewall", 33.3, 51.1, 57),
-    D("Noggle's Last Hope", "Western sands: 3 Stonelash Pincer Stingers", 43.4, 45.0, 57),
-    D("Stepping Up Security", "Kill 20 Dredge Crushers", 44.2, 48.2, 57),
-    D("Noggle's Last Hope", "3 Stonelash Flayer Stingers", 49.5, 66.6, 58),
-    D("Noggle's Last Hope", "3 Rock Stalker Fangs", 48.6, 67.2, 58),
-    G("Back to Cenarion Hold", 50.7, 34.6, 58),
+    D("Stepping Up Security", "Kill 20 Dredge Crushers on the sands between Twilight Base Camp and the Alliance camp", 40.0, 50.0, 57),
+    T("Report to Marshal Bluewall", "Marshal Bluewall (Alliance camp near Hive'Zora)", 33.3, 51.1, 58),
+    A("Scouring the Desert", "Marshal Bluewall (PvP: carrying Silithyst flags you)", 33.3, 51.1, 58),
+    D("Scouring the Desert", "Pick up Silithyst at a red geyser or mound near Hive'Zora (not mounted) and carry it to the Alliance Silithyst Extractor at the camp; skip this step if you do not want the PvP flag", 33.3, 51.1, 58),
+    T("Scouring the Desert", "Marshal Bluewall", 33.3, 51.1, 58),
+
+    -- The south, then back to the hold
+    D("Noggle's Last Hope", "South of the hold: Stonelash Pincers for 3 Stonelash Pincer Stingers", 45.0, 62.0, 58),
+    D("Noggle's Last Hope", "Further south, west of Hive'Regal: Stonelash Flayers (3 Stonelash Flayer Stingers) and Rock Stalkers (3 Rock Stalker Fangs)", 49.0, 67.0, 58),
+    G("Back to Cenarion Hold", 50.7, 34.6, 58, "Ride north back to the hold"),
     T("The Twilight Mystery", "Geologist Larksbane", 49.7, 37.5, 58),
     A("The Deserter", "Geologist Larksbane", 49.7, 37.5, 58),
     T("Secret Communication", "Bor Wildmane", 48.6, 37.8, 58),
-    T("Sharing the Knowledge", "Calandrath", 51.9, 39.2, 58),
+    T("Sharing the Knowledge", "Calandrath (inn)", 51.9, 39.2, 58),
     T("Stepping Up Security", "Windcaller Proudhorn", 51.1, 38.3, 58),
     T("Noggle's Last Hope", "Beetix Ficklespragg", 51.6, 38.6, 58),
     A("Noggle's Lost Satchel", "Noggle Ficklespragg", 51.6, 38.5, 58),
-    D("Noggle's Lost Satchel", "Southern mountains: find Noggle's Satchel", 44.6, 91.4, 58),
-    T("The Deserter", "Hermit Ortell", 67.2, 69.8, 59),
+    A("Wanted - Deathclasp, Terror of the Sands", "Wanted Poster: Deathclasp (ELITE, group)", 51.4, 38.3, 58),
+
+    -- Southern mountains and Ortell's Hideout
+    D("Noggle's Lost Satchel", "Cave in the southern mountains behind Bronzebeard Encampment: pick up Noggle's Satchel (guarded by Deathclasp)", 44.6, 91.3, 59),
+    D("Wanted - Deathclasp, Terror of the Sands", "Kill Deathclasp (level 59 ELITE scorpid, group) in the same cave for Deathclasp's Pincer", 44.6, 91.0, 59),
+    T("The Deserter", "Hermit Ortell (cave at Ortell's Hideout, south-east)", 67.2, 69.8, 59),
     A("The Twilight Lexicon", "Hermit Ortell", 67.2, 69.8, 59),
-    D("The Twilight Lexicon", "Lexicon chapter (Twilight Keeper)", 16.1, 86.4, 59),
-    G("Twilight cultist camp", 22.8, 68.7, 59, "farm 10 extra Encrypted Twilight Texts now for True Believers"),
-    D("The Twilight Lexicon", "Lexicon chapter (Twilight Keeper)", 26.4, 36.6, 59),
-    D("The Twilight Lexicon", "Lexicon chapter (Twilight Keeper)", 40.9, 42.2, 59),
+
+    -- The three Twilight camps (chapters + 20 more Encrypted Twilight Texts)
+    D("The Twilight Lexicon", "Twilight Outpost (far south-west, north-west of the Scarab Wall): kill Twilight Keeper Exeter for Twilight Lexicon - Chapter 2", 25.0, 77.0, 59),
+    D("The Twilight Lexicon", "Twilight Post (north-west, west of the wind stones): kill Twilight Keeper Mayna for Twilight Lexicon - Chapter 1", 26.4, 36.6, 59),
+    D("The Twilight Lexicon", "Twilight Base Camp: kill Twilight Keeper Havunth for Twilight Lexicon - Chapter 3", 40.9, 42.2, 59),
+    G("Twilight Base Camp", 42.0, 41.0, 59, "Farm 20 Encrypted Twilight Texts from the cultists here before going back to Ortell (True Believers and Still Believing need 10 each)"),
     T("The Twilight Lexicon", "Hermit Ortell", 67.2, 69.8, 59),
-    A("A Terrible Purpose", "Hermit Ortell", 67.2, 69.8, 59),
     A("True Believers", "Hermit Ortell", 67.2, 69.8, 59),
-    D("True Believers", "If short, kill cultists for 10 Encrypted Twilight Texts", 22.8, 68.7, 59),
-    T("True Believers", "Hermit Ortell", 67.2, 69.8, 60),
+    D("True Believers", "Hand in 10 Encrypted Twilight Texts (farm more at the Twilight camps in the west if short)", 67.2, 69.8, 59),
+    T("True Believers", "Hermit Ortell", 67.2, 69.8, 59),
+    A("Still Believing", "Hermit Ortell", 67.2, 69.8, 59),
+    D("Still Believing", "Hand in 10 more Encrypted Twilight Texts", 67.2, 69.8, 59),
+    T("Still Believing", "Hermit Ortell", 67.2, 69.8, 60),
+    A("A Terrible Purpose", "Hermit Ortell", 67.2, 69.8, 60),
+
+    -- Cenarion Hold at 60
+    G("Back to Cenarion Hold", 50.7, 34.6, 60, "Ride north-west back to the hold"),
     T("Noggle's Lost Satchel", "Noggle Ficklespragg", 51.6, 38.5, 60),
+    T("Wanted - Deathclasp, Terror of the Sands", "Vish Kozus, Captain of the Guard (north gate)", 50.8, 33.6, 60),
+    T("A Terrible Purpose", "Commander Mar'alith (keep)", 49.2, 34.2, 60),
+    A("Twilight Geolords", "Huum Wildmane", 48.6, 37.9, 60),
+    D("Twilight Geolords", "Kill 10 Twilight Geolords at Twilight Base Camp (more at Twilight Post and Twilight Outpost)", 42.0, 41.0, 60),
+    T("Twilight Geolords", "Huum Wildmane", 48.6, 37.9, 60),
+    A("Vyral the Vile", "Huum Wildmane", 48.6, 37.9, 60),
+    D("Vyral the Vile", "Twilight's Run, the cave at the foot of Staghelm Point in the north-east: kill Vyral the Vile (level 60, Twilight Overlord escorts) for Vyral's Signet Ring", 70.1, 16.2, 60),
+    T("Vyral the Vile", "Huum Wildmane", 48.6, 37.9, 60),
+    G("Cenarion Hold flight master", 50.7, 34.6, 60, "Fly to Moonglade (Nighthaven) and turn in Umber, Archivist to Umber at 44.9, 35.6. Optional at 60: Commander Mar'alith's Dearest Natalia chain, Field Duty and the Cenarion Circle rep quests (elite/group); Baristolth's What Tomorrow Brings starts the AQ gate chain (raid)"),
 } }
 
 -- Where to level at every stage, for when no detailed route covers you yet.
@@ -2445,10 +2807,11 @@ local PLAN = {
 
 LevelGuideRoutes = {
     chains = {
-        NightElf = { TELDRASSIL, DARKSHORE, ASHENVALE, WETLANDS, DUSKWOOD, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, TANARIS, FERALAS, HINTERLANDS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Gnome = { DUN_MOROGH, LOCH_MODAN, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, HINTERLANDS, TANARIS, FERALAS, UNGORO, BURNING_STEPPES, FELWOOD, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Dwarf = { DUN_MOROGH, LOCH_MODAN, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, HINTERLANDS, TANARIS, FERALAS, UNGORO, BURNING_STEPPES, FELWOOD, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Human = { WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, HINTERLANDS, TANARIS, FERALAS, UNGORO, BURNING_STEPPES, FELWOOD, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        -- Ordered by route min: the guide takes the first route that fits your level.
+        NightElf = { TELDRASSIL, DARKSHORE, ASHENVALE, WETLANDS, DUSKWOOD, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, TANARIS, HINTERLANDS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        Gnome = { DUN_MOROGH, LOCH_MODAN, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, HINTERLANDS, TANARIS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        Dwarf = { DUN_MOROGH, LOCH_MODAN, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, HINTERLANDS, TANARIS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        Human = { WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, HINTERLANDS, TANARIS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
     },
     plan = PLAN,
 }
