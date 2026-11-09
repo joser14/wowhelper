@@ -295,6 +295,13 @@ fire("PLAYER_LOGIN")
 check(type(WindowBadgesDB) == "table", "DB created")
 check(#created - poolBefore >= 40, "badge pool made at login (" .. (#created - poolBefore) .. " frames)")
 check(overlay.scripts and overlay.scripts.OnUpdate, "watcher runs on our overlay")
+
+-- The quest-reward badges start off, since ItemAdvisor already marks rewards; toggling turns them on.
+out = {}
+SlashCmdList.WINDOWBADGES("toggle reward")
+check(has(out, "now |cff33ff33on"), "reward badge starts off, so toggle turns it on")
+SlashCmdList.WINDOWBADGES("on gold")
+check(WindowBadgesDB.reward == true and WindowBadgesDB.gold == true, "both reward badges switched on for the checks below")
 local poolSize = #created
 
 ----------------------------------------------------------------------------------------------------

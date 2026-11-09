@@ -41,14 +41,16 @@ $Bundles = [ordered]@{
 
 function Read-Toc($module) {
     $toc = Join-Path $Root "$module\$module.toc"
-    $files = @(); $sv = @(); $svChar = @()
+    $files = @(); $sv = @(); $svChar = @(); $extra = @()
     foreach ($line in Get-Content $toc) {
         $t = $line.Trim()
-        if ($t -match '^##\s*SavedVariables:\s*(.+)$') { $sv += ($Matches[1] -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } }
+        # Header fields that belong to the whole installed addon (the AddOns menu entry and its icon).
+        if ($t -match '^##\s*(IconTexture|AddonCompartmentFunc\w*):') { $extra += $t }
+        elseif ($t -match '^##\s*SavedVariables:\s*(.+)$') { $sv += ($Matches[1] -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } }
         elseif ($t -match '^##\s*SavedVariablesPerCharacter:\s*(.+)$') { $svChar += ($Matches[1] -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } }
         elseif ($t -ne '' -and -not $t.StartsWith('#')) { $files += $t }
     }
-    [pscustomobject]@{ Files = $files; SV = $sv; SVChar = $svChar }
+    [pscustomobject]@{ Files = $files; SV = $sv; SVChar = $svChar; Extra = $extra }
 }
 
 # --- Build ---------------------------------------------------------------------------------------
@@ -59,7 +61,7 @@ foreach ($name in $Bundles.Keys) {
     $bundle = $Bundles[$name]
     $out = Join-Path $Dist $name
     New-Item -ItemType Directory $out | Out-Null
-    $fileLines = @(); $sv = @(); $svChar = @(); $included = @()
+    $fileLines = @(); $sv = @(); $svChar = @(); $extra = @(); $included = @()
     foreach ($module in $bundle.Modules) {
         if (-not (Test-Path (Join-Path $Root "$module\$module.toc"))) {
             Write-Warning "${name}: helper '$module' isn't in the repo yet, skipped."
@@ -71,12 +73,19 @@ foreach ($name in $Bundles.Keys) {
             Copy-Item (Join-Path $Root "$module\$file") (Join-Path $out "$module\$file")
             $fileLines += "$module\$file"
         }
-        $sv += $info.SV; $svChar += $info.SVChar; $included += $module
+        # Keybindings are only read from the addon's own folder, so they go to the bundle root.
+        $bindings = Join-Path $Root "$module\Bindings.xml"
+        if (Test-Path $bindings) {
+            if (Test-Path (Join-Path $out 'Bindings.xml')) { throw "${name}: two helpers ship Bindings.xml; merge them first." }
+            Copy-Item $bindings (Join-Path $out 'Bindings.xml')
+        }
+        $sv += $info.SV; $svChar += $info.SVChar; $extra += $info.Extra; $included += $module
     }
     $deps = if ($name -eq '!ForeverHub') { '' } else { "## OptionalDeps: !ForeverHub`r`n" }
     $toc = "## Interface: 16001`r`n## Title: $($bundle.Title)`r`n## Notes: $($bundle.Notes) Only gives information.`r`n## Version: 1.0.0`r`n$deps"
     if ($sv.Count) { $toc += "## SavedVariables: $($sv -join ', ')`r`n" }
     if ($svChar.Count) { $toc += "## SavedVariablesPerCharacter: $($svChar -join ', ')`r`n" }
+    foreach ($line in $extra) { $toc += "$line`r`n" }
     $toc += "`r`n" + ($fileLines -join "`r`n") + "`r`n"
     [IO.File]::WriteAllText((Join-Path $out "$name.toc"), $toc, (New-Object Text.UTF8Encoding $false))
     $built[$name] = $included

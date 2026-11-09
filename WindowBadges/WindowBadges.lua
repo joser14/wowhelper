@@ -64,8 +64,16 @@ local function Report(step, ...)
     end
 end
 
+-- ItemAdvisor already marks the best quest reward with its own glow and coin, so ours start off to
+-- avoid showing the same advice twice. The player can still turn them on from the page.
+local OFF_BY_DEFAULT = { reward = true, gold = true }
+
 local function IsOn(name)
-    return not (type(WindowBadgesDB) == "table" and WindowBadgesDB[name] == false)
+    local saved = type(WindowBadgesDB) == "table" and WindowBadgesDB[name]
+    if saved == true or saved == false then
+        return saved
+    end
+    return not OFF_BY_DEFAULT[name]
 end
 
 local function InCombat()
