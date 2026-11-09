@@ -1,0 +1,561 @@
+-- GoldGuide: where to farm gold at your level, money tips, and what in your bags is worth more at the
+-- auction house than at a vendor. Read-only: it reads your level, professions and bags, and the auction
+-- prices PriceMemory saved from your own searches. It never buys, sells, posts or searches.
+
+local COPPER_PER_GOLD = 10000
+local SECONDS_PER_DAY = 86400
+local LEVEL_BELOW, LEVEL_ABOVE = 2, 3   -- farms shown when your level is this close to their range
+local MAX_FARMS, MIN_FARMS = 5, 3
+local TIPS_SHOWN = 3
+local TOP_AUCTION = 5
+local STATUS_MIN_GAIN = COPPER_PER_GOLD  -- the panel row needs at least 1g more per stack at auction
+local RESCAN_SECONDS = 5
+local GATHERING_BY_NAME = { Mining = 186, Herbalism = 182, Skinning = 393, Fishing = 356 }
+local PROFESSION_NAME = { [186] = "Mining", [182] = "Herbalism", [393] = "Skinning", [356] = "Fishing" }
+local MAX_PROFESSION_SLOTS = 5
+
+local loggedIn = false
+local lastShown          -- the farm list the numbers on the page refer to
+local cache = { dirty = true, at = nil }
+
+local function Safe(value)
+    if issecretvalue and issecretvalue(value) then
+        return nil
+    end
+    return value
+end
+
+local function Print(text)
+    if ForeverHub_Receive then
+        return ForeverHub_Receive("GoldGuide", text)
+    end
+    -- No hub window to show it in: stay quiet rather than fill the chat.
+end
+
+local function Data()
+    local data = type(GoldGuideData) == "table" and GoldGuideData or {}
+    return data.farms or {}, data.methods or {}, data.zones or {}
+end
+
+local function Now()
+    return (time and time()) or 0
+end
+
+local function Clock()
+    return (GetTime and GetTime()) or Now()
+end
+
+local function FormatMoney(copper)
+    copper = math.floor(copper + 0.5)
+    local gold, silver, rest = math.floor(copper / COPPER_PER_GOLD), math.floor(copper / 100) % 100, copper % 100
+    if gold > 0 then
+        return string.format("%dg %ds", gold, silver)
+    elseif silver > 0 then
+        return string.format("%ds %dc", silver, rest)
+    end
+    return string.format("%dc", rest)
+end
+
+local function FormatAge(seconds)
+    local days = math.floor(math.max(seconds, 0) / SECONDS_PER_DAY)
+    if days == 0 then
+        return "today"
+    elseif days == 1 then
+        return "1 day ago"
+    end
+    return string.format("%d days ago", days)
+end
+
+----- Your character
+
+local function PlayerLevel()
+    local level = UnitLevel and Safe(UnitLevel("player"))
+    return type(level) == "number" and level > 0 and level or nil
+end
+
+-- The gathering professions you have, as a set of skill lines.
+local function Professions()
+    local have = {}
+    if not (GetProfessions and GetProfessionInfo) then
+        return have
+    end
+    local slots = { GetProfessions() }
+    for position = 1, MAX_PROFESSION_SLOTS do
+        local index = Safe(slots[position])
+        if index then
+            local name, _, _, _, _, _, skillLine = GetProfessionInfo(index)
+            name, skillLine = Safe(name), Safe(skillLine)
+            local line = PROFESSION_NAME[skillLine] and skillLine or GATHERING_BY_NAME[name]
+            if line then
+                have[line] = true
+            end
+        end
+    end
+    return have
+end
+
+----- Auction prices PriceMemory saved (read only)
+
+local function ScopeKey()
+    local realm = GetRealmName and Safe(GetRealmName())
+    local faction = UnitFactionGroup and Safe(UnitFactionGroup("player"))
+    if type(realm) == "string" and realm ~= "" and type(faction) == "string" and faction ~= "" then
+        return realm .. "-" .. faction
+    end
+end
+
+-- { price, seen, old } for an item, or nil. "old" marks an entry saved without a realm and faction.
+local function AuctionPrice(itemID)
+    if type(PriceMemoryDB) ~= "table" or type(itemID) ~= "number" then
+        return nil
+    end
+    local scope = ScopeKey()
+    local prices = scope and PriceMemoryDB[scope]
+    local entry, old = type(prices) == "table" and prices[itemID] or nil, false
+    if type(entry) ~= "table" then
+        entry, old = PriceMemoryDB[itemID], true
+    end
+    if type(entry) == "table" and type(entry.price) == "number" and entry.price > 0 and type(entry.seen) == "number" then
+        return { price = entry.price, seen = entry.seen, old = old }
+    end
+    return nil
+end
+
+local function AuctionText(itemID)
+    local auction = AuctionPrice(itemID)
+    if not auction then
+        return nil
+    end
+    return string.format("last AH price %s (%s%s)", FormatMoney(auction.price), FormatAge(Now() - auction.seen),
+        auction.old and ", older save" or "")
+end
+
+----- Your bags
+
+local function LastBag()
+    return NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4
+end
+
+local function ItemInfo(itemID)
+    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    if not getInfo then
+        return nil, nil
+    end
+    local name, _, _, _, _, _, _, _, _, _, sellPrice = getInfo(itemID)
+    return Safe(name), Safe(sellPrice)
+end
+
+local function RequestLoad(itemID)
+    if C_Item and C_Item.RequestLoadItemDataByID then
+        C_Item.RequestLoadItemDataByID(itemID)
+    end
+end
+
+-- Everything in your bags: total vendor value, items still loading, and per item what auction pays more for.
+local function ScanBags()
+    local result = { vendor = 0, pending = 0, readable = false, items = {} }
+    if not (C_Container and C_Container.GetContainerNumSlots and C_Container.GetContainerItemInfo) then
+        return result
+    end
+    local byID = {}
+    for bag = 0, LastBag() do
+        for slot = 1, Safe(C_Container.GetContainerNumSlots(bag)) or 0 do
+            result.readable = true
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            local itemID = type(info) == "table" and Safe(info.itemID)
+            if itemID then
+                local count = Safe(info.stackCount) or 1
+                local name, sellPrice = ItemInfo(itemID)
+                if sellPrice then
+                    result.vendor = result.vendor + sellPrice * count
+                else
+                    result.pending = result.pending + 1
+                    RequestLoad(itemID)
+                end
+                local entry = byID[itemID]
+                if not entry then
+                    entry = { itemID = itemID, count = 0, name = name or Safe(info.itemName), sellPrice = sellPrice, bound = false }
+                    byID[itemID] = entry
+                end
+                entry.count = entry.count + count
+                -- A bound copy can't be auctioned; only count copies you could post.
+                if Safe(info.isBound) then
+                    entry.bound = true
+                    entry.boundCount = (entry.boundCount or 0) + count
+                end
+            end
+        end
+    end
+    for itemID, entry in pairs(byID) do
+        local sellable = entry.count - (entry.boundCount or 0)
+        local auction = sellable > 0 and AuctionPrice(itemID)
+        if auction and auction.price > (entry.sellPrice or 0) then
+            entry.sellable = sellable
+            entry.auction = auction
+            entry.gain = (auction.price - (entry.sellPrice or 0)) * sellable
+            result.items[#result.items + 1] = entry
+        end
+    end
+    table.sort(result.items, function(a, b)
+        if a.gain ~= b.gain then
+            return a.gain > b.gain
+        end
+        return a.itemID < b.itemID
+    end)
+    return result
+end
+
+-- The bag scan the panel row uses: redone only after the bags change, and at most every few seconds.
+local function CachedScan()
+    local now = Clock()
+    if cache.result and (not cache.dirty or (cache.at and now - cache.at < RESCAN_SECONDS)) then
+        return cache.result
+    end
+    cache.result, cache.at, cache.dirty = ScanBags(), now, false
+    return cache.result
+end
+
+----- Farms
+
+local function Matches(farm, level)
+    return level >= farm.minLevel - LEVEL_BELOW and level <= farm.maxLevel + LEVEL_ABOVE
+end
+
+-- Up to five farms for your level: ones for gathering professions you have first, then cloth and
+-- elemental farms, closest to your level first. Gathering routes you can't use only fill an empty list.
+local function BestFarms(level)
+    local farms = Data()
+    local have = Professions()
+    local mine, open, other = {}, {}, {}
+    for _, farm in ipairs(farms) do
+        if Matches(farm, level) then
+            if farm.profession and have[farm.profession] then
+                mine[#mine + 1] = farm
+            elseif not farm.profession then
+                open[#open + 1] = farm
+            else
+                other[#other + 1] = farm
+            end
+        end
+    end
+    local function Distance(farm)
+        if level < farm.minLevel then
+            return farm.minLevel - level
+        elseif level > farm.maxLevel then
+            return level - farm.maxLevel
+        end
+        return 0
+    end
+    local function ByDistance(a, b)
+        local da, db = Distance(a), Distance(b)
+        if da ~= db then
+            return da < db
+        end
+        -- Then the farm whose range is centred nearest your level.
+        local ca, cb = math.abs((a.minLevel + a.maxLevel) / 2 - level), math.abs((b.minLevel + b.maxLevel) / 2 - level)
+        if ca ~= cb then
+            return ca < cb
+        end
+        return a.name < b.name
+    end
+    table.sort(mine, ByDistance)
+    table.sort(open, ByDistance)
+    table.sort(other, ByDistance)
+    local list = {}
+    -- Your professions get up to three places so a cloth or elemental farm still shows.
+    for index = 1, math.min(#mine, MAX_FARMS - 2) do
+        list[#list + 1] = mine[index]
+    end
+    for _, farm in ipairs(open) do
+        if #list >= MAX_FARMS then
+            break
+        end
+        list[#list + 1] = farm
+    end
+    for index = MAX_FARMS - 1, #mine do
+        if #list >= MAX_FARMS then
+            break
+        end
+        list[#list + 1] = mine[index]
+    end
+    for _, farm in ipairs(other) do
+        if #list >= MIN_FARMS then
+            break
+        end
+        list[#list + 1] = farm
+    end
+    return list
+end
+
+local function DropsText(farm)
+    local parts = {}
+    for _, drop in ipairs(farm.drops or {}) do
+        local price = AuctionText(drop.itemID)
+        parts[#parts + 1] = price and string.format("%s (%s)", drop.name, price) or drop.name
+    end
+    return table.concat(parts, ", ")
+end
+
+local function FarmLine(number, farm, mine)
+    local tag = ""
+    if farm.profession then
+        tag = string.format(" |cff88bbee[%s%s]|r", PROFESSION_NAME[farm.profession] or "Gathering", mine and "" or ", you don't have it")
+    end
+    return string.format("|cffffd100%d.|r %s |cff999999- %s, level %d-%d|r%s", number, farm.name, farm.zone, farm.minLevel, farm.maxLevel, tag)
+end
+
+local function ShowFarm(number, farm, have)
+    Print(FarmLine(number, farm, have[farm.profession]))
+    Print("    Drops: " .. DropsText(farm))
+    if farm.why then
+        Print("    |cff999999" .. farm.why .. "|r")
+    end
+end
+
+----- Map pin
+
+local function MapName(mapID)
+    local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
+    return type(info) == "table" and Safe(info.name) or nil
+end
+
+-- The map to pin on: the first of the zone's map IDs the game takes a waypoint on, preferring one whose
+-- name is the zone's. Classic-era and Mainline map IDs differ, so a wrong guess isn't pinned.
+local function PinMap(farm)
+    local _, _, zones = Data()
+    local candidates = { farm.mapID }
+    for _, id in ipairs(zones[farm.zone] or {}) do
+        if id ~= farm.mapID then
+            candidates[#candidates + 1] = id
+        end
+    end
+    local fallback
+    for _, id in ipairs(candidates) do
+        local can = true
+        if C_Map.CanSetUserWaypointOnMap then
+            can = Safe(C_Map.CanSetUserWaypointOnMap(id)) and true or false
+        end
+        if can then
+            local name = MapName(id)
+            if name and name:lower() == farm.zone:lower() then
+                return id
+            end
+            -- With no name to compare, take the first map that accepts a waypoint.
+            if not name and not fallback then
+                fallback = id
+            end
+        end
+    end
+    return fallback
+end
+
+local function Pin(farm)
+    if not (farm and C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
+        return false
+    end
+    local mapID = PinMap(farm)
+    if not mapID then
+        return false
+    end
+    local wasSet = C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, farm.x, farm.y))
+    if Safe(wasSet) == false then
+        return false
+    end
+    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+    end
+    return true
+end
+
+----- Page sections
+
+local function ShowTips(level)
+    local _, methods = Data()
+    local fit = {}
+    for index, tip in ipairs(methods) do
+        if (tip.minLevel or 1) <= level then
+            fit[#fit + 1] = { tip = tip, index = index }
+        end
+    end
+    -- The tips that started mattering most recently are the ones you're least likely to know.
+    table.sort(fit, function(a, b)
+        if (a.tip.minLevel or 1) ~= (b.tip.minLevel or 1) then
+            return (a.tip.minLevel or 1) > (b.tip.minLevel or 1)
+        end
+        return a.index < b.index
+    end)
+    if #fit == 0 then
+        return
+    end
+    Print(" ")
+    Print("|cffeecc55Tips for your level|r")
+    for index = 1, math.min(TIPS_SHOWN, #fit) do
+        Print(string.format("|cffffd100%s:|r %s", fit[index].tip.title, fit[index].tip.text))
+    end
+end
+
+local function ShowBags()
+    Print(" ")
+    Print("|cffeecc55Your bags|r")
+    local scan = ScanBags()
+    cache.result, cache.at, cache.dirty = scan, Clock(), false
+    if not scan.readable then
+        Print("The game didn't report your bags.")
+        return
+    end
+    local loading = ""
+    if scan.pending > 0 then
+        loading = string.format(" %d item(s) are still loading, so it may be more; open this page again in a moment.", scan.pending)
+    end
+    Print(string.format("Everything in your bags sells to a vendor for %s.%s", FormatMoney(scan.vendor), loading))
+    if type(PriceMemoryDB) ~= "table" then
+        Print("|cff999999Auction prices show up here once PriceMemory has seen your own auction house searches.|r")
+        return
+    end
+    if #scan.items == 0 then
+        Print("|cff999999Nothing in your bags has a saved auction price above its vendor price.|r")
+        return
+    end
+    Print("Worth more at the auction house than at a vendor (before the auction house's cut):")
+    for index = 1, math.min(TOP_AUCTION, #scan.items) do
+        local item = scan.items[index]
+        Print(string.format("  %s x%d: AH %s vs vendor %s |cff999999(price seen %s%s)|r",
+            item.name or ("item " .. item.itemID), item.sellable,
+            FormatMoney(item.auction.price * item.sellable), FormatMoney((item.sellPrice or 0) * item.sellable),
+            FormatAge(Now() - item.auction.seen), item.auction.old and ", older save" or ""))
+    end
+end
+
+local function ShowBest()
+    local level = PlayerLevel()
+    if not level then
+        Print("Your level can't be read right now. Type: all, to see every farm.")
+        ShowBags()
+        return
+    end
+    local have = Professions()
+    lastShown = BestFarms(level)
+    Print(string.format("|cffeecc55Best for you now|r |cff999999(level %d)|r", level))
+    if #lastShown == 0 then
+        Print("No farm in this guide fits your level yet; they start at level 10. Questing and selling greys is the best money now.")
+    end
+    for number, farm in ipairs(lastShown) do
+        ShowFarm(number, farm, have)
+    end
+    if #lastShown > 0 then
+        Print("|cff999999Type a farm's number to pin it on your map.|r")
+    end
+    ShowTips(level)
+    ShowBags()
+    Print("|cff999999Saving for riding? See the Gold goal page.|r")
+end
+
+local BANDS = { { 10, 19 }, { 20, 29 }, { 30, 39 }, { 40, 49 }, { 50, 60 } }
+
+local function ShowAll()
+    local farms = Data()
+    local have = Professions()
+    lastShown = {}
+    for _, band in ipairs(BANDS) do
+        local inBand = {}
+        for _, farm in ipairs(farms) do
+            -- Each farm sits in the band its range starts in.
+            if farm.minLevel >= band[1] and farm.minLevel <= band[2] then
+                inBand[#inBand + 1] = farm
+            end
+        end
+        table.sort(inBand, function(a, b)
+            if a.minLevel ~= b.minLevel then
+                return a.minLevel < b.minLevel
+            end
+            return a.name < b.name
+        end)
+        if #inBand > 0 then
+            Print(string.format("|cffeecc55Levels %d-%d|r", band[1], band[2]))
+            for _, farm in ipairs(inBand) do
+                lastShown[#lastShown + 1] = farm
+                Print(FarmLine(#lastShown, farm, have[farm.profession]) .. "  " .. DropsText(farm))
+            end
+        end
+    end
+    Print("|cff999999Type a farm's number to pin it on your map.|r")
+end
+
+local function ShowAllTips()
+    local _, methods = Data()
+    for _, tip in ipairs(methods) do
+        Print(string.format("|cffffd100%s|r |cff999999(level %d+)|r: %s", tip.title, tip.minLevel or 1, tip.text))
+    end
+end
+
+local function PinNumber(number)
+    if not lastShown then
+        local level = PlayerLevel()
+        lastShown = level and BestFarms(level) or {}
+    end
+    local farm = lastShown[number]
+    if not farm then
+        Print(string.format("There's no farm number %d on the last list. Open the page again and pick a number from it.", number))
+        return
+    end
+    local where = string.format("%s (%.1f, %.1f)", farm.zone, farm.x * 100, farm.y * 100)
+    if Pin(farm) then
+        Print(string.format("Pinned %s: %s.", farm.name, where))
+    else
+        Print(string.format("Couldn't pin it on this map. %s is at %s.", farm.name, where))
+    end
+end
+
+local function ShowPage(arg)
+    if not loggedIn then
+        return
+    end
+    local want = (arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    local number = tonumber(want:match("^(%d+)$") or "")
+    if number then
+        PinNumber(number)
+    elseif want == "all" then
+        ShowAll()
+    elseif want == "tips" then
+        ShowAllTips()
+    else
+        if want ~= "" then
+            Print("Type a farm's number to pin it, or: all, or: tips.")
+        end
+        ShowBest()
+    end
+end
+
+if CreateFrame then
+    local events = CreateFrame("Frame")
+    events:RegisterEvent("PLAYER_LOGIN")
+    events:RegisterEvent("BAG_UPDATE_DELAYED")
+    events:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+    events:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_LOGIN" then
+            loggedIn = true
+        end
+        -- Only mark the scan stale; it's redone when something asks for it.
+        cache.dirty = true
+    end)
+end
+
+SLASH_GOLDGUIDE1 = "/goldguide"
+SlashCmdList.GOLDGUIDE = ShowPage
+
+ForeverHubStatus = ForeverHubStatus or {}
+ForeverHubStatus.GoldGuide = function()
+    if not loggedIn or type(PriceMemoryDB) ~= "table" then
+        return nil
+    end
+    local count = 0
+    for _, item in ipairs(CachedScan().items) do
+        if item.gain >= STATUS_MIN_GAIN then
+            count = count + 1
+        end
+    end
+    if count == 0 then
+        return nil
+    end
+    return { { text = string.format("|cffeecc55AH|r %d item%s worth more at auction", count, count == 1 and "" or "s"), page = "Gold guide" } }
+end

@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub, PriceMemory
+## Title: GoldGuide
+## Notes: Where to farm gold at your level, money tips, and which bag items are worth more at auction than at a vendor. Only gives information.
+## Version: 0.1.0
+
+Data.lua
+GoldGuide.lua
