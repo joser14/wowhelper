@@ -1,0 +1,216 @@
+﻿ZONE?     Teldrassil           L237   G Fly to Auberdine, Darkshore        mentions Darkshore:  Vesprystus, the flight master Fly to Auberdine, Darkshore
+ZONE?     Darkshore            L326   A The Tower of Althalaxx             mentions Ashenvale: Balthule Shadowstrike (letter for Delgren at Maestra's Post, Ashenvale
+ZONE?     Darkshore            L369   A Therylune's Escape                 mentions Ashenvale: Therylune (ESCORT, turn in at the Shrine of Aessina in Ashenvale)  
+ZONE?     Darkshore            L416   A The Sleeper Has Awakened           mentions Ashenvale: Kerlonian Evershade (ESCORT, ends at Maestra's Post, Ashenvale)  
+ZONE?     Darkshore            L418   A One Shot. One Kill.                mentions Ashenvale: Sentinel Aynasha (ESCORT, turn in at Maestra's Post, Ashenvale)  
+ZONE?     Darkshore            L420   G Lead Kerlonian south down the road mentions Ashenvale:  Liladris Moonriver, Delgren, Onaeya and Therysil are in Ashenvale Lea
+ZONE?     Ashenvale            L732   G Maestra's Post                     mentions Darkshore:  Arrive from Darkshore with Kerlonian and Balthule's letter Maestra's 
+ZONE?     Ashenvale            L808   D Raene's Cleansing                  mentions Felwood:  Open the chest in the glade near the Felwood border for the Iron Shaf
+ZONE?     Wetlands             L895   A Fiora Longears                     mentions Theramore: Red Jack Flint (turn-in is in Theramore: take the boat when you leave 
+ZONE?     Wetlands             L962   D From the Ashes                     mentions Ironforge:  Destroy the 4 Attack Plans (Menethil Harbor, Thelsamar, Southshore, I
+ZONE?     Wetlands             L1006  A Cleansing the Eye                  mentions Stormwind: Glorin Steelbrow (turn-in: Archbishop Benedictus, Stormwind Cathedral)
+ZONE?     Wetlands             L1007  A A Friend of the Family             mentions Stormwind: Captain Stoutfist (turn-in: Highlord Bolvar Fordragon, Stormwind Keep)
+ZONE?     Wetlands             L1008  G Menethil Harbor docks              mentions Duskwood:  Cleansing the Eye -> Archbishop Benedictus (Stormwind 50.3,45.5); A F
+ZONE?     Duskwood             L1117  A Seeking Wisdom                     mentions Stormwind: Sven Yorgen (turn-in is Bishop Farthing in Stormwind, done at the end)
+ZONE?     Duskwood             L1151  G Fly to Stormwind City for the Sven mentions Stormwind:  Seeking Wisdom goes to Bishop Farthing in the Cathedral of Light; the
+ZONE?     Duskwood             L1170  T Seeking Wisdom                     mentions Stormwind: Bishop Farthing (Cathedral of Light, Stormwind City)  
+ZONE?     Duskwood             L1171  A The Doomed Fleet                   mentions Stormwind: Bishop Farthing (Cathedral of Light, Stormwind City)  
+ZONE?     Duskwood             L1189  G Fly to Menethil Harbor (Wetlands)  mentions Wetlands:  From Stormwind fly on to Menethil Harbor; Glorin Steelbrow stands by 
+ZONE?     Duskwood             L1191  T The Doomed Fleet                   mentions Wetlands: Glorin Steelbrow (Menethil Harbor, Wetlands)  
+ZONE?     Duskwood             L1195  A Lightforge Iron                    mentions Wetlands: Glorin Steelbrow (Menethil Harbor, Wetlands)  
+ZONE?     Duskwood             L1203  D Lightforge Iron                    mentions Wetlands:  Swim to the wreck of the Flying Osprey south-west of Menethil (Wetlan
+ZONE?     Duskwood             L1204  T Lightforge Iron                    mentions Wetlands: Waterlogged Chest (Flying Osprey wreck, Wetlands)  
+ZONE?     Duskwood             L1205  A The Lost Ingots                    mentions Wetlands: Waterlogged Chest (Flying Osprey wreck, Wetlands)  
+ZONE?     Duskwood             L1206  D The Lost Ingots                    mentions Wetlands:  Collect 5 Lightforge Ingots from Bluegill Raiders (murlocs, lvl 28-29
+ZONE?     Duskwood             L1209  T The Lost Ingots                    mentions Wetlands: Glorin Steelbrow (Menethil Harbor, Wetlands)  
+ZONE?     Duskwood             L1212  A Lightforge Ingots                  mentions Wetlands: Glorin Steelbrow (Menethil Harbor, Wetlands; only if he offers it: 5 m
+ZONE?     Duskwood             L1219  D Lightforge Ingots                  mentions Wetlands:  Collect 5 more Lightforge Ingots from Bluegill Raiders at the wrecks 
+ZONE?     Duskwood             L1224  T Lightforge Ingots                  mentions Wetlands: Glorin Steelbrow (Menethil Harbor, Wetlands)  
+ZONE?     Duskwood             L1227  A Blessed Arm                        mentions Wetlands: Glorin Steelbrow (Menethil Harbor, Wetlands)  
+ZONE?     Duskwood             L1236  G Fly back to Stormwind City (Meneth mentions Stormwind:  Blessed Arm goes to Grimand Elmore in the Dwarven District Fly back t
+ZONE?     Duskwood             L1241  T Blessed Arm                        mentions Stormwind: Grimand Elmore (Dwarven District, Stormwind City)  
+ZONE?     Duskwood             L1244  A Armed and Ready                    mentions Stormwind: Grimand Elmore (Dwarven District, Stormwind City)  
+ZONE?     Hillsbrad Foothills  L1198  A Talk of the Town                   mentions Booty Bay: Barkeep Kelly (Forever NEW, ends in Booty Bay)  
+ZONE?     Hillsbrad Foothills  L1227  A Reassignment                       mentions Stormwind: Lieutenant Farren Orinelle (ends in Stormwind Keep)  
+ZONE?     Hillsbrad Foothills  L1229  A Hints of a New Plague?             mentions Arathi: Phin Odelic (ends at Go'Shek Farm, Arathi)  
+ZONE?     Hillsbrad Foothills  L1230  A An Alarming Request                mentions Silverpine: Emissary Jacques (Forever NEW, ends at Lordamere Lake, Silverpine)  
+ZONE?     Hillsbrad Foothills  L1244  A Letter to Stormpike                mentions Ironforge: Loremaster Dibbs (ends in Ironforge)  
+ZONE?     Hillsbrad Foothills  L1251  G Southshore flight path             mentions Arathi:  Out-of-zone turn-ins: Reassignment (Major Samuelson, Stormwind Keep),
+ZONE?     Arathi Highlands     L1305  D Hints of a New Plague?             mentions Hillsbrad:  Kill the Forsaken Courier (walks with 4 Forsaken Bodyguards from the 
+ZONE?     Arathi Highlands     L1310  A Hints of a New Plague?             mentions Southshore: Quae (turn in to Phin Odelic in Southshore later)  
+ZONE?     Arathi Highlands     L1351  D Deep Sea Salvage                   mentions Silverpine:  Drowned Reef wrecks: Maiden's Folly Charts and Log (16.4, 87.1), Spir
+ZONE?     Arathi Highlands     L1358  A Sunken Treasure                    mentions Booty Bay: Shakes O'Breen (turn in to Fleet Master Seahorn in Booty Bay later)  
+ZONE?     Arathi Highlands     L1363  A Myzrael's Allies                   mentions Ironforge: Keystone (turn in to Gerrig Bonegrip, Forlorn Cavern, Ironforge)  
+ZONE?     Arathi Highlands     L1367  A Malin's Request                    mentions Stormwind: Skuerto (ELITE, group; turn in to Archmage Malin, Stormwind)  
+ZONE?     Arathi Highlands     L1368  G Refuge Pointe flight path          mentions Booty Bay:  Leave the zone: Malin's Request to Archmage Malin (Stormwind, Mage Qu
+ZONE?     Desolace             L1485  G Gelkis chain continues (optional)  mentions Swamp of Sorrows:  Stealing Supplies (6 Crudely Dried Meat, Magram Village) then Ongeku 
+ZONE?     Desolace             L1490  A The Karnitol Shipwreck             mentions Ironforge: Kreldig Ungor (deliver to Roetten Stonehammer, Ironforge)  
+ZONE?     Desolace             L1492  A Reagents for Reclaimers Inc.       mentions Ironforge: Kreldig Ungor (Leftwitch's Package to Roetten Stonehammer, Ironforge) 
+ZONE?     Desolace             L1494  A Down the Scarlet Path              mentions Southshore: Brother Anton (letter to Raleigh the Devout, Southshore)  
+ZONE?     Desolace             L1495  G Nijel's Point flight path          mentions Hillsbrad:  Leave Desolace: Karnitol's Satchel and Leftwitch's Package go to Roet
+ZONE?     Stranglethorn Vale   L1520  G Rebel Camp, walk south from Duskwo mentions Duskwood:  Buy 4 Lesser Bloodstone Ore at the AH beforehand for Favor for Krazek
+ZONE?     Stranglethorn Vale   L1572  T Talk of the Town                   mentions Hillsbrad: Nixxrax Fillamug (Salty Sailor Tavern; quest from Hillsbrad)  
+ZONE?     Stranglethorn Vale   L1648  A Magical Analysis                   mentions Alterac: Baron Revilgaz (turn in to Ansirem in Dalaran, Alterac Mountains)  
+ZONE?     Stranglethorn Vale   L1650  G Booty Bay flight path: leave the z mentions Hillsbrad:  Take Magical Analysis to Archmage Ansirem Runeweaver in Dalaran (Alte
+ZONE?     Stranglethorn Vale   L1653  G Booty Bay flight path (Alliance)   mentions Arathi:  Back with Ansirem's Key (Alterac) and Sunken Treasure (Arathi) Booty 
+ZONE?     Stranglethorn Vale   L1654  T Ansirem's Key                      mentions Alterac: Catelyn the Blade (Salty Sailor Tavern; quest from Ansirem, Alterac)  
+ZONE?     Stranglethorn Vale   L1656  T Sunken Treasure                    mentions Arathi: Fleet Master Seahorn (quest from Shakes O'Breen, Arathi)  
+ZONE?     Stranglethorn Vale   L1657  A Sunken Treasure                    mentions Arathi: Fleet Master Seahorn (turn in to Shakes O'Breen, Arathi)  
+ZONE?     Stranglethorn Vale   L1681  A Stoley's Debt                      mentions Tanaris: "Sea Wolf" MacKinley (turn in to Stoley, Tanaris)  
+ZONE?     Stranglethorn Vale   L1682  A Tran'rek                           mentions Tanaris: Krazek (turn in to Tran'rek, Gadgetzan, Tanaris)  
+ZONE?     Stranglethorn Vale   L1730  G Booty Bay flight path: leave Stran mentions Arathi:  Stoley's Debt and Tran'rek go to Tanaris; Sunken Treasure part 5 goes
+ZONE?     Feralas              L1941  A An Orphan Looking For a Home       mentions Thousand Needles: Kindal Moonweaver (egg to Quentin, Thousand Needles)  
+ZONE?     Feralas              L1944  G Thalanaar flight path              mentions Hinterlands:  Get the flight path. Optional: Quentin for the orphan egg is in Thous
+ZONE?     Feralas              L1954  A The Sunken Temple                  mentions Tanaris: Angelas Moonbreeze (find Marvon Rivetseeker, Tanaris)  
+ZONE?     Feralas              L1955  A In Search of Knowledge             mentions Rut'theran: Troyas Moonbreeze (talk to Daryn Lightwind, Rut'theran Village)  
+ZONE?     Feralas              L1985  G Feathermoon Stronghold             mentions Tanaris:  Leaving Feralas: The Sunken Temple -> Marvon Rivetseeker, Tanaris (52
+ZONE?     Tanaris              L1755  T Tran'rek                           mentions Booty Bay: Tran'rek (only if you carry Krazek's quest from Booty Bay)  
+ZONE?     Tanaris              L1772  T Stoley's Debt                      mentions Booty Bay: Stoley (only if you carry MacKinley's quest from Booty Bay)  
+ZONE?     Tanaris              L1777  A Screecher Spirits                  mentions Feralas: Yeh'kinya (objective is in Feralas)  
+ZONE?     Tanaris              L1788  A Deliver to MacKinley               mentions Booty Bay: Stoley (turn in to MacKinley in Booty Bay later)  
+ZONE?     Tanaris              L1819  T Screecher Spirits                  mentions Feralas: Yeh'kinya (only once you have the 3 screecher spirits from Feralas)  
+ZONE?     Tanaris              L1842  A Handle With Care                   mentions Teldrassil: Curgle Cranklehop (turn in to Erelas Ambersky in Rut'theran Village, T
+ZONE?     Tanaris              L1843  A Super Sticky                       mentions Un'Goro: Tran'rek (12 Super Sticky Tar from the tar-pit beasts in northern Un'G
+ZONE?     Tanaris              L1846  T The Sunken Temple                  mentions Feralas: Marvon Rivetseeker (only if you carry it from Feralas)  
+ZONE?     Tanaris              L1848  G Gadgetzan flight path              mentions Booty Bay:  Leaving Tanaris: Deliver to MacKinley -> Booty Bay; Rise of the Silit
+ZONE?     The Hinterlands      L2014  T The Newest Member of the Family    mentions Feralas: Agnar Beastamer (only if you carry the Sprite Darter egg from Thousand
+ZONE?     The Hinterlands      L2020  A Rhapsody's Kalimdor Kocktail       mentions Tanaris: Rhapsody Shindigger (3 Roc Gizzards - Tanaris, 3 Groddoc Livers + 3 Ir
+ZONE?     The Hinterlands      L2035  D Rescue OOX-09/HL!                  mentions Booty Bay:  Escort OOX-09/HL east to the shoreline beyond Overlook Cliff (ESCORT;
+ZONE?     The Hinterlands      L2039  T Cortello's Riddle                  mentions Dustwallow: Cortello's Treasure (underwater chest; only if you carry part 3 from t
+ZONE?     The Hinterlands      L2058  A Thadius Grimshade                  mentions Blasted Lands: Gryphon Master Talonaxe (ends in the Blasted Lands)  
+ZONE?     The Hinterlands      L2059  G Aerie Peak flight path             mentions Booty Bay:  Leave: Thadius Grimshade in the Blasted Lands (66.9, 19.5), then Nekr
+ZONE?     The Hinterlands      L2064  T Rhapsody's Kalimdor Kocktail       mentions Tanaris: Rhapsody Shindigger (only with the gizzards and livers from Tanaris/Fe
+ZONE?     The Hinterlands      L2065  A Rhapsody's Tale                    mentions Stormwind: Rhapsody Shindigger (ends at Brohann Caskbelly, Stormwind)  
+ZONE?     The Hinterlands      L2066  D Saving Sharpbeak                   mentions Tanaris:  ELITE, group: fight to the top of Jintha'Alor, kill Vile Priestess He
+ZONE?     The Hinterlands      L2068  G Aerie Peak flight path             mentions Stormwind:  Done here: Rhapsody's Tale to Brohann Caskbelly in Stormwind (leads t
+ZONE?     Un'Goro Crater       L2086  G Torwa Pathfinder at the bottom of  mentions Tanaris:  Loot every Power Crystal (red, blue, green, yellow) you pass; you nee
+ZONE?     Un'Goro Crater       L2102  A It's a Secret to Everybody         mentions Winterspring: Linken (part 3 is turned in to Donova Snowden, Winterspring)  
+ZONE?     Un'Goro Crater       L2135  D The Northern Pylon                 mentions Tanaris:  Examine the Northern Crystal Pylon (if you carry Super Sticky from Ta
+ZONE?     Un'Goro Crater       L2160  A A Visit to Gregan                  mentions Feralas: Muigin (turn in to Gregan Brewspewer, Feralas 45.1,25.6)  
+ZONE?     Un'Goro Crater       L2176  A The New Springs                    mentions Winterspring: Krakle (turn in to Donova Snowden, Winterspring 31.3,45.2)  
+ZONE?     Un'Goro Crater       L2177  G Marshal's Refuge flight path       mentions Tanaris:  Fly out: Winterspring for It's a Secret to Everybody 3 and The New Sp
+ZONE?     Un'Goro Crater       L2180  T Linken's Sword                     mentions Tanaris: Linken (sword from A Conspicuous Gravestone, Tanaris)  
+ZONE?     Un'Goro Crater       L2183  A Linken's Memory                    mentions Felwood: J.D. Collie (turn in to Eridan Bluewind, Felwood 51.4,81.5)  
+ZONE?     Un'Goro Crater       L2184  G Marshal's Refuge flight path       mentions Felwood:  Fly to Felwood (Talonbranch Glade): turn in Linken's Memory to Eridan
+ZONE?     Un'Goro Crater       L2185  T Aquementas                         mentions Felwood: J.D. Collie (from Eridan Bluewind, Felwood)  
+ZONE?     Felwood              L2215  G Emerald Sanctuary                  mentions Ashenvale:  Alliance quest hub in southern Felwood; take the road north from Ashe
+ZONE?     Felwood              L2241  A Speak to Salfa                     mentions Winterspring: Nafien (turn in to Salfa in Winterspring, through Timbermaw Hold)  
+ZONE?     Felwood              L2251  A Seeking Spiritual Aid              mentions Barrens: Greta Mosshoof (turn in to Islen Waterseer, The Barrens)  
+ZONE?     Felwood              L2259  G Emerald Sanctuary: trip to Darnass mentions Barrens:  Fill Eridan's Vial with Blessed Water at the Temple of the Moon in Da
+ZONE?     Felwood              L2290  A Ancient Spirit                     mentions Ashenvale: Arei (ESCORT; ends with Kayneth Stillwind in Ashenvale)  
+ZONE?     Felwood              L2293  A Aquementas                         mentions Un'Goro: Eridan Bluewind (turn in to J.D. Collie in Un'Goro Crater)  
+ZONE?     Felwood              L2294  G Timbermaw Hold entrance (Nafien)   mentions Ashenvale:  Go through Timbermaw Hold to Winterspring: turn in Speak to Salfa to 
+ZONE?     Burning Steppes      L2313  G Morgan's Vigil flight path         mentions Lakeshire:  Ride north from Lakeshire through Blackrock Pass; learn the flight pa
+ZONE?     Burning Steppes      L2336  A Felnok Steelspring                 mentions Winterspring: Tinkee Steamboil (turn in to Felnok Steelspring, Everlook, Wintersprin
+ZONE?     Burning Steppes      L2337  G Ruins of Thaurissan relics         mentions Ironforge:  If you took The Smoldering Ruins of Thaurissan (3701) from Royal Hist
+ZONE?     Burning Steppes      L2351  A The True Masters                   mentions Lakeshire: Helendis Riverhorn (letter for Magistrate Solomon, Lakeshire)  
+ZONE?     Burning Steppes      L2354  G Morgan's Vigil flight path         mentions Winterspring:  Turn in The True Masters to Magistrate Solomon in Lakeshire (parts 2-
+ZONE?     Western Plaguelands  L2374  G Chillwind Camp flight path (Bibilf mentions Stormwind:  Take 'A Call to Arms: The Plaguelands!' from your capital's Argent Da
+ZONE?     Western Plaguelands  L2379  A A Plague Upon Thee                 mentions Eastern Plaguelands: Nathaniel Dumah (termite mounds are in Eastern Plaguelands, fill the j
+ZONE?     Western Plaguelands  L2393  A Better Late Than Never             mentions Stormwind: Janice's Parcel (turn in to Royal Factor Bathrilor, Stormwind City Hal
+ZONE?     Western Plaguelands  L2446  G Thondroril River bridge, road to E mentions Eastern Plaguelands:  Darrowshire (EPL 31,78): turn in Little Pamela to Pamela Redpath, do 
+ZONE?     Western Plaguelands  L2456  A Brother Carlin                     mentions Light's Hope: Chromie (turn in to Carlin Redpath, Light's Hope Chapel, EPL)  
+ZONE?     Western Plaguelands  L2462  A Mold Rhymes With...                mentions Tanaris: Alchemist Arbington (bring 15g; turn in to Krinkle Goodsteel, Gadgetza
+ZONE?     Western Plaguelands  L2490  G Chillwind Camp flight path         mentions Tanaris:  Fly to Eastern Plaguelands carrying Brother Carlin (Carlin Redpath, L
+ZONE?     Eastern Plaguelands  L2518  G Road west to Western Plaguelands   mentions Western Plaguelands:  Go back to Marlene Redpath (WPL 49.2, 78.6): turn in Auntie Marlene, 
+ZONE?     Eastern Plaguelands  L2572  G Road west to Western Plaguelands   mentions Western Plaguelands:  Of Love and Family: search Caer Darrow (WPL island) for the painting,
+ZONE?     Winterspring         L2594  G Timbermaw Hold exit into Winterspr mentions Felwood:  Walk through Timbermaw Hold from Felwood; Salfa stands just outside t
+ZONE?     Winterspring         L2599  A The Videre Elixir                  mentions Feralas: Donova Snowden (continues with Gregan Brewspewer, Feralas 45.1, 25.6) 
+ZONE?     Winterspring         L2612  D Troubled Spirits of Kel'Theril     mentions Eastern Plaguelands:  Fourth Relic Fragment (turn-in is Aurora Skycaller, Eastern Plaguelan
+ZONE?     Winterspring         L2616  A The Everlook Report                mentions Chillwind: Gregor Greystone (ends at Chillwind Camp, WPL)  
+ZONE?     Winterspring         L2617  A Duke Nicholas Zverenhoff           mentions Light's Hope: Gregor Greystone (ends at Light's Hope Chapel, EPL)  
+ZONE?     Winterspring         L2624  D Chillwind Horns                    mentions Chillwind:  Kill Chillwind Chimaeras south of Everlook for 8 Uncracked Chillwind 
+ZONE?     Winterspring         L2627  A Return to Tinkee                   mentions Burning Steppes: Felnok Steelspring (ends at Tinkee Steamboil, Burning Steppes 65.2, 24
+ZONE?     Winterspring         L2633  D Are We There, Yeti?                mentions Tanaris:  Use Umi's Mechanical Yeti on Legacki by the Everlook inn (Sprinkle in
+ZONE?     Winterspring         L2652  G Through Timbermaw Hold to Felwood  mentions Felwood:  Deadwood Cauldron in the Deadwood furbolg camp (Felwood 60.2, 5.8): t
+ZONE?     Winterspring         L2653  T Falling to Corruption              mentions Felwood: Deadwood Cauldron (Felwood 60.2, 5.8, through Timbermaw Hold)  
+ZONE?     Winterspring         L2654  A Mystery Goo                        mentions Felwood: Deadwood Cauldron (Felwood 60.2, 5.8)  
+ZONE?     Winterspring         L2658  G Through Timbermaw Hold to Felwood  mentions Felwood:  Kill Toxic Horrors (water elementals in Irontree Woods, Felwood ~50, 
+ZONE?     Winterspring         L2661  D Winterfall Runners                 mentions Felwood:  Kill the Winterfall Runners on the road east of the Timbermaw Hold ex
+ZONE?     Winterspring         L2668  G Everlook flight master             mentions Rut'theran:  If you carry Moontouched Wildkin: fly to Rut'theran Village, turn it 
+ZONE?     Winterspring         L2676  A Guardians of the Altar             mentions Rut'theran: Ranshalla (ESCORT; ends at Erelas Ambersky, Rut'theran Village)  
+ZONE?     Winterspring         L2688  A Words of the High Chief            mentions Felwood: Donova Snowden (ends at Kelek Skykeeper, Felwood 51.1, 81.8)  
+ZONE?     Winterspring         L2689  G Through Timbermaw Hold to Felwood  mentions Gadgetzan:  Words of the High Chief: Kelek Skykeeper at Emerald Sanctuary (Felwoo
+ZONE?     Silithus             L2721  T Wasteland                          mentions Moonglade: Layo Starstrike (Valor's Rest graveyard; quest from Rabine Saturna, Mo
+ZONE?     Silithus             L2729  A Umber, Archivist                   mentions Moonglade: Layo Starstrike (turn in to Umber, Nighthaven, Moonglade)  
+ZONE?     Silithus             L2794  G Cenarion Hold flight master        mentions Moonglade:  Fly to Moonglade (Nighthaven) and turn in Umber, Archivist to Umber a
+ZONE?     Dun Morogh           L588   A Stout to Kadrell                   mentions Loch Modan: Mountaineer Barleybrew (turn-in in Loch Modan)  
+ZONE?     Dun Morogh           L589   G Loch Modan, through the east gate  mentions Thelsamar:  Turn in Stout to Kadrell to Mountaineer Kadrell on the Thelsamar road
+ZONE?     Loch Modan           L615   A Ride to Ironforge                  mentions Ironforge: Thorgrum Borrelson (turned in in Ironforge later)  
+ZONE?     Loch Modan           L619   D Snowbound                          mentions Dun Morogh:  Scoop snow into the Ceramic Jar at the tunnel entrance of South Gate 
+ZONE?     Loch Modan           L634   A Stormpike's Order                  mentions Stormwind: Mountaineer Stormpike (turn-in is Furen Longbeard, Stormwind)  
+ZONE?     Loch Modan           L654   G Fly to Ironforge from Thorgrum Bor mentions Ironforge:  Ironforge: turn in Ride to Ironforge and take Gryth Thurden from Goln
+ZONE?     Loch Modan           L655   G Ironforge: Hall of Explorers       mentions Ironforge:  Turn in Report to Ironforge and take Powder to Ironband from Prospect
+ZONE?     Loch Modan           L656   G Ironforge: Gryth Thurden and fly b mentions Ironforge:  Turn in Gryth Thurden and take Return to Brock from Gryth Thurden (55
+ZONE?     Loch Modan           L668   D Banner of the Fallen               mentions Ironforge:  Raise the Banner of Ironforge next to Ylva's body, kill Headsplitter 
+ZONE?     Loch Modan           L710   A A Dark Threat Looms                mentions Wetlands: Chief Engineer Hinderweir VII (turn-in is Ashlan Stonesmirk, Dun Modr,
+ZONE?     Loch Modan           L719   G Dun Algaz tunnel to the Wetlands   mentions Wetlands:  Open quests to finish elsewhere: A Dark Threat Looms part 3 (Ashlan S
+T-noA     Duskwood             L1024  T Messenger to Darkshire             no pick-up anywhere in chain; to Lord Ello Ebonlocke (Darkshire town hall)
+T-noA     Hillsbrad Foothills  L1191  T Southshore                         no pick-up anywhere in chain; to Loremaster Dibbs
+T-noA     Hillsbrad Foothills  L1192  T The Shamed Lieutenant              no pick-up anywhere in chain; to Lieutenant Farren Orinelle
+T-noA     Hillsbrad Foothills  L1193  T MacKreel's Moonshine               no pick-up anywhere in chain; to Brewmeister Bilger
+T-noA     Hillsbrad Foothills  L1243  T Encrypted Letter                   no pick-up anywhere in chain; to Loremaster Dibbs
+T-noA     Hillsbrad Foothills  L1246  T Foreboding Plans                   no pick-up anywhere in chain; to Magistrate Henry Maleb
+T-noA     Arathi Highlands     L1275  T Plea To The Alliance               no pick-up anywhere in chain; to Captain Nials
+T-noA     Arathi Highlands     L1276  T Malin's Request                    no pick-up anywhere in chain; to Skuerto
+T-noA     Desolace             L1394  T Reclaimers' Business in Desolace   no pick-up anywhere in chain; to Kreldig Ungor
+T-noA     The Hinterlands      L2006  T To The Hinterlands                 no pick-up anywhere in chain; to Falstad Wildhammer
+T-noA     The Hinterlands      L2014  T The Newest Member of the Family    no pick-up anywhere in chain; to Agnar Beastamer (only if you carry the Sprite Dart
+T-noA     The Hinterlands      L2062  T Return to the Hinterlands          no pick-up anywhere in chain; to Gryphon Master Talonaxe (Forever tags it ELITE; sp
+T<A       Un'Goro Crater       L2185  T Aquementas                         accepted later at Felwood L2293
+T-noA     Felwood              L2263  T Cleansed Water Returns to Felwood  no pick-up anywhere in chain; to Greta Mosshoof
+T-noA     Western Plaguelands  L2375  T A Call to Arms: The Plaguelands!   no pick-up anywhere in chain; to Commander Ashlam Valorfist
+T<A       Western Plaguelands  L2449  T Auntie Marlene                     accepted later at Eastern Plaguelands L2517
+T-noA     Winterspring         L2604  T To Winterspring!                   no pick-up anywhere in chain; to Wynd Nightchaser
+T-noA     Winterspring         L2675  T Find Ranshalla                     no pick-up anywhere in chain; to Ranshalla
+T-noA     Silithus             L2721  T Wasteland                          no pick-up anywhere in chain; to Layo Starstrike (Valor's Rest graveyard; quest fro
+A-noT     Darkshore            L369   A Therylune's Escape                 from Therylune (ESCORT, turn in at the Shrine of Aessina in Ashen
+A-noT     Darkshore            L418   A One Shot. One Kill.                from Sentinel Aynasha (ESCORT, turn in at Maestra's Post, Ashenva
+A-noT     Wetlands             L895   A Fiora Longears                     from Red Jack Flint (turn-in is in Theramore: take the boat when 
+A-noT     Wetlands             L933   A In Search of The Excavation Team   from Merrin Rockweaver
+A-noT     Wetlands             L1006  A Cleansing the Eye                  from Glorin Steelbrow (turn-in: Archbishop Benedictus, Stormwind 
+A-noT     Wetlands             L1007  A A Friend of the Family             from Captain Stoutfist (turn-in: Highlord Bolvar Fordragon, Storm
+A-noT     Hillsbrad Foothills  L1227  A Reassignment                       from Lieutenant Farren Orinelle (ends in Stormwind Keep)
+A-noT     Hillsbrad Foothills  L1230  A An Alarming Request                from Emissary Jacques (Forever NEW, ends at Lordamere Lake, Silve
+A-noT     Hillsbrad Foothills  L1244  A Letter to Stormpike                from Loremaster Dibbs (ends in Ironforge)
+A-noT     Arathi Highlands     L1310  A Hints of a New Plague?             from Quae (turn in to Phin Odelic in Southshore later)
+A-noT     Arathi Highlands     L1363  A Myzrael's Allies                   from Keystone (turn in to Gerrig Bonegrip, Forlorn Cavern, Ironfo
+A-noT     Arathi Highlands     L1367  A Malin's Request                    from Skuerto (ELITE, group; turn in to Archmage Malin, Stormwind)
+A-noT     Desolace             L1490  A The Karnitol Shipwreck             from Kreldig Ungor (deliver to Roetten Stonehammer, Ironforge)
+A-noT     Desolace             L1492  A Reagents for Reclaimers Inc.       from Kreldig Ungor (Leftwitch's Package to Roetten Stonehammer, I
+A-noT     Desolace             L1494  A Down the Scarlet Path              from Brother Anton (letter to Raleigh the Devout, Southshore)
+A-noT     Stranglethorn Vale   L1648  A Magical Analysis                   from Baron Revilgaz (turn in to Ansirem in Dalaran, Alterac Mount
+A-noT     Stranglethorn Vale   L1657  A Sunken Treasure                    from Fleet Master Seahorn (turn in to Shakes O'Breen, Arathi)
+A-noT     Feralas              L1940  A Doling Justice                     from Jer'kai Moonweaver (ring to Tyrande, Darnassus)
+A-noT     Feralas              L1941  A An Orphan Looking For a Home       from Kindal Moonweaver (egg to Quentin, Thousand Needles)
+A-noT     Feralas              L1955  A In Search of Knowledge             from Troyas Moonbreeze (talk to Daryn Lightwind, Rut'theran Villa
+A-noT     Tanaris              L1788  A Deliver to MacKinley               from Stoley (turn in to MacKinley in Booty Bay later)
+A-noT     Tanaris              L1841  A Rise of the Silithid               from Senior Surveyor Fizzledowser (turn in to Gracina Spiritmight
+A-noT     Tanaris              L1842  A Handle With Care                   from Curgle Cranklehop (turn in to Erelas Ambersky in Rut'theran 
+A-noT     Tanaris              L1843  A Super Sticky                       from Tran'rek (12 Super Sticky Tar from the tar-pit beasts in nor
+A-noT     Tanaris              L1847  A The Stone Circle                   from Marvon Rivetseeker (objective is in Ratchet)
+A-noT     The Hinterlands      L2034  A Rescue OOX-09/HL!                  from Homing Robot OOX-09/HL (ESCORT)
+A-noT     The Hinterlands      L2055  A Jammal'an the Prophet              from Atal'ai Exile (optional: Sunken Temple dungeon quest, level 
+A-noT     The Hinterlands      L2058  A Thadius Grimshade                  from Gryphon Master Talonaxe (ends in the Blasted Lands)
+A-noT     The Hinterlands      L2065  A Rhapsody's Tale                    from Rhapsody Shindigger (ends at Brohann Caskbelly, Stormwind)
+A-noT     Un'Goro Crater       L2160  A A Visit to Gregan                  from Muigin (turn in to Gregan Brewspewer, Feralas 45.1,25.6)
+A-noT     Felwood              L2251  A Seeking Spiritual Aid              from Greta Mosshoof (turn in to Islen Waterseer, The Barrens)
+A-noT     Felwood              L2290  A Ancient Spirit                     from Arei (ESCORT; ends with Kayneth Stillwind in Ashenvale)
+A-noT     Felwood              L2293  A Aquementas                         from Eridan Bluewind (turn in to J.D. Collie in Un'Goro Crater)
+A-noT     Burning Steppes      L2351  A The True Masters                   from Helendis Riverhorn (letter for Magistrate Solomon, Lakeshire
+A-noT     Western Plaguelands  L2393  A Better Late Than Never             from Janice's Parcel (turn in to Royal Factor Bathrilor, Stormwin
+A-noT     Western Plaguelands  L2432  A Glyphed Oaken Branch               from Mulgris Deepriver (turn in to Mathrengyl Bearwalker, Darnass
+A-noT     Western Plaguelands  L2462  A Mold Rhymes With...                from Alchemist Arbington (bring 15g; turn in to Krinkle Goodsteel
+A-noT     Eastern Plaguelands  L2517  A Auntie Marlene                     from Pamela Redpath
+A-noT     Eastern Plaguelands  L2571  A Of Love and Family                 from Tirion Fordring
+A-noT     Winterspring         L2599  A The Videre Elixir                  from Donova Snowden (continues with Gregan Brewspewer, Feralas 45
+A-noT     Winterspring         L2607  A Troubled Spirits of Kel'Theril     from Jaron Stoneshaper (keep Jaron's Pick)
+A-noT     Winterspring         L2616  A The Everlook Report                from Gregor Greystone (ends at Chillwind Camp, WPL)
+A-noT     Winterspring         L2617  A Duke Nicholas Zverenhoff           from Gregor Greystone (ends at Light's Hope Chapel, EPL)
+A-noT     Winterspring         L2622  A Sister Pamela                      from Jessica Redpath (ends at Pamela Redpath, Darrowshire, EPL)
+A-noT     Winterspring         L2627  A Return to Tinkee                   from Felnok Steelspring (ends at Tinkee Steamboil, Burning Steppe
+A-noT     Winterspring         L2632  A Are We There, Yeti?                from Umi Rumplesnicker
+A-noT     Winterspring         L2676  A Guardians of the Altar             from Ranshalla (ESCORT; ends at Erelas Ambersky, Rut'theran Villa
+A-noT     Winterspring         L2688  A Words of the High Chief            from Donova Snowden (ends at Kelek Skykeeper, Felwood 51.1, 81.8)
+A-noT     Silithus             L2729  A Umber, Archivist                   from Layo Starstrike (turn in to Umber, Nighthaven, Moonglade)
+215 findings

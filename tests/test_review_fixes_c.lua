@@ -45,6 +45,7 @@ do
     ObjectiveTrackerFrame = newRegion("Frame")
     ObjectiveTrackerFrame.alpha = 1
     function ObjectiveTrackerFrame:SetAlpha(a) self.alpha = a end
+function ObjectiveTrackerFrame:GetAlpha() return self.alpha end
     function ObjectiveTrackerFrame:Show() trackerCalls[#trackerCalls + 1] = "Show" end
     function ObjectiveTrackerFrame:Hide() trackerCalls[#trackerCalls + 1] = "Hide" end
     function ObjectiveTrackerFrame:SetShown() trackerCalls[#trackerCalls + 1] = "SetShown" end
@@ -130,9 +131,13 @@ do
 
     -- Taint: Blizzard's tracker is only made clear, never hidden, shown or updated.
     assert(ObjectiveTrackerFrame.alpha == 0, "tracker clear")
-    ObjectiveTrackerFrame.hooks.OnShow(ObjectiveTrackerFrame)
-    combat = true; fire("PLAYER_REGEN_DISABLED"); ObjectiveTrackerFrame.hooks.OnShow(ObjectiveTrackerFrame); tick()
+    -- No hook on Blizzard's tracker any more: when the game makes it visible again, the next tick clears it.
+    assert(not (ObjectiveTrackerFrame.hooks and ObjectiveTrackerFrame.hooks.OnShow), "no OnShow hook on Blizzard's tracker")
+    ObjectiveTrackerFrame.alpha = 1; tick()
+    assert(ObjectiveTrackerFrame.alpha == 0, "cleared again by the poll")
+    combat = true; fire("PLAYER_REGEN_DISABLED"); ObjectiveTrackerFrame.alpha = 1; tick()
     combat = false; fire("PLAYER_REGEN_ENABLED"); tick()
+    assert(ObjectiveTrackerFrame.alpha == 0, "clear after combat")
     local headerButton
     for _, f in ipairs(frames) do if f.scripts.OnDragStart then headerButton = f end end
     headerButton.scripts.OnClick(headerButton)

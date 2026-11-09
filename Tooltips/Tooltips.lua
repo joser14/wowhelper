@@ -454,12 +454,21 @@ local function UnitBody(tooltip, data)
 end
 
 -- A tooltip error would repeat on every mouse-over, so problems here are swallowed.
+-- Switched off on the hub's Manage page: add nothing at all.
+local function SwitchedOff()
+    return ForeverHub_IsOff and ForeverHub_IsOff("Tooltips") == true
+end
+
 local function OnItemTooltip(tooltip, data)
-    pcall(ItemBody, tooltip, data)
+    if not SwitchedOff() then
+        pcall(ItemBody, tooltip, data)
+    end
 end
 
 local function OnUnitTooltip(tooltip, data)
-    pcall(UnitBody, tooltip, data)
+    if not SwitchedOff() then
+        pcall(UnitBody, tooltip, data)
+    end
 end
 
 local function Register()

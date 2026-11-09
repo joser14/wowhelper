@@ -22,6 +22,7 @@ local KINDS = {
     work = { label = "Do", color = "|cffffd100" },
     pickup = { label = "Pick up", color = "|cff66ccff" },
     travel = { label = "Go to", color = "|cffff9933" },
+    level = { label = "Reach level", color = "|cffff8040" },  -- the route waits on your level (LevelStep)
 }
 local CHORES = { "TrainerNotes", "TalentNudge", "DurabilityWatch", "BagCheck" }
 local COLOR_DIM = "|cff999999"
@@ -829,7 +830,14 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
     if entry then
         shown.xp = RewardXP(entry.id)
     end
-    if zoneMap and step.x and step.y then
+    if step.map then
+        -- Written on another zone's map (Routes.lua On()): placed only while you're in that zone, never
+        -- at the same numbers on the route's own map.
+        local onMap = ZoneMap(step.map)
+        if onMap and step.x and step.y then
+            shown.mapID, shown.x, shown.y = onMap, step.x / 100, step.y / 100
+        end
+    elseif zoneMap and step.x and step.y then
         local x, y = CityToZone(zoneMap, step, step.x / 100, step.y / 100)
         if x then
             shown.mapID, shown.x, shown.y = zoneMap, x, y
@@ -859,6 +867,42 @@ local function RouteUnfinished(route, byTitle, level)
     return false
 end
 
+-- Something on the route you can do right now. A route whose only open steps are pick-ups you're too
+-- low for (or whose earlier quest isn't done) is unfinished, but has nothing for you yet.
+local function RouteHasWork(route, byTitle, level)
+    for index, step in ipairs(route.steps) do
+        if not RouteStepDone(route, index, step, byTitle, level)
+            and (step.t ~= "accept" or RouteStepActionable(step, byTitle, level, {})) then
+            return true
+        end
+    end
+    return false
+end
+
+-- The level the route's next pick-up is waiting for: the lowest level that opens one of its pick-ups
+-- you could otherwise take (earlier quests done, not skipped, not outleveled). Nil when nothing waits
+-- on your level. The guide uses the higher of the game's minimum level and the route's own level
+-- (a pick-up shows from one level below it, see RouteStepActionable).
+local function LevelBlocker(route, byTitle, level)
+    local best, bestNeed, bestIndex
+    local data = LevelGuidePrereqs
+    for index, step in ipairs(route.steps) do
+        local part = tonumber(step.part) or 1
+        if step.t == "accept" and not charData.skips[RouteKey(route, index)] and not InLog(byTitle, step.q)
+            and TurnedIn(step.q) == part - 1 and not (step.lvl and level >= step.lvl + OUTLEVELED)
+            and PrereqsMet(step.q, nil) then
+            local need = data and (data[step.q] or data[RealTitle(step.q)])
+            local needLevel = math.max(need and need.level or 0, step.lvl and step.lvl - 1 or 0)
+            if needLevel > level and (not bestNeed or needLevel < bestNeed) then
+                best, bestNeed, bestIndex = step, needLevel, index
+            end
+        end
+    end
+    return best, bestNeed, bestIndex
+end
+
+-- Returns the route to follow and, when the zone you're standing in was passed over because all it has
+-- left waits on your level, that zone's route (so the guide can say why it sends you elsewhere).
 local function FindRoute(level, byTitle)
     local chains = LevelGuideRoutes and LevelGuideRoutes.chains
     local race = UnitRace and Safe(select(2, UnitRace("player")))
@@ -867,17 +911,57 @@ local function FindRoute(level, byTitle)
     -- zone before shouldn't keep the guide pointing back there.
     -- ZoneMap climbs from the map you're on (a town, a cave, a city) to its zone, so standing in
     -- Darnassus or Dolanaar still counts as Teldrassil.
+    local stuckHere
     for _, route in ipairs(routes) do
         if level >= route.min and level <= route.max and ZoneMap(route.zone) and RouteUnfinished(route, byTitle, level) then
-            return route
+            if RouteHasWork(route, byTitle, level) then
+                return route
+            end
+            stuckHere = stuckHere or route
         end
     end
+    -- Nothing to do here until you level: zones of the same levels (Ashenvale, Wetlands and Duskwood are
+    -- all 20-30) have work for you now, so the next one in the chain that does comes before grinding.
+    -- Before this, the guide stayed in the zone you stood in with nothing to show until its max level.
     for _, route in ipairs(routes) do
         -- A zone more than a couple of levels above you waits, even when the ones before it are done.
+        if level <= route.max and level >= route.min - 2 and RouteHasWork(route, byTitle, level) then
+            return route, stuckHere
+        end
+    end
+    if stuckHere then
+        return stuckHere
+    end
+    for _, route in ipairs(routes) do
         if level <= route.max and level >= route.min - 2 and RouteUnfinished(route, byTitle, level) then
             return route
         end
     end
+end
+
+-- The plan's dungeon hint for your level, if any.
+local function PlanNote(level)
+    for _, entry in ipairs(LevelGuideRoutes and LevelGuideRoutes.plan or {}) do
+        if level >= entry.min and level < entry.max then
+            return entry.note
+        end
+    end
+end
+
+-- Under-leveled: the route's next pick-up needs a higher level than yours and nothing else on it can be
+-- done now. Say so plainly, pointing at the quest giver, instead of an empty or puzzling list.
+local function LevelStep(route, byTitle, level, zoneMap)
+    local step, need, index = LevelBlocker(route, byTitle, level)
+    if not step then
+        return nil
+    end
+    local shown = RouteDisplay(route, index, step, byTitle, zoneMap)
+    shown.kind = "level"
+    shown.title = string.format("%d for %s", need, step.q)
+    local note = PlanNote(level)
+    shown.detail = string.format("Needs level %d, you're %d. Finish the quests you have, or kill mobs around your level nearby until then. Then pick it up from %s.%s",
+        need, level, tostring(step.npc or "?"), note and (" " .. note .. ".") or "")
+    return shown
 end
 
 local function RouteSteps(level)
@@ -885,7 +969,7 @@ local function RouteSteps(level)
         return nil
     end
     local byTitle = LogByTitle()
-    local route = FindRoute(level, byTitle)
+    local route, stuckHere = FindRoute(level, byTitle)
     if not route then
         return nil
     end
@@ -898,17 +982,35 @@ local function RouteSteps(level)
             here[#here + 1] = offer
         end
         local list = Route(here, mapID, playerX, playerY)
-        list[#list + 1] = { kind = "travel", title = route.zone, detail = "Your route continues there", zone = route.zone }
-        local written = 0
+        local why = "Your route continues there"
+        local need
+        if stuckHere then
+            need = select(2, LevelBlocker(stuckHere, byTitle, level))
+        end
+        if need then
+            why = string.format("%s's next quests need level %d, you're %d. %s has quests for you now",
+                stuckHere.zone, need, level, route.zone)
+        end
+        local written = {}
         for index, step in ipairs(route.steps) do
-            if written >= MAX_NEXT then
+            if #written >= MAX_NEXT then
                 break
             end
             if not RouteStepDone(route, index, step, byTitle, level)
                 and (step.t ~= "accept" or RouteStepActionable(step, byTitle, level, {})) then
-                list[#list + 1] = RouteDisplay(route, index, step, byTitle, nil)
-                written = written + 1
+                written[#written + 1] = RouteDisplay(route, index, step, byTitle, nil)
             end
+        end
+        -- A route leg written on this map (Routes.lua On(), e.g. Duskwood's Sven leg in Stormwind) is
+        -- done here: no "go back" line before it.
+        if not (written[1] and written[1].mapID) then
+            list[#list + 1] = { kind = "travel", title = route.zone, detail = why, zone = route.zone }
+        end
+        for _, shown in ipairs(written) do
+            list[#list + 1] = shown
+        end
+        if #written == 0 then
+            list[#list + 1] = LevelStep(route, byTitle, level, nil)
         end
         return list, route
     end
@@ -1011,6 +1113,14 @@ local function RouteSteps(level)
     local list = ready
     for _, shown in ipairs(waiting) do
         list[#list + 1] = shown
+    end
+    -- Nothing on the route you can do at your level: say what it waits for. Quests in your log come
+    -- first (they're the way to the level); otherwise this is the step, with the arrow on the giver.
+    if not RouteHasWork(route, byTitle, level) then
+        local wait = LevelStep(route, byTitle, level, zoneMap)
+        if wait then
+            table.insert(list, math.min(#ready + 1, 2), wait)
+        end
     end
     return list, route
 end

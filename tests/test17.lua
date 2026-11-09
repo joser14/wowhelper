@@ -158,4 +158,27 @@ LevelGuidePrereqs = { Q2 = { all = { 424242 } } }
 update(); update()
 assert(not all():find("Reach level", 1, true), "prereq quest is not a level problem")
 assert(#handled == 0, "clean: " .. tostring(handled[1]))
+-- (more below)
+-- 8. A step written on another zone's map (Routes.lua On()) is placed only on that map.
+LevelGuidePrereqs = nil
+local DUSK = { zone = "Duskwood", min = 20, max = 31, steps = {
+    { t = "turnin", q = "SW", npc = "Bishop Farthing (Stormwind City)", x = 49.9, y = 46.0, lvl = 21, map = "Stormwind City" },
+    { t = "turnin", q = "DW", npc = "Someone in Darkshire", x = 70, y = 40, lvl = 21 },
+} }
+LevelGuideRoutes.chains.NightElf = { DUSK }
+log = { { questID = 501, title = "SW", ready = true }, { questID = 502, title = "DW", ready = true } }
+zone = "Stormwind City"
+update(); update()
+print(all())
+assert(current.left.text:find("Turn in:", 1, true) and current.left.text:find("SW", 1, true), "leg here first: " .. current.left.text)
+assert(not all():find("Go to:|r Duskwood", 1, true), "no go-back line before a leg written on this map")
+assert(current.step.mapID == 57 and math.abs(current.step.x - 0.499) < 1e-9, "placed on the Stormwind map")
+zone = "Duskwood"
+update(); update()
+print(all())
+local sw
+for i = 1, 4 do if buttons[i].shown and buttons[i].step and buttons[i].step.title == "SW" then sw = buttons[i].step end end
+assert(sw and sw.x == nil and sw.mapID == nil, "not plotted on the Duskwood map")
+assert(current.step.title == "DW", "the Darkshire step leads in Duskwood: " .. tostring(current.step.title))
+assert(#handled == 0, "clean 8: " .. tostring(handled[1]))
 print("ALL TESTS PASSED")

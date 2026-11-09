@@ -8,6 +8,10 @@ local function A(q, npc, x, y, lvl, part) if type(part) ~= "number" then part = 
 local function D(q, note, x, y, lvl, part) if type(part) ~= "number" then part = nil end return { t = "do", q = q, note = note, x = x, y = y, lvl = lvl, part = part } end
 local function T(q, npc, x, y, lvl, part) if type(part) ~= "number" then part = nil end return { t = "turnin", q = q, npc = npc, x = x, y = y, lvl = lvl, part = part } end
 local function G(text, x, y, lvl, note) return { t = "go", text = text, x = x, y = y, lvl = lvl, note = note } end
+-- A step that happens on another zone's map (its x, y are that map's, e.g. the Duskwood route's Sven leg in
+-- Stormwind City and Wetlands). The guide puts it on the map only while you're in that zone, instead of
+-- plotting the same numbers on this route's map (LevelGuide.lua RouteDisplay).
+local function On(zone, step) step.map = zone return step end
 
 -- Teldrassil (Night Elf 1-12) for WoW: Forever 1.60.x.
 -- Sources: wow4ever.quest (Questie Forever data, client 1.60.1.70790), wowhead.com/forever quest text,
@@ -960,6 +964,8 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     G("Hearth to Menethil Harbor", 10.6, 55.3, 27),
 
     -- Menethil turn-ins
+    -- Part 2 (306, Merrin's note) is turned in to Tarrel Rockweaver (wowhead classic quest=306); it had no turn-in step.
+    T("In Search of The Excavation Team", "Tarrel Rockweaver", 11.5, 52.2, 27, 2),
     T("Daily Delivery", "James Halloran", 8.6, 55.7, 27),
     T("Crocs of the Sky", "James Halloran", 8.6, 55.7, 27),
     A("Crimson Crate Delivery", "James Halloran", 8.6, 55.7, 27),
@@ -1143,25 +1149,25 @@ local DUSKWOOD = { zone = "Duskwood", min = 20, max = 31, steps = {
     D("Bride of the Embalmer", "ELITE, group: dig Eliza's grave behind Abercrombie's shack, kill Eliza for the Embalmer's Heart", 28.8, 31.0, 31),
     T("Bride of the Embalmer", "Lord Ello Ebonlocke", 71.9, 46.4, 31),
 
-    -- Sven chain leg: Stormwind -> Menethil Harbor (Wetlands) -> Stormwind -> Sven (31). Coordinates below are STORMWIND / WETLANDS map coords.
+    -- Sven chain leg: Stormwind -> Menethil Harbor (Wetlands) -> Stormwind -> Sven (31). Coordinates below are STORMWIND / WETLANDS map coords. Wrapped in On(): the guide plots them only while you're on that map.
     G("Fly to Stormwind City for the Sven chain (Darkshire flight master)", 77.6, 44.4, 31, "Seeking Wisdom goes to Bishop Farthing in the Cathedral of Light; then The Doomed Fleet sends you to Menethil Harbor"),
-    T("Seeking Wisdom", "Bishop Farthing (Cathedral of Light, Stormwind City)", 49.9, 46.0, 31),
-    A("The Doomed Fleet", "Bishop Farthing (Cathedral of Light, Stormwind City)", 49.9, 46.0, 31),
+    On("Stormwind City", T("Seeking Wisdom", "Bishop Farthing (Cathedral of Light, Stormwind City)", 49.9, 46.0, 31)),
+    On("Stormwind City", A("The Doomed Fleet", "Bishop Farthing (Cathedral of Light, Stormwind City)", 49.9, 46.0, 31)),
     G("Fly to Menethil Harbor (Wetlands) for the Sven chain", 77.6, 44.4, 31, "From Stormwind fly on to Menethil Harbor; Glorin Steelbrow stands by the lighthouse path west of the docks"),
-    T("The Doomed Fleet", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31),
-    A("Lightforge Iron", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31),
-    D("Lightforge Iron", "Swim to the wreck of the Flying Osprey south-west of Menethil (Wetlands) and open the Waterlogged Chest", 12.1, 64.2, 31),
-    T("Lightforge Iron", "Waterlogged Chest (Flying Osprey wreck, Wetlands)", 12.1, 64.2, 31),
-    A("The Lost Ingots", "Waterlogged Chest (Flying Osprey wreck, Wetlands)", 12.1, 64.2, 31),
-    D("The Lost Ingots", "Collect 5 Lightforge Ingots from Bluegill Raiders (murlocs, lvl 28-29) around the wrecks off the Wetlands coast", 8.0, 68.0, 31),
-    T("The Lost Ingots", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31),
-    A("Lightforge Ingots", "Glorin Steelbrow (Menethil Harbor, Wetlands; only if he offers it: 5 more ingots)", 10.6, 60.6, 31),
-    D("Lightforge Ingots", "Collect 5 more Lightforge Ingots from Bluegill Raiders at the wrecks (Wetlands)", 8.0, 68.0, 31),
-    T("Lightforge Ingots", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31),
-    A("Blessed Arm", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31),
-    G("Fly back to Stormwind City (Menethil flight master)", 9.5, 59.7, 31, "Blessed Arm goes to Grimand Elmore in the Dwarven District"),
-    T("Blessed Arm", "Grimand Elmore (Dwarven District, Stormwind City)", 59.7, 33.8, 31),
-    A("Armed and Ready", "Grimand Elmore (Dwarven District, Stormwind City)", 59.7, 33.8, 31),
+    On("Wetlands", T("The Doomed Fleet", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31)),
+    On("Wetlands", A("Lightforge Iron", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31)),
+    On("Wetlands", D("Lightforge Iron", "Swim to the wreck of the Flying Osprey south-west of Menethil (Wetlands) and open the Waterlogged Chest", 12.1, 64.2, 31)),
+    On("Wetlands", T("Lightforge Iron", "Waterlogged Chest (Flying Osprey wreck, Wetlands)", 12.1, 64.2, 31)),
+    On("Wetlands", A("The Lost Ingots", "Waterlogged Chest (Flying Osprey wreck, Wetlands)", 12.1, 64.2, 31)),
+    On("Wetlands", D("The Lost Ingots", "Collect 5 Lightforge Ingots from Bluegill Raiders (murlocs, lvl 28-29) around the wrecks off the Wetlands coast", 8.0, 68.0, 31)),
+    On("Wetlands", T("The Lost Ingots", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31)),
+    On("Wetlands", A("Lightforge Ingots", "Glorin Steelbrow (Menethil Harbor, Wetlands; only if he offers it: 5 more ingots)", 10.6, 60.6, 31)),
+    On("Wetlands", D("Lightforge Ingots", "Collect 5 more Lightforge Ingots from Bluegill Raiders at the wrecks (Wetlands)", 8.0, 68.0, 31)),
+    On("Wetlands", T("Lightforge Ingots", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31)),
+    On("Wetlands", A("Blessed Arm", "Glorin Steelbrow (Menethil Harbor, Wetlands)", 10.6, 60.6, 31)),
+    On("Wetlands", G("Fly back to Stormwind City (Menethil flight master)", 9.5, 59.7, 31, "Blessed Arm goes to Grimand Elmore in the Dwarven District")),
+    On("Stormwind City", T("Blessed Arm", "Grimand Elmore (Dwarven District, Stormwind City)", 59.7, 33.8, 31)),
+    On("Stormwind City", A("Armed and Ready", "Grimand Elmore (Dwarven District, Stormwind City)", 59.7, 33.8, 31)),
     G("Fly to Darkshire and ride to Sven's Camp", 77.6, 44.4, 31, "Bring Morbent's Bane to Sven Yorgen"),
     T("Armed and Ready", "Sven Yorgen", 7.8, 34.1, 31),
     A("Morbent Fel", "Sven Yorgen (ELITE, group)", 7.8, 34.1, 31),
@@ -2802,7 +2808,9 @@ local PLAN = {
     { min = 41, max = 46, zones = { "Riverglades", "Tanaris", "Feralas" }, hub = "Gadgetzan, Thalanaar or Feathermoon", note = "Uldaman suits 41-51" },
     { min = 46, max = 51, zones = { "Tanaris", "Feralas", "The Hinterlands" }, hub = "Gadgetzan or Aerie Peak", note = "Zul'Farrak and Maraudon suit 44-55" },
     { min = 51, max = 56, zones = { "Un'Goro Crater", "Felwood", "Burning Steppes" }, hub = "Marshal's Refuge, Talonbranch Glade or Morgan's Vigil", note = "Blackrock Depths suits 52-60" },
-    { min = 56, max = 61, zones = { "Western Plaguelands", "Eastern Plaguelands", "Winterspring", "Silithus" }, hub = "Chillwind Camp, Light's Hope Chapel, Everlook or Cenarion Hold" },
+    { min = 56, max = 61, zones = { "Western Plaguelands", "Eastern Plaguelands", "Winterspring", "Silithus" }, hub = "Chillwind Camp, Light's Hope Chapel, Everlook or Cenarion Hold",
+      -- The XP-flow audit leaves the last level or two short of quests; the guide's "Reach level" line quotes this.
+      note = "Blackrock Depths, Lower Blackrock Spire, Scholomance and Stratholme suit 55-60" },
 }
 
 LevelGuideRoutes = {

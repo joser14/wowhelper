@@ -1,6 +1,12 @@
 local PANEL_WIDTH, ROW_HEIGHT, MAX_ROWS = 280, 18, 10
-local WIDTH, HEIGHT, SIDEBAR_WIDTH = 640, 480, 126
-local NAV_HEIGHT = 22
+local WIDTH, HEIGHT, SIDEBAR_WIDTH = 680, 500, 140
+-- The page area starts right of the sidebar; the sidebar's own scroll bar sits inside SIDEBAR_WIDTH.
+local PAGE_LEFT = SIDEBAR_WIDTH + 22
+local PAGE_WIDTH = WIDTH - SIDEBAR_WIDTH - 64
+local NAV_WIDTH = SIDEBAR_WIDTH - 18
+local NAV_HEIGHT, HEADER_HEIGHT, HEADER_GAP = 18, 20, 4
+local MANAGE_ROW_HEIGHT, MANAGE_HEADER_HEIGHT = 36, 46
+local RELOAD_CONFIRM_SECONDS = 5
 local TOAST_WIDTH, TOAST_SECONDS, MAX_TOASTS = 300, 6, 3
 local REPEAT_SECONDS = 15
 local MAX_ALERTS = 100
@@ -8,42 +14,139 @@ local MINIMAP_RADIUS = 105
 local DEFAULT_ANGLE = 215
 local MAX_LEVEL = 60
 
--- Most useful first; the panel shows these in this order.
-local STATUS_ORDER = { "RareWatch", "DeathNotes", "ItemAdvisor", "TalentNudge", "TrainerNotes", "QuestCheck", "DurabilityWatch", "BagCheck", "SupplyWatch", "ProfessionCap", "WeaponSkillWatch", "GoldGoal" }
+local GOLD, GRAY, GREEN, ORANGE, RED = "|cffffd100", "|cff999999", "|cff33ff33", "|cffffaa66", "|cffff6666"
 
--- Pages in the details window. "hidden" pages open from the panel but take no sidebar space.
+-- Most useful first; the panel shows these in this order.
+local STATUS_ORDER = { "RareWatch", "DeathNotes", "ItemAdvisor", "TalentNudge", "TrainerNotes", "SpellReady", "QuestCheck", "Dungeons",
+    "DurabilityWatch", "BagCheck", "SupplyWatch", "ProfessionCap", "ProfessionGuide", "WeaponSkillWatch", "GoldGoal", "GoldGuide" }
+
+-- The sidebar groups, one per installed addon (see build.ps1), in the order they're shown.
+-- "core" is the addon that holds the hub itself, so it can never be turned off from here.
+local SECTIONS = {
+    { key = "guides", title = "Guides", addon = "ForeverGuides" },
+    { key = "quests", title = "Quests", addon = "ForeverQuests" },
+    { key = "bags", title = "Bags & items", addon = "ForeverBags" },
+    { key = "character", title = "Character", addon = "ForeverCharacter" },
+    { key = "world", title = "World", addon = "ForeverWorld" },
+    { key = "hub", title = "Hub", addon = "!ForeverHub", core = true },
+}
+
+-- Every helper, with one plain sentence about what it does. Used by the Home and Manage pages.
+-- "where" is for helpers that show up somewhere other than a page in this window.
+-- "noSwitch" helpers don't talk to the hub, so switching them off here would do nothing.
+-- "sources" lists other names a helper uses when it sends a pop-up.
+local HELPERS = {
+    { name = "LevelGuide", section = "guides", noSwitch = "Own window", where = "its own window at the top of the screen",
+        about = "A step-by-step leveling route with an arrow, worked out from your quest log and map." },
+    { name = "ProfessionCap", section = "guides", about = "Warns when a profession hits its skill cap and needs the next rank from a trainer." },
+    { name = "ProfessionGuide", section = "guides", about = "A full leveling guide for each profession, with a shopping list and trainer notes." },
+    { name = "GoldGoal", section = "guides", about = "Shows how close you are to your next riding skill and mount, or a gold goal you set." },
+    { name = "GoldGuide", section = "guides", about = "Good ways to make gold at your level, with tips." },
+    { name = "Dungeons", section = "guides", about = "Dungeons that suit your level, with details on each. Pin one to keep it handy." },
+    { name = "QuestTracker", section = "quests", sources = { "Quests" }, where = "its own quest list on screen, and pop-ups",
+        about = "A cleaner quest tracker: turn-ins first, nearest quests on top, XP on every quest." },
+    { name = "QuestCheck", section = "quests", about = "How full your quest log is, what's ready to turn in, and which quests are gray or need a group." },
+    { name = "ZoneLevels", section = "quests", about = "Shows a zone's level range and warns when you walk into one above your level." },
+    { name = "ItemAdvisor", section = "bags", about = "Says whether to equip, keep, sell or auction each item in your bags." },
+    { name = "BagCheck", section = "bags", about = "Warns when your bags are nearly full and shows what your junk is worth." },
+    { name = "ItemFinder", section = "bags", about = "Searches the bags, bank and gear of all your characters." },
+    { name = "PriceMemory", section = "bags", noSwitch = "Saves prices", where = "item tooltips, through Tooltips",
+        about = "Remembers the auction prices from searches you make, for Tooltips and the Gold guide." },
+    { name = "Tooltips", section = "bags",
+        about = "Adds vendor price, last auction price, how many you own on every character and more to item tooltips." },
+    { name = "FoodCheck", section = "bags", about = "The best food and drink in your bags for your level, and which ones you've outgrown." },
+    { name = "SupplyWatch", section = "bags", about = "Warns when ammo or items you choose run low, and lists what to restock." },
+    { name = "DurabilityWatch", section = "bags", about = "Warns when gear is nearly broken and shows the repair cost." },
+    { name = "TalentNudge", section = "character", about = "Tells you when you have unspent talent points." },
+    { name = "TrainerNotes", section = "character", about = "Remembers what your trainers sell and tells you when something new is ready." },
+    { name = "WeaponSkillWatch", section = "character", about = "Warns when the weapon you hold is far below its skill cap." },
+    { name = "RestGuard", section = "character", about = "Shows your rested XP and warns if you log out outside a rested area." },
+    { name = "RepWatch", section = "character", about = "Reputation gained this session and how far each faction is from its next standing." },
+    { name = "LevelLog", section = "character", about = "Records your play time and deaths for each level." },
+    -- Lives in the ReadyCheck folder, but calls itself SpellReady everywhere it talks to the hub.
+    { name = "SpellReady", section = "character", about = "Checks for missing buffs and spells you could train a higher rank of." },
+    { name = "Landmarks", section = "world", about = "Remembers vendors, inns, flight masters, mailboxes, banks and trainers you visit, and finds the nearest." },
+    { name = "DeathNotes", section = "world", about = "Remembers where you died and warns when you walk back into that spot." },
+    { name = "RareWatch", section = "world",
+        about = "A pop-up and a sound when a rare appears on your minimap; remembers where and when each was last seen or killed, and estimates your layer." },
+    { name = "ForeverHelper", section = "hub", about = "Leveling rates, a to-do list for each character, and an overview of your characters." },
+    { name = "ErrorLog", section = "hub", about = "Saves Lua errors so you can read them later." },
+}
+local HELPER_BY_NAME, HELPER_BY_SOURCE = {}, {}
+for _, helper in ipairs(HELPERS) do
+    HELPER_BY_NAME[helper.name] = helper
+    HELPER_BY_SOURCE[helper.name] = helper
+    for _, source in ipairs(helper.sources or {}) do
+        HELPER_BY_SOURCE[source] = helper
+    end
+end
+
+-- Pages in the details window, in sidebar order. Home and Manage sit above the groups; every other
+-- page belongs to the group of the helper that draws it.
 local TABS = {
-    { label = "Bag advice", key = "ITEMADVISOR", hint = "To change what stats to favor, type: role healer" },
-    { label = "Quests", key = "QUESTCHECK" },
-    { label = "Trainer", key = "TRAINERNOTES" },
-    { label = "Professions", key = "PROFESSIONCAP" },
-    { label = "Weapon skills", key = "WEAPONSKILLWATCH", arg = "all" },
-    { label = "Food and drink", key = "FOODCHECK" },
-    { label = "Supplies", key = "SUPPLYWATCH", hint = "Item in your bags and how many: Water 20   Or: remove 1   Or: ammo 400", supplies = true },
-    { label = "Find an item", key = "ITEMFINDER", hint = "Type part of an item name and press Enter", emptyHint = "Search your bags, bank, and gear on every character.", search = true },
-    { label = "Gold goal", key = "GOLDGOAL", hint = "Gold and a name: 500 Bags   Or: clear" },
-    { label = "Rested XP", key = "RESTGUARD" },
-    { label = "Places", key = "LANDMARKS", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer" },
-    { label = "Deaths", key = "DEATHNOTES", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
-    { label = "Reputation", key = "REPWATCH", arg = "all" },
-    { label = "Level log", key = "LEVELLOG", arg = "all" },
-    { label = "Characters", key = "FOREVERHELPER", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
-    { label = "Pop-up history", alerts = true },
-    { label = "Errors", key = "ERRORLOG", hint = "Type a number for details, or: clear" },
-    { label = "Talents", key = "TALENTNUDGE", hidden = true },
-    { label = "Bag space", key = "BAGCHECK", hidden = true },
-    { label = "Repairs", key = "DURABILITYWATCH", hidden = true },
-    { label = "Zone", key = "ZONELEVELS", hidden = true },
+    { label = "Home", home = true, about = "What every helper does, and how to use this window." },
+    { label = "Manage", manage = true, about = "Switch helpers on or off, and see which addons are loaded." },
+    { label = "Professions", key = "PROFESSIONCAP", helper = "ProfessionCap" },
+    { label = "Profession guide", key = "PROFESSIONGUIDE", helper = "ProfessionGuide", hint = "Type a profession to see its full guide. Or: shopping   Or: trainer alchemy" },
+    { label = "Gold goal", key = "GOLDGOAL", helper = "GoldGoal", hint = "Gold and a name: 500 Bags   Or: clear" },
+    { label = "Gold guide", key = "GOLDGUIDE", helper = "GoldGuide", hint = "Type a number to pin that farm. Or: all   Or: tips" },
+    { label = "Dungeons", key = "DUNGEONS", helper = "Dungeons", hint = "Type a number or name for details. Or: pin 2   Or: all" },
+    { label = "Quests", key = "QUESTCHECK", helper = "QuestCheck" },
+    { label = "Zone", key = "ZONELEVELS", helper = "ZoneLevels" },
+    { label = "Bag advice", key = "ITEMADVISOR", helper = "ItemAdvisor", hint = "To change what stats to favor, type: role healer" },
+    { label = "Bag space", key = "BAGCHECK", helper = "BagCheck" },
+    { label = "Find an item", key = "ITEMFINDER", helper = "ItemFinder", hint = "Type part of an item name and press Enter", emptyHint = "Search your bags, bank, and gear on every character.", search = true },
+    { label = "Food and drink", key = "FOODCHECK", helper = "FoodCheck" },
+    { label = "Supplies", key = "SUPPLYWATCH", helper = "SupplyWatch", hint = "Item in your bags and how many: Water 20   Or: remove 1   Or: ammo 400", supplies = true },
+    { label = "Repairs", key = "DURABILITYWATCH", helper = "DurabilityWatch" },
+    { label = "Tooltips", key = "TOOLTIPS", helper = "Tooltips", hint = "Type: off vendor   Or: on id   Or: on npc" },
+    { label = "Talents", key = "TALENTNUDGE", helper = "TalentNudge" },
+    { label = "Trainer", key = "TRAINERNOTES", helper = "TrainerNotes" },
+    { label = "Weapon skills", key = "WEAPONSKILLWATCH", helper = "WeaponSkillWatch", arg = "all" },
+    { label = "Rested XP", key = "RESTGUARD", helper = "RestGuard" },
+    { label = "Reputation", key = "REPWATCH", helper = "RepWatch", arg = "all" },
+    { label = "Level log", key = "LEVELLOG", helper = "LevelLog", arg = "all" },
+    -- Not READYCHECK: that is Blizzard's own /readycheck command, which the hub must never wrap.
+    { label = "Ready check", key = "SPELLREADY", helper = "SpellReady", hint = "Type: ignore Frostbolt   Or: unignore Frostbolt   Or: ignored" },
+    { label = "Places", key = "LANDMARKS", helper = "Landmarks", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer" },
+    { label = "Deaths", key = "DEATHNOTES", helper = "DeathNotes", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
+    -- "Rares" exactly: RareWatch's side panel line opens this page by that name.
+    { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: all   Or: forget all" },
+    { label = "Characters", key = "FOREVERHELPER", helper = "ForeverHelper", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
+    { label = "Pop-up history", alerts = true, section = "hub", about = "Every pop-up from this session, newest first." },
+    { label = "Errors", key = "ERRORLOG", helper = "ErrorLog", hint = "Type a number for details, or: clear" },
 }
 local PAGE_BY_KEY, PAGE_BY_LABEL = {}, {}
+local PAGES_BY_HELPER, TABS_BY_SECTION = {}, {}
 for _, tab in ipairs(TABS) do
     PAGE_BY_LABEL[tab.label] = tab
     if tab.key then
         PAGE_BY_KEY[tab.key] = tab
     end
+    local helper = tab.helper and HELPER_BY_NAME[tab.helper]
+    if helper then
+        tab.section = helper.section
+        tab.about = tab.about or helper.about
+        PAGES_BY_HELPER[helper.name] = PAGES_BY_HELPER[helper.name] or {}
+        table.insert(PAGES_BY_HELPER[helper.name], tab)
+    end
+    if tab.section then
+        TABS_BY_SECTION[tab.section] = TABS_BY_SECTION[tab.section] or {}
+        table.insert(TABS_BY_SECTION[tab.section], tab)
+    end
 end
 
 local db, frame, body, scroll, content, inputBox, hintText, panel
+local navContent
+local sectionHeaders = {}
+local manageFrame, manageHeight
+local manageSections, manageRows = {}, {}
+local reloadButton, reloadConfirmUntil
+-- What you asked an addon to be after the next reload, for clients that can't tell us.
+local addonWanted = {}
+local ownTip
+-- Defined further down; the Manage page's buttons need them.
+local SelectTab, LayoutSidebar
 local statLines, rows = {}, {}
 local currentTab, renderedTab
 local originals = {}
@@ -97,6 +200,38 @@ local function SetDarkBackdrop(target, alpha)
     })
     target:SetBackdropColor(0.04, 0.04, 0.07, alpha)
     target:SetBackdropBorderColor(0.5, 0.5, 0.55, 0.9)
+end
+
+-- The hub's own tooltip, so nothing is ever written into Blizzard's shared GameTooltip.
+local function Tip()
+    if not ownTip then
+        ownTip = CreateFrame("GameTooltip", "ForeverHubTooltip", UIParent, "GameTooltipTemplate")
+    end
+    return ownTip
+end
+
+local function HideTip()
+    if ownTip then
+        ownTip:Hide()
+    end
+end
+
+-- True when you switched this helper Off on the Manage page. Helpers may ask this themselves;
+-- the hub already hides an Off helper's pages, side panel lines and pop-ups for them.
+function ForeverHub_IsOff(name)
+    -- Before login the saved settings may not be read yet; db is set at login.
+    local saved = db or ForeverHubDB
+    return type(saved) == "table" and type(saved.off) == "table" and saved.off[name] == true
+end
+
+-- Pop-ups name their sender; a few helpers use a friendlier name than their own.
+local function SourceIsOff(source)
+    local helper = HELPER_BY_SOURCE[source]
+    return helper ~= nil and ForeverHub_IsOff(helper.name)
+end
+
+local function TabVisible(tab)
+    return not (tab.helper and ForeverHub_IsOff(tab.helper))
 end
 
 -- Runs an addon's command and returns the lines it wanted to show.
@@ -153,6 +288,312 @@ local function AlertsText()
     return table.concat(parts, "\n")
 end
 
+-- Where to look for a helper: its pages in this window, or wherever else it shows things.
+local function HelperWhere(helper)
+    local pages = PAGES_BY_HELPER[helper.name]
+    if pages then
+        local labels = {}
+        for _, tab in ipairs(pages) do
+            labels[#labels + 1] = tab.label
+        end
+        return "Page: " .. table.concat(labels, ", ")
+    end
+    return "Shows in " .. (helper.where or "pop-ups")
+end
+
+local function HomeText()
+    local lines = {
+        GOLD .. "How to use the hub|r",
+        "Click a page on the left. When a page has a box at the top, type in it and press Enter.",
+        "Minimap button: left-click shows or hides the side panel, right-click opens or closes this window. "
+            .. "The side panel lists only what needs doing; click a line to open its page.",
+    }
+    for _, section in ipairs(SECTIONS) do
+        lines[#lines + 1] = ""
+        lines[#lines + 1] = GOLD .. section.title .. "|r"
+        if section.core then
+            lines[#lines + 1] = "|cffffffffForever Hub|r  This window, the side panel and the pop-ups.  " .. GRAY .. "Page: Pop-up history|r"
+        end
+        for _, helper in ipairs(HELPERS) do
+            if helper.section == section.key then
+                local off = ForeverHub_IsOff(helper.name) and ("  " .. RED .. "(switched off)|r") or ""
+                lines[#lines + 1] = string.format("|cffffffff%s|r  %s  %s%s|r%s", helper.name, helper.about, GRAY, HelperWhere(helper), off)
+            end
+        end
+    end
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = GRAY .. "To switch a helper off or on, use the Manage page.|r"
+    return table.concat(lines, "\n")
+end
+
+local function ManageIntro()
+    return table.concat({
+        "Switch a helper " .. GOLD .. "Off|r to hide its pages, its side panel lines and its pop-ups. It keeps running quietly; switch it On again any time.",
+        "To stop a whole addon from loading, use the button next to its group, then reload.",
+    }, "\n")
+end
+
+--------------------------------------------------------------------------------------------------
+-- Manage page: a list of real buttons under the page text.
+--------------------------------------------------------------------------------------------------
+
+-- Any C_AddOns call goes through here: a missing function or an odd answer leaves the page usable.
+local function AddOnCall(name, ...)
+    local fn = C_AddOns and C_AddOns[name]
+    if type(fn) ~= "function" then
+        return nil
+    end
+    local ok, first, second = pcall(fn, ...)
+    if ok then
+        return Safe(first), Safe(second)
+    end
+    return nil
+end
+
+local function CanSwitchAddOns()
+    return C_AddOns ~= nil and type(C_AddOns.EnableAddOn) == "function" and type(C_AddOns.DisableAddOn) == "function"
+end
+
+local function CharacterName()
+    return UnitName and Safe(UnitName("player")) or nil
+end
+
+-- nil when this client can't tell; otherwise what is loaded now and what will load after a reload.
+local function AddOnState(addon)
+    if not (C_AddOns and type(C_AddOns.IsAddOnLoaded) == "function") then
+        return nil
+    end
+    local state = { exists = true }
+    if type(C_AddOns.DoesAddOnExist) == "function" then
+        state.exists = AddOnCall("DoesAddOnExist", addon) ~= false
+    end
+    state.loaded = AddOnCall("IsAddOnLoaded", addon) and true or false
+    local character = CharacterName()
+    local enableState
+    if character then
+        enableState = AddOnCall("GetAddOnEnableState", addon, character)
+    else
+        enableState = AddOnCall("GetAddOnEnableState", addon)
+    end
+    if type(enableState) == "number" then
+        state.enabled = enableState > 0
+    elseif addonWanted[addon] ~= nil then
+        state.enabled = addonWanted[addon]
+    else
+        state.enabled = state.loaded
+    end
+    return state
+end
+
+local function AddOnStatusText(section, state)
+    if not state.exists then
+        return GRAY .. "Not installed|r"
+    elseif state.loaded and state.enabled then
+        return GREEN .. "Loaded|r"
+    elseif state.loaded then
+        return ORANGE .. "Loaded now; off after you reload|r"
+    elseif state.enabled then
+        return ORANGE .. "Not loaded; turns on after you reload|r"
+    end
+    return GRAY .. "Turned off|r"
+end
+
+local function ToggleAddOn(section)
+    local state = AddOnState(section.addon)
+    if section.core or not state or not CanSwitchAddOns() then
+        return
+    end
+    local character = CharacterName()
+    local action = state.enabled and "DisableAddOn" or "EnableAddOn"
+    if character then
+        AddOnCall(action, section.addon, character)
+    else
+        AddOnCall(action, section.addon)
+    end
+    addonWanted[section.addon] = not state.enabled
+end
+
+local function SetReloadText()
+    if reloadButton then
+        reloadButton:SetText(reloadConfirmUntil and "Click again to reload" or "Reload now")
+    end
+end
+
+-- Reloading closes every window for a moment, so it takes a second click within a few seconds.
+local function ReloadClicked()
+    local now = GetTime()
+    if reloadConfirmUntil and now <= reloadConfirmUntil then
+        reloadConfirmUntil = nil
+        SetReloadText()
+        ReloadUI()
+        return
+    end
+    reloadConfirmUntil = now + RELOAD_CONFIRM_SECONDS
+    SetReloadText()
+    C_Timer.After(RELOAD_CONFIRM_SECONDS, function()
+        if reloadConfirmUntil and GetTime() >= reloadConfirmUntil then
+            reloadConfirmUntil = nil
+            SetReloadText()
+        end
+    end)
+end
+
+local function ShowButtonTip(owner, title, text)
+    local tip = Tip()
+    tip:SetOwner(owner, "ANCHOR_RIGHT")
+    tip:SetText(title)
+    tip:AddLine(text, 1, 1, 1, true)
+    tip:Show()
+end
+
+local function RefreshManage()
+    if not manageFrame then
+        return
+    end
+    reloadButton:SetShown(ReloadUI ~= nil)
+    SetReloadText()
+    local canSwitch = CanSwitchAddOns()
+    for _, header in ipairs(manageSections) do
+        local section = header.section
+        local state = AddOnState(section.addon)
+        if state then
+            header.status:SetText(AddOnStatusText(section, state) .. (section.core and ("  " .. GRAY .. "(the hub itself, always on)|r") or ""))
+        else
+            header.status:SetText("")
+        end
+        local showToggle = state ~= nil and canSwitch and not section.core and state.exists
+        header.toggle:SetShown(showToggle)
+        if showToggle then
+            header.toggle:SetText(state.enabled and "Turn off whole addon (after reload)" or "Turn on whole addon (after reload)")
+        end
+    end
+    for _, row in ipairs(manageRows) do
+        local helper = row.helper
+        local off = ForeverHub_IsOff(helper.name)
+        row.name:SetText((off and GRAY or "|cffffffff") .. helper.name .. "|r")
+        if helper.noSwitch then
+            row.switch:Hide()
+            row.note:SetText(GRAY .. helper.noSwitch .. "|r")
+            row.note:Show()
+        else
+            row.note:Hide()
+            row.switch:SetText(off and (GRAY .. "Off|r") or (GREEN .. "On|r"))
+            row.switch:Show()
+        end
+        row.open:SetShown(PAGES_BY_HELPER[helper.name] ~= nil and not off)
+    end
+end
+
+local function SetHelperOff(helper, off)
+    db.off = db.off or {}
+    db.off[helper.name] = off or nil
+    rowsDirty = true
+    LayoutSidebar()
+    RefreshManage()
+end
+
+-- Built once, the first time the Manage page opens; RefreshManage keeps it up to date.
+local function BuildManage()
+    manageFrame = CreateFrame("Frame", nil, content)
+    manageFrame:SetWidth(PAGE_WIDTH)
+    local y = 0
+
+    reloadButton = CreateFrame("Button", nil, manageFrame, "UIPanelButtonTemplate")
+    reloadButton:SetSize(170, 22)
+    reloadButton:SetPoint("TOPLEFT", manageFrame, "TOPLEFT", 0, y)
+    reloadButton:SetScript("OnClick", ReloadClicked)
+    reloadButton:SetScript("OnEnter", function(self)
+        ShowButtonTip(self, "Reload now", "Reloads the game's interface so addon changes take effect. Click twice.")
+    end)
+    reloadButton:SetScript("OnLeave", HideTip)
+    y = y - 32
+
+    for _, section in ipairs(SECTIONS) do
+        local header = { section = section }
+        header.title = manageFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        header.title:SetPoint("TOPLEFT", manageFrame, "TOPLEFT", 0, y - 4)
+        header.title:SetText(section.title .. "  " .. GRAY .. "(" .. section.addon .. ")|r")
+        header.status = manageFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        header.status:SetPoint("TOPLEFT", manageFrame, "TOPLEFT", 0, y - 24)
+        header.status:SetJustifyH("LEFT")
+        header.toggle = CreateFrame("Button", nil, manageFrame, "UIPanelButtonTemplate")
+        header.toggle:SetSize(230, 20)
+        header.toggle:SetPoint("TOPRIGHT", manageFrame, "TOPRIGHT", 0, y - 2)
+        header.toggle:SetScript("OnClick", function()
+            ToggleAddOn(section)
+            RefreshManage()
+        end)
+        header.toggle:SetScript("OnEnter", function(self)
+            ShowButtonTip(self, section.addon, "Stops or starts this whole addon for this character. Takes effect after you reload.")
+        end)
+        header.toggle:SetScript("OnLeave", HideTip)
+        manageSections[#manageSections + 1] = header
+        y = y - MANAGE_HEADER_HEIGHT
+
+        for _, helper in ipairs(HELPERS) do
+            if helper.section == section.key then
+                local row = { helper = helper }
+                row.name = manageFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+                row.name:SetPoint("TOPLEFT", manageFrame, "TOPLEFT", 12, y)
+                row.about = manageFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+                row.about:SetPoint("TOPLEFT", manageFrame, "TOPLEFT", 12, y - 15)
+                row.about:SetPoint("RIGHT", manageFrame, "RIGHT", -130, 0)
+                row.about:SetJustifyH("LEFT")
+                row.about:SetWordWrap(false)
+                row.about:SetText(helper.about)
+
+                row.switch = CreateFrame("Button", nil, manageFrame, "UIPanelButtonTemplate")
+                row.switch:SetSize(56, 20)
+                row.switch:SetPoint("TOPRIGHT", manageFrame, "TOPRIGHT", -66, y - 4)
+                row.switch:SetScript("OnClick", function()
+                    SetHelperOff(helper, not ForeverHub_IsOff(helper.name))
+                end)
+                row.switch:SetScript("OnEnter", function(self)
+                    ShowButtonTip(self, helper.name, helper.about .. "\n\nOff hides its pages, side panel lines and pop-ups.")
+                end)
+                row.switch:SetScript("OnLeave", HideTip)
+                row.note = manageFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+                row.note:SetPoint("TOPRIGHT", manageFrame, "TOPRIGHT", -66, y - 8)
+
+                row.open = CreateFrame("Button", nil, manageFrame, "UIPanelButtonTemplate")
+                row.open:SetSize(56, 20)
+                row.open:SetPoint("TOPRIGHT", manageFrame, "TOPRIGHT", 0, y - 4)
+                row.open:SetText("Open")
+                row.open:SetScript("OnClick", function()
+                    local pages = PAGES_BY_HELPER[helper.name]
+                    if pages then
+                        SelectTab(pages[1])
+                    end
+                end)
+                manageRows[#manageRows + 1] = row
+                y = y - MANAGE_ROW_HEIGHT
+            end
+        end
+        y = y - 6
+    end
+    manageHeight = -y
+    manageFrame:SetHeight(manageHeight)
+end
+
+-- The list sits under the page text, inside the same scrolling area.
+local function ShowManage(show)
+    if not show then
+        if manageFrame then
+            manageFrame:Hide()
+        end
+        return
+    end
+    if not manageFrame then
+        BuildManage()
+    end
+    RefreshManage()
+    local textHeight = (Safe(body:GetStringHeight()) or 0) + 12
+    manageFrame:ClearAllPoints()
+    manageFrame:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -textHeight)
+    manageFrame:Show()
+    content:SetHeight(textHeight + manageHeight)
+end
+
 local function RenderPage(prefixLines)
     local tab = currentTab
     -- A new pop-up redraws the history page while you may be scrolled down in it; stay put then.
@@ -160,7 +601,11 @@ local function RenderPage(prefixLines)
     local keepScroll = tab.alerts and renderedTab == tab
     renderedTab = tab
     local text
-    if tab.alerts then
+    if tab.home then
+        text = HomeText()
+    elseif tab.manage then
+        text = ManageIntro()
+    elseif tab.alerts then
         text = AlertsText()
     elseif tab.search then
         text = tab.emptyHint
@@ -174,9 +619,10 @@ local function RenderPage(prefixLines)
         text = table.concat(prefixLines, "\n") .. "\n\n" .. text
     end
     SetBody(text, keepScroll)
+    ShowManage(tab.manage)
 end
 
-local function SelectTab(tab, prefixLines)
+SelectTab = function(tab, prefixLines)
     currentTab = tab
     renderedTab = nil
     for _, candidate in ipairs(TABS) do
@@ -195,7 +641,7 @@ local function SelectTab(tab, prefixLines)
     inputBox:SetText("")
     inputBox:ClearFocus()
     scroll:ClearAllPoints()
-    scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_WIDTH + 22, hasInput and -84 or -36)
+    scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT, hasInput and -84 or -36)
     scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -34, 14)
     -- A hidden window fills in when it opens. At login, other addons may not have started yet.
     if frame:IsShown() then
@@ -280,6 +726,115 @@ local function MakeDraggable(target, key)
     end)
 end
 
+--------------------------------------------------------------------------------------------------
+-- Sidebar: Home and Manage, then one foldable group per addon. It scrolls when it's taller than
+-- the window, so folding is a convenience, never a must.
+--------------------------------------------------------------------------------------------------
+
+local function SectionCollapsed(section)
+    return db.collapsed ~= nil and db.collapsed[section.key] == true
+end
+
+local function NavButton(text, indent, isHeader)
+    local button = CreateFrame("Button", nil, navContent)
+    button:SetSize(NAV_WIDTH, isHeader and HEADER_HEIGHT or NAV_HEIGHT)
+    -- Gold headers, white pages; each lights up the other way under the mouse.
+    button:SetNormalFontObject(isHeader and GameFontNormalSmall or GameFontHighlightSmall)
+    button:SetHighlightFontObject(isHeader and GameFontHighlightSmall or GameFontNormalSmall)
+    button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    button:SetText(text)
+    local label = button:GetFontString()
+    if label then
+        label:ClearAllPoints()
+        label:SetPoint("LEFT", button, "LEFT", indent, 0)
+    end
+    button:SetScript("OnLeave", HideTip)
+    return button
+end
+
+local function HeaderText(section)
+    if SectionCollapsed(section) then
+        return string.format("+ %s  %s(%d)|r", section.title, GRAY, #(TABS_BY_SECTION[section.key] or {}))
+    end
+    return "- " .. section.title
+end
+
+-- Places every visible button from the top down. Runs again whenever a group folds or a helper is switched.
+LayoutSidebar = function()
+    if not navContent then
+        return
+    end
+    local y = 0
+    local function Place(button, height)
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", navContent, "TOPLEFT", 0, -y)
+        button:Show()
+        y = y + height
+    end
+    for _, tab in ipairs(TABS) do
+        if not tab.section then
+            Place(tab.button, NAV_HEIGHT)
+        end
+    end
+    for _, section in ipairs(SECTIONS) do
+        local header = sectionHeaders[section.key]
+        y = y + HEADER_GAP
+        header:SetText(HeaderText(section))
+        Place(header, HEADER_HEIGHT)
+        local collapsed = SectionCollapsed(section)
+        for _, tab in ipairs(TABS_BY_SECTION[section.key] or {}) do
+            if not collapsed and TabVisible(tab) then
+                Place(tab.button, NAV_HEIGHT)
+            else
+                tab.button:Hide()
+            end
+        end
+    end
+    navContent:SetHeight(math.max(y, 1))
+end
+
+local function BuildSidebar()
+    local navScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    navScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -30)
+    navScroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", 8 + NAV_WIDTH, 12)
+    navContent = CreateFrame("Frame", nil, navScroll)
+    navContent:SetSize(NAV_WIDTH, 1)
+    navScroll:SetScrollChild(navContent)
+
+    for _, tab in ipairs(TABS) do
+        local button = NavButton(tab.label, tab.section and 14 or 4, false)
+        button:SetScript("OnClick", function()
+            SelectTab(tab)
+        end)
+        button:SetScript("OnEnter", function(self)
+            local tip = Tip()
+            tip:SetOwner(self, "ANCHOR_RIGHT")
+            tip:SetText(tab.label)
+            if tab.about then
+                tip:AddLine(tab.about, 1, 1, 1, true)
+            end
+            if tab.hint then
+                tip:AddLine("This page has a box to type in.", 0.6, 0.6, 0.6, true)
+            end
+            tip:Show()
+        end)
+        tab.button = button
+    end
+    for _, section in ipairs(SECTIONS) do
+        local header = NavButton(HeaderText(section), 4, true)
+        header:SetScript("OnClick", function()
+            db.collapsed = db.collapsed or {}
+            db.collapsed[section.key] = (not SectionCollapsed(section)) or nil
+            LayoutSidebar()
+        end)
+        header:SetScript("OnEnter", function(self)
+            ShowButtonTip(self, section.title, "Click to fold or unfold this group. Its pages come from the " .. section.addon .. " addon.")
+        end)
+        sectionHeaders[section.key] = header
+    end
+    LayoutSidebar()
+end
+
 local function BuildWindow()
     -- Blizzard's own window frame, so it matches the rest of the game.
     frame = CreateFrame("Frame", "ForeverHubFrame", UIParent, "ButtonFrameTemplate")
@@ -314,36 +869,15 @@ local function BuildWindow()
         end
     end)
 
-    local visible = 0
-    for _, tab in ipairs(TABS) do
-        if not tab.hidden then
-            visible = visible + 1
-            local button = CreateFrame("Button", nil, frame)
-            button:SetSize(SIDEBAR_WIDTH, NAV_HEIGHT)
-            button:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -30 - (visible - 1) * NAV_HEIGHT)
-            button:SetNormalFontObject(GameFontHighlightSmall)
-            button:SetHighlightFontObject(GameFontNormalSmall)
-            button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-            button:SetText(tab.label)
-            local label = button:GetFontString()
-            if label then
-                label:ClearAllPoints()
-                label:SetPoint("LEFT", button, "LEFT", 8, 0)
-            end
-            button:SetScript("OnClick", function()
-                SelectTab(tab)
-            end)
-            tab.button = button
-        end
-    end
+    BuildSidebar()
 
     hintText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    hintText:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_WIDTH + 22, -36)
+    hintText:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT, -36)
     hintText:SetPoint("RIGHT", frame, "RIGHT", -14, 0)
     hintText:SetJustifyH("LEFT")
 
     inputBox = CreateFrame("EditBox", nil, frame, "BackdropTemplate")
-    inputBox:SetPoint("TOPLEFT", frame, "TOPLEFT", SIDEBAR_WIDTH + 22, -52)
+    inputBox:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT, -52)
     inputBox:SetPoint("RIGHT", frame, "RIGHT", -14, 0)
     inputBox:SetHeight(24)
     SetDarkBackdrop(inputBox, 1)
@@ -359,11 +893,11 @@ local function BuildWindow()
 
     scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(WIDTH - SIDEBAR_WIDTH - 64, 1)
+    content:SetSize(PAGE_WIDTH, 1)
     scroll:SetScrollChild(content)
     body = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     body:SetPoint("TOPLEFT", content, "TOPLEFT", 0, 0)
-    body:SetWidth(WIDTH - SIDEBAR_WIDTH - 64)
+    body:SetWidth(PAGE_WIDTH)
     body:SetJustifyH("LEFT")
     body:SetJustifyV("TOP")
     body:SetWordWrap(true)
@@ -455,7 +989,8 @@ end
 local function GatherStatus()
     local items = {}
     for _, name in ipairs(STATUS_ORDER) do
-        local source = ForeverHubStatus and ForeverHubStatus[name]
+        -- A helper you switched off on the Manage page gets no lines here.
+        local source = not ForeverHub_IsOff(name) and ForeverHubStatus and ForeverHubStatus[name]
         if source then
             local ok, result = pcall(source)
             if ok then
@@ -490,31 +1025,30 @@ local function GetRow(index)
         end
     end)
     row:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        local tip = Tip()
+        tip:SetOwner(self, "ANCHOR_RIGHT")
         if self.link then
             -- A malformed link from a helper shouldn't break the panel.
-            if not pcall(GameTooltip.SetHyperlink, GameTooltip, self.link) then
-                GameTooltip:Hide()
+            if not pcall(tip.SetHyperlink, tip, self.link) then
+                tip:Hide()
                 return
             end
         elseif self.extra then
             for _, text in ipairs(self.extra) do
-                GameTooltip:AddLine(text, 1, 1, 1)
+                tip:AddLine(text, 1, 1, 1)
             end
         else
             -- Long lines are cut off on the panel, so show the whole line on hover.
             local label = self:GetFontString()
             if not (label and label.IsTruncated and Safe(label:IsTruncated())) then
-                GameTooltip:Hide()
+                tip:Hide()
                 return
             end
-            GameTooltip:AddLine(self.fullText, 1, 1, 1)
+            tip:AddLine(self.fullText, 1, 1, 1)
         end
-        GameTooltip:Show()
+        tip:Show()
     end)
-    row:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
+    row:SetScript("OnLeave", HideTip)
     rows[index] = row
     return row
 end
@@ -644,14 +1178,13 @@ local function BuildMinimapButton()
         self:SetScript("OnUpdate", nil)
     end)
     button:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("Forever Hub")
-        GameTooltip:AddLine("Left-click: panel. Right-click: details. Drag: move.", 1, 1, 1)
-        GameTooltip:Show()
+        local tip = Tip()
+        tip:SetOwner(self, "ANCHOR_LEFT")
+        tip:SetText("Forever Hub")
+        tip:AddLine("Left-click: side panel. Right-click: hub window. Drag: move.", 1, 1, 1)
+        tip:Show()
     end)
-    button:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
+    button:SetScript("OnLeave", HideTip)
     PositionMinimapButton(button)
 end
 
@@ -738,6 +1271,10 @@ function ForeverHub_Receive(source, text)
     text, source = tostring(text), tostring(source or "")
     if capture then
         capture[#capture + 1] = text
+        return
+    end
+    -- Switched off on the Manage page: no pop-up and nothing in the history.
+    if SourceIsOff(source) then
         return
     end
     rowsDirty = true
