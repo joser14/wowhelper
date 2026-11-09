@@ -157,7 +157,7 @@ do
     end
     for key in pairs(after) do
         if not before[key] then
-            assert(key:match("^ForeverHub") , "unexpected new global function: " .. key)
+            assert(key:match("^ForeverHub") or key:match("^ForeverCharacter") or key:match("^ForeverWaypoint"), "unexpected new global function: " .. key)
         end
     end
     for _, name in ipairs({ "BINDING_HEADER_FOREVERHUB", "BINDING_NAME_FOREVERHUB_TOGGLE", "BINDING_NAME_FOREVERHUB_HOME",

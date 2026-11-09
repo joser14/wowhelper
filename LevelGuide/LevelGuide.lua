@@ -1,5 +1,265 @@
 -- A step-by-step leveling guide worked out live from your quest log and the map, with an arrow.
 -- It never accepts, completes or turns in anything: you do the clicking.
+
+-- Shared Forever waypoint (the same copy is in every helper that pins places; whichever loads first
+-- defines it, so all helpers share one remembered pin). Sets the game's own map pin and tracks it,
+-- remembers the point, and clears it once you are within ARRIVE_YARDS of it. It only ever clears a
+-- pin that is still exactly the one it set: a pin you placed or moved yourself is never touched.
+-- Returns true when the pin was set; false and a reason ("api", "map", "refused") when not.
+if not ForeverWaypoint_Set then
+    local ARRIVE_YARDS, CHECK_SECONDS, SAME_SPOT = 15, 0.5, 0.0005
+    local active, watcher, elapsed, watching = nil, nil, 0, false
+    local function Plain(value)
+        if value == nil or (issecretvalue and issecretvalue(value)) then
+            return nil
+        end
+        return value
+    end
+    local function Call(fn, ...)
+        if type(fn) ~= "function" then
+            return nil
+        end
+        local ok, a, b = pcall(fn, ...)
+        if not ok then
+            return nil
+        end
+        return Plain(a), Plain(b)
+    end
+    local function XY(vector)
+        if type(vector) ~= "table" then
+            return nil
+        end
+        local x, y = Plain(vector.x), Plain(vector.y)
+        if type(x) ~= "number" and type(vector.GetXY) == "function" then
+            x, y = Call(vector.GetXY, vector)
+        end
+        if type(x) == "number" and type(y) == "number" then
+            return x, y
+        end
+    end
+    local function Vector(x, y)
+        if CreateVector2D then
+            return CreateVector2D(x, y)
+        end
+        return { x = x, y = y }
+    end
+    -- Continent and world yards of a map point, or nil where the client has no world positions.
+    local function World(mapID, x, y)
+        if not (C_Map and C_Map.GetWorldPosFromMapPos) then
+            return nil
+        end
+        local continent, pos = Call(C_Map.GetWorldPosFromMapPos, mapID, Vector(x, y))
+        local wx, wy = XY(pos)
+        if continent and wx then
+            return continent, wx, wy
+        end
+    end
+    local function Near(ax, ay, bx, by)
+        return math.abs(ax - bx) <= SAME_SPOT and math.abs(ay - by) <= SAME_SPOT
+    end
+    -- True only while the game's pin is still the one we set.
+    local function StillOurs()
+        if not (active and C_Map) then
+            return false
+        end
+        if C_Map.HasUserWaypoint and Call(C_Map.HasUserWaypoint) == false then
+            return false
+        end
+        local point = C_Map.GetUserWaypoint and Call(C_Map.GetUserWaypoint)
+        if type(point) == "table" then
+            local px, py = XY(point.position)
+            if Plain(point.uiMapID) == active.mapID and px then
+                return Near(px, py, active.x, active.y)
+            end
+        end
+        -- The game may keep the pin on another map; ask where it is on ours.
+        local pos = C_Map.GetUserWaypointPositionForMap and Call(C_Map.GetUserWaypointPositionForMap, active.mapID)
+        local qx, qy = XY(pos)
+        return qx ~= nil and Near(qx, qy, active.x, active.y)
+    end
+    local function Stop()
+        active, watching = nil, false
+        if watcher then
+            watcher:SetScript("OnUpdate", nil)
+            if watcher.Hide then
+                watcher:Hide()
+            end
+        end
+    end
+    -- Yards from the player to our pin, or nil when it can't be measured here (instances, other continent).
+    local function YardsAway()
+        if not (active and active.continent and C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then
+            return nil
+        end
+        local mapID = Call(C_Map.GetBestMapForUnit, "player")
+        if not mapID then
+            return nil
+        end
+        local px, py = XY(Call(C_Map.GetPlayerMapPosition, mapID, "player"))
+        if not px then
+            return nil
+        end
+        local continent, wx, wy = World(mapID, px, py)
+        if not continent or continent ~= active.continent then
+            return nil
+        end
+        return math.sqrt((wx - active.wx) ^ 2 + (wy - active.wy) ^ 2)
+    end
+    local function Check()
+        if not active then
+            return Stop()
+        end
+        if not StillOurs() then
+            -- Replaced or removed by the player (or another addon): forget it, never clear it.
+            return Stop()
+        end
+        local yards = YardsAway()
+        if yards and yards <= ARRIVE_YARDS then
+            if C_Map.ClearUserWaypoint then
+                pcall(C_Map.ClearUserWaypoint)
+            end
+            Stop()
+        end
+    end
+    local function OnUpdate(_, delta)
+        elapsed = elapsed + (tonumber(delta) or 0)
+        if elapsed < CHECK_SECONDS then
+            return
+        end
+        elapsed = 0
+        local ok, err = pcall(Check)
+        if not ok then
+            Stop()
+            if geterrorhandler then
+                geterrorhandler()(err)
+            end
+        end
+    end
+    function ForeverWaypoint_Set(mapID, x, y, label)
+        mapID, x, y = tonumber(mapID), tonumber(x), tonumber(y)
+        if not (mapID and x and y and C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
+            return false, "api"
+        end
+        if C_Map.CanSetUserWaypointOnMap and not Call(C_Map.CanSetUserWaypointOnMap, mapID) then
+            return false, "map"
+        end
+        local ok, wasSet = pcall(C_Map.SetUserWaypoint, UiMapPoint.CreateFromCoordinates(mapID, x, y))
+        if not ok or Plain(wasSet) == false then
+            return false, "refused"
+        end
+        if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+            pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+        end
+        -- Only watch where arrival can be measured; elsewhere the pin simply stays, as before.
+        local continent, wx, wy = World(mapID, x, y)
+        Stop()
+        if continent and CreateFrame then
+            active = { mapID = mapID, x = x, y = y, label = label, continent = continent, wx = wx, wy = wy }
+            elapsed, watching = 0, true
+            watcher = watcher or CreateFrame("Frame")
+            watcher:SetScript("OnUpdate", OnUpdate)
+            if watcher.Show then
+                watcher:Show()
+            end
+        end
+        return true
+    end
+    -- The pin we set and are still watching, or nil (for pages and tests).
+    function ForeverWaypoint_Active()
+        return watching and active or nil
+    end
+end
+
+
+-- Shared Forever character identity (the same copy is in every helper that saves per-character data,
+-- so each helper still works alone; whichever loads first defines it). On Forever a character has a
+-- first name and a surname (UnitName's second return), so the first name alone is not unique.
+-- Key = the player GUID ("Player-<server>-<id>"); when that can't be read, "First Surname-Realm".
+do
+    local function Plain(value)
+        if value == nil or (issecretvalue and issecretvalue(value)) or type(value) ~= "string" or value == "" then
+            return nil
+        end
+        return value
+    end
+    local function Call(fn, ...)
+        if type(fn) ~= "function" then
+            return nil
+        end
+        local ok, a, b = pcall(fn, ...)
+        if not ok then
+            return nil
+        end
+        return Plain(a), Plain(b)
+    end
+    -- "First Surname" on Forever, the plain name elsewhere; nil when unreadable.
+    ForeverCharacterName = ForeverCharacterName or function()
+        local name, surname = Call(UnitName, "player")
+        if not name then
+            return nil
+        end
+        if surname then
+            return name .. " " .. surname
+        end
+        return name
+    end
+    ForeverCharacterGUID = ForeverCharacterGUID or function()
+        local guid = Call(UnitGUID, "player")
+        if guid and guid:match("^Player%-") then
+            return guid
+        end
+    end
+    -- The key older versions used: first name only, "-", realm.
+    ForeverCharacterLegacyKey = ForeverCharacterLegacyKey or function()
+        local name = Call(UnitName, "player")
+        local realm = Call(GetRealmName)
+        return (name or "Unknown") .. "-" .. (realm or "Unknown")
+    end
+    -- "First Surname-Realm": the key when the GUID can't be read.
+    ForeverCharacterNameKey = ForeverCharacterNameKey or function()
+        local realm = Call(GetRealmName)
+        return (ForeverCharacterName() or "Unknown") .. "-" .. (realm or "Unknown")
+    end
+    ForeverCharacterKey = ForeverCharacterKey or function()
+        return ForeverCharacterGUID() or ForeverCharacterNameKey()
+    end
+    -- Once per login: moves this character's record from an older key to the current one. Only when
+    -- nothing is saved under the current key yet (two records are never merged), and never a record
+    -- stamped with another character's GUID. The old key's record is moved, not copied, so a second
+    -- character with the same first name starts fresh instead of sharing it. Returns the current key.
+    -- oldKeys: optional list of this helper's own older key spellings (default: the legacy key).
+    ForeverCharacterAdopt = ForeverCharacterAdopt or function(db, oldKeys)
+        local key = ForeverCharacterKey()
+        if type(db) ~= "table" or db[key] ~= nil then
+            return key
+        end
+        local guid = ForeverCharacterGUID()
+        local candidates = { ForeverCharacterNameKey() }
+        for _, old in ipairs(oldKeys or { ForeverCharacterLegacyKey() }) do
+            candidates[#candidates + 1] = old
+        end
+        for _, old in ipairs(candidates) do
+            local record = old ~= key and db[old]
+            if type(record) == "table" and (record.charGUID == nil or record.charGUID == guid) then
+                db[key] = record
+                db[old] = nil
+                record.migratedFrom = old
+                break
+            end
+        end
+        return key
+    end
+    -- Writes who a record belongs to into it, so pages can show a name instead of parsing the key.
+    ForeverCharacterStamp = ForeverCharacterStamp or function(record)
+        if type(record) ~= "table" then
+            return record
+        end
+        record.charName = ForeverCharacterName() or record.charName
+        record.charGUID = ForeverCharacterGUID() or record.charGUID
+        return record
+    end
+end
+
 local WIDTH, HEADER_HEIGHT, ARROW_SIZE = 330, 22, 44
 local MAX_NEXT = 3
 local ARRIVED_YARDS = 12
@@ -1729,12 +1989,7 @@ local function MarkStep(step)
         return
     end
     if (step.kind == "pickup" or (step.routeKey and not step.id)) and step.mapID and step.x then
-        if C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates then
-            C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(step.mapID, step.x, step.y))
-            if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-            end
-        end
+        ForeverWaypoint_Set(step.mapID, step.x, step.y, step.title or step.id)
     elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
         local questID = step.kind == "travel" and step.firstQuest or step.id
         if questID then
@@ -2478,9 +2733,9 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         db = LevelGuideDB
         db.skipped = db.skipped or {}
         db.characters = db.characters or {}
-        local key = (Safe(UnitName("player")) or "Unknown") .. "-" .. (Safe(GetRealmName()) or "Unknown")
+        local key = ForeverCharacterAdopt(db.characters)
         db.characters[key] = db.characters[key] or {}
-        charData = db.characters[key]
+        charData = ForeverCharacterStamp(db.characters[key])
         charData.done = charData.done or {}
         charData.skips = charData.skips or {}
         charData.visited = charData.visited or {}

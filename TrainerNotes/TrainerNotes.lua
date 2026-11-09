@@ -1,3 +1,92 @@
+-- Shared Forever character identity (the same copy is in every helper that saves per-character data,
+-- so each helper still works alone; whichever loads first defines it). On Forever a character has a
+-- first name and a surname (UnitName's second return), so the first name alone is not unique.
+-- Key = the player GUID ("Player-<server>-<id>"); when that can't be read, "First Surname-Realm".
+do
+    local function Plain(value)
+        if value == nil or (issecretvalue and issecretvalue(value)) or type(value) ~= "string" or value == "" then
+            return nil
+        end
+        return value
+    end
+    local function Call(fn, ...)
+        if type(fn) ~= "function" then
+            return nil
+        end
+        local ok, a, b = pcall(fn, ...)
+        if not ok then
+            return nil
+        end
+        return Plain(a), Plain(b)
+    end
+    -- "First Surname" on Forever, the plain name elsewhere; nil when unreadable.
+    ForeverCharacterName = ForeverCharacterName or function()
+        local name, surname = Call(UnitName, "player")
+        if not name then
+            return nil
+        end
+        if surname then
+            return name .. " " .. surname
+        end
+        return name
+    end
+    ForeverCharacterGUID = ForeverCharacterGUID or function()
+        local guid = Call(UnitGUID, "player")
+        if guid and guid:match("^Player%-") then
+            return guid
+        end
+    end
+    -- The key older versions used: first name only, "-", realm.
+    ForeverCharacterLegacyKey = ForeverCharacterLegacyKey or function()
+        local name = Call(UnitName, "player")
+        local realm = Call(GetRealmName)
+        return (name or "Unknown") .. "-" .. (realm or "Unknown")
+    end
+    -- "First Surname-Realm": the key when the GUID can't be read.
+    ForeverCharacterNameKey = ForeverCharacterNameKey or function()
+        local realm = Call(GetRealmName)
+        return (ForeverCharacterName() or "Unknown") .. "-" .. (realm or "Unknown")
+    end
+    ForeverCharacterKey = ForeverCharacterKey or function()
+        return ForeverCharacterGUID() or ForeverCharacterNameKey()
+    end
+    -- Once per login: moves this character's record from an older key to the current one. Only when
+    -- nothing is saved under the current key yet (two records are never merged), and never a record
+    -- stamped with another character's GUID. The old key's record is moved, not copied, so a second
+    -- character with the same first name starts fresh instead of sharing it. Returns the current key.
+    -- oldKeys: optional list of this helper's own older key spellings (default: the legacy key).
+    ForeverCharacterAdopt = ForeverCharacterAdopt or function(db, oldKeys)
+        local key = ForeverCharacterKey()
+        if type(db) ~= "table" or db[key] ~= nil then
+            return key
+        end
+        local guid = ForeverCharacterGUID()
+        local candidates = { ForeverCharacterNameKey() }
+        for _, old in ipairs(oldKeys or { ForeverCharacterLegacyKey() }) do
+            candidates[#candidates + 1] = old
+        end
+        for _, old in ipairs(candidates) do
+            local record = old ~= key and db[old]
+            if type(record) == "table" and (record.charGUID == nil or record.charGUID == guid) then
+                db[key] = record
+                db[old] = nil
+                record.migratedFrom = old
+                break
+            end
+        end
+        return key
+    end
+    -- Writes who a record belongs to into it, so pages can show a name instead of parsing the key.
+    ForeverCharacterStamp = ForeverCharacterStamp or function(record)
+        if type(record) ~= "table" then
+            return record
+        end
+        record.charName = ForeverCharacterName() or record.charName
+        record.charGUID = ForeverCharacterGUID() or record.charGUID
+        return record
+    end
+end
+
 local UPCOMING_LEVELS = 4
 
 local charData, openList, trainerOpen, openTrainer
@@ -386,9 +475,10 @@ events:SetScript("OnEvent", function(_, event, newLevel)
     end
     if event == "PLAYER_LOGIN" then
         TrainerNotesDB = TrainerNotesDB or {}
-        local key = (Safe(UnitName("player")) or "Unknown") .. "-" .. (Safe(GetRealmName()) or "Unknown")
+        local key = ForeverCharacterAdopt(TrainerNotesDB)
         TrainerNotesDB[key] = TrainerNotesDB[key] or { services = {} }
-        charData = TrainerNotesDB[key]
+        charData = ForeverCharacterStamp(TrainerNotesDB[key])
+        charData.services = type(charData.services) == "table" and charData.services or {}
         -- Older versions also saved recipes, which all have level 0 and looked ready to train forever.
         for serviceKey, service in pairs(charData.services) do
             if (service.level or 0) <= 0 then

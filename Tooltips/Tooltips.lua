@@ -1,6 +1,96 @@
 -- Adds a few lines of information to item and unit tooltips. It only appends lines through
 -- Blizzard's tooltip post-call hook; it never shows, hides, moves, or clears a tooltip.
 
+-- Shared Forever character identity (the same copy is in every helper that saves per-character data,
+-- so each helper still works alone; whichever loads first defines it). On Forever a character has a
+-- first name and a surname (UnitName's second return), so the first name alone is not unique.
+-- Key = the player GUID ("Player-<server>-<id>"); when that can't be read, "First Surname-Realm".
+do
+    local function Plain(value)
+        if value == nil or (issecretvalue and issecretvalue(value)) or type(value) ~= "string" or value == "" then
+            return nil
+        end
+        return value
+    end
+    local function Call(fn, ...)
+        if type(fn) ~= "function" then
+            return nil
+        end
+        local ok, a, b = pcall(fn, ...)
+        if not ok then
+            return nil
+        end
+        return Plain(a), Plain(b)
+    end
+    -- "First Surname" on Forever, the plain name elsewhere; nil when unreadable.
+    ForeverCharacterName = ForeverCharacterName or function()
+        local name, surname = Call(UnitName, "player")
+        if not name then
+            return nil
+        end
+        if surname then
+            return name .. " " .. surname
+        end
+        return name
+    end
+    ForeverCharacterGUID = ForeverCharacterGUID or function()
+        local guid = Call(UnitGUID, "player")
+        if guid and guid:match("^Player%-") then
+            return guid
+        end
+    end
+    -- The key older versions used: first name only, "-", realm.
+    ForeverCharacterLegacyKey = ForeverCharacterLegacyKey or function()
+        local name = Call(UnitName, "player")
+        local realm = Call(GetRealmName)
+        return (name or "Unknown") .. "-" .. (realm or "Unknown")
+    end
+    -- "First Surname-Realm": the key when the GUID can't be read.
+    ForeverCharacterNameKey = ForeverCharacterNameKey or function()
+        local realm = Call(GetRealmName)
+        return (ForeverCharacterName() or "Unknown") .. "-" .. (realm or "Unknown")
+    end
+    ForeverCharacterKey = ForeverCharacterKey or function()
+        return ForeverCharacterGUID() or ForeverCharacterNameKey()
+    end
+    -- Once per login: moves this character's record from an older key to the current one. Only when
+    -- nothing is saved under the current key yet (two records are never merged), and never a record
+    -- stamped with another character's GUID. The old key's record is moved, not copied, so a second
+    -- character with the same first name starts fresh instead of sharing it. Returns the current key.
+    -- oldKeys: optional list of this helper's own older key spellings (default: the legacy key).
+    ForeverCharacterAdopt = ForeverCharacterAdopt or function(db, oldKeys)
+        local key = ForeverCharacterKey()
+        if type(db) ~= "table" or db[key] ~= nil then
+            return key
+        end
+        local guid = ForeverCharacterGUID()
+        local candidates = { ForeverCharacterNameKey() }
+        for _, old in ipairs(oldKeys or { ForeverCharacterLegacyKey() }) do
+            candidates[#candidates + 1] = old
+        end
+        for _, old in ipairs(candidates) do
+            local record = old ~= key and db[old]
+            if type(record) == "table" and (record.charGUID == nil or record.charGUID == guid) then
+                db[key] = record
+                db[old] = nil
+                record.migratedFrom = old
+                break
+            end
+        end
+        return key
+    end
+    -- Writes who a record belongs to into it, so pages can show a name instead of parsing the key.
+    ForeverCharacterStamp = ForeverCharacterStamp or function(record)
+        if type(record) ~= "table" then
+            return record
+        end
+        record.charName = ForeverCharacterName() or record.charName
+        record.charGUID = ForeverCharacterGUID() or record.charGUID
+        return record
+    end
+end
+
+
 local SECONDS_PER_HOUR, SECONDS_PER_DAY = 3600, 86400
 local QUEST_ITEM_CLASS = 12
 local LABEL_R, LABEL_G, LABEL_B = 0.6, 0.6, 0.6
@@ -382,14 +472,16 @@ local function AddAuctionLine(tooltip, data, id, facts)
     AddPair(tooltip, "Auction", text)
 end
 
-local function ShortName(characterKey)
+-- ItemFinder saves the character's name in each record; older records only have the "Name-Realm" key.
+local function ShortName(characterKey, record)
+    if type(record) == "table" and type(record.charName) == "string" and record.charName ~= "" then
+        return record.charName
+    end
     return characterKey:match("^[^-]+") or characterKey
 end
 
 local function MyKey()
-    local name = UnitName and Safe(UnitName("player"))
-    local realm = GetRealmName and Safe(GetRealmName())
-    return (name or "Unknown") .. "-" .. (realm or "Unknown")
+    return ForeverCharacterKey()
 end
 
 local function CountIn(places, name)
@@ -403,6 +495,10 @@ local function AddCountLine(tooltip, itemName)
         return
     end
     local myKey = MyKey()
+    -- ItemFinder moves the record to the new key at login; until it has (or without it), the old key is ours.
+    if db[myKey] == nil then
+        myKey = ForeverCharacterLegacyKey()
+    end
     local total, mine, others = 0, nil, {}
     for key, record in pairs(db) do
         if type(key) == "string" and type(record) == "table" then
@@ -415,9 +511,9 @@ local function AddCountLine(tooltip, itemName)
                     if bags > 0 then where[#where + 1] = bags .. " bags" end
                     if bank > 0 then where[#where + 1] = bank .. " bank" end
                     if worn > 0 then where[#where + 1] = worn .. " worn" end
-                    mine = ShortName(key) .. " " .. table.concat(where, ", ")
+                    mine = ShortName(key, record) .. " " .. table.concat(where, ", ")
                 else
-                    others[#others + 1] = ShortName(key) .. " " .. sum
+                    others[#others + 1] = ShortName(key, record) .. " " .. sum
                 end
             end
         end

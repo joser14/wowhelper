@@ -37,7 +37,7 @@ local apiNames = {}
 local namespace = setmetatable({}, { __index = function(_, k) return function() return apiResult() end end })
 setmetatable(_G, { __index = function(_, k)
     if type(k) == "string" and k:match("^C_") then return namespace end
-    if type(k) == "string" and k:match("^[A-Z][a-z]") and not k:match("DB$") and not k:match("^ForeverHub") then apiNames[k] = true; return function() return apiResult() end end
+    if type(k) == "string" and k:match("^[A-Z][a-z]") and not k:match("DB$") and not k:match("^Forever") then apiNames[k] = true; return function() return apiResult() end end
     return nil
 end })
 
