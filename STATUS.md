@@ -1,5 +1,13 @@
 ﻿# Forever addon suite: status (2026-11-09)
 
+**INSTALLED 2026-11-09 08:31** as six addons (!ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld)
+from commit 7759e03. Old per-helper folders were moved to `_forever_\Interface\AddOns_ForeverBackup_20261109_083113`;
+a full copy of WTF was taken first at `_forever_\WTF_Backup_20261109`. Saved data was carried over into the bundles' files.
+Every in-progress item below is now finished and on main, except the class builds research (research\builds_forever.md,
+Builds\Data.lua) and the Builds page. To roll back: close WoW, delete the six bundle folders, move the backup folders back.
+All 33 current tests pass (tests\runall.ps1); 11 older tests (test, 3-7, 9-12, 15) were already failing before and check
+for chat output and window layouts that later work replaced.
+
 Start here when resuming. Main branch = finished, tested work. Branch `wip-snapshot` = unfinished worker
 edits at the moment this file was written (may not pass tests; review before merging anything from it).
 
