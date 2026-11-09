@@ -3,5 +3,10 @@
 ## Notes: One window and on-screen pop-ups for all your helper addons, so nothing goes through chat. Only shows information.
 ## Version: 0.2.0
 ## SavedVariables: ForeverHubDB
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## AddonCompartmentFunc: ForeverHub_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ForeverHub_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ForeverHub_OnAddonCompartmentLeave
 
 ForeverHub.lua
+ForeverHubExtras.lua

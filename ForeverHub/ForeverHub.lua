@@ -1,3 +1,11 @@
+local _, ns = ...
+-- Shared with ForeverHubExtras.lua (keybindings, settings panel, alerts, hearthstone button), which
+-- loads right after this file. Other files in the same bundle share this table, hence the own key.
+local extras = {}
+if type(ns) == "table" then
+    ns.ForeverHub = extras
+end
+
 local PANEL_WIDTH, ROW_HEIGHT, MAX_ROWS = 280, 18, 10
 local WIDTH, HEIGHT, SIDEBAR_WIDTH = 680, 500, 140
 -- The page area starts right of the sidebar; the sidebar's own scroll bar sits inside SIDEBAR_WIDTH.
@@ -47,6 +55,8 @@ local HELPERS = {
         about = "A cleaner quest tracker: turn-ins first, nearest quests on top, XP on every quest." },
     { name = "QuestCheck", section = "quests", about = "How full your quest log is, what's ready to turn in, and which quests are gray or need a group." },
     { name = "ZoneLevels", section = "quests", about = "Shows a zone's level range and warns when you walk into one above your level." },
+    { name = "QuestMobs", section = "quests",
+        about = "Shows a marker and your progress (like 3/8) next to enemies you still need for a quest, in the open world." },
     { name = "ItemAdvisor", section = "bags", about = "Says whether to equip, keep, sell or auction each item in your bags." },
     { name = "BagCheck", section = "bags", about = "Warns when your bags are nearly full and shows what your junk is worth." },
     { name = "ItemFinder", section = "bags", about = "Searches the bags, bank and gear of all your characters." },
@@ -54,6 +64,8 @@ local HELPERS = {
         about = "Remembers the auction prices from searches you make, for Tooltips and the Gold guide." },
     { name = "Tooltips", section = "bags",
         about = "Adds vendor price, last auction price, how many you own on every character and more to item tooltips." },
+    { name = "WindowBadges", section = "bags",
+        about = "Marks the best quest reward, upgrades at vendors, and new or higher-rank spells at trainers, right in Blizzard's windows." },
     { name = "FoodCheck", section = "bags", about = "The best food and drink in your bags for your level, and which ones you've outgrown." },
     { name = "SupplyWatch", section = "bags", about = "Warns when ammo or items you choose run low, and lists what to restock." },
     { name = "DurabilityWatch", section = "bags", about = "Warns when gear is nearly broken and shows the repair cost." },
@@ -95,6 +107,7 @@ local TABS = {
     { label = "Dungeons", key = "DUNGEONS", helper = "Dungeons", hint = "Type a number or name for details. Or: pin 2   Or: all" },
     { label = "Quests", key = "QUESTCHECK", helper = "QuestCheck" },
     { label = "Zone", key = "ZONELEVELS", helper = "ZoneLevels" },
+    { label = "Quest mobs", key = "QUESTMOBS", helper = "QuestMobs", hint = "Type: off   Or: on   Or: size large" },
     { label = "Bag advice", key = "ITEMADVISOR", helper = "ItemAdvisor", hint = "To change what stats to favor, type: role healer" },
     { label = "Bag space", key = "BAGCHECK", helper = "BagCheck" },
     { label = "Find an item", key = "ITEMFINDER", helper = "ItemFinder", hint = "Type part of an item name and press Enter", emptyHint = "Search your bags, bank, and gear on every character.", search = true },
@@ -102,6 +115,7 @@ local TABS = {
     { label = "Supplies", key = "SUPPLYWATCH", helper = "SupplyWatch", hint = "Item in your bags and how many: Water 20   Or: remove 1   Or: ammo 400", supplies = true },
     { label = "Repairs", key = "DURABILITYWATCH", helper = "DurabilityWatch" },
     { label = "Tooltips", key = "TOOLTIPS", helper = "Tooltips", hint = "Type: off vendor   Or: on id   Or: on npc" },
+    { label = "Window badges", key = "WINDOWBADGES", helper = "WindowBadges", hint = "Type: off reward   Or: on merchant   Or: off trainer" },
     { label = "Talents", key = "TALENTNUDGE", helper = "TalentNudge" },
     { label = "Trainer", key = "TRAINERNOTES", helper = "TrainerNotes" },
     { label = "Weapon skills", key = "WEAPONSKILLWATCH", helper = "WeaponSkillWatch", arg = "all" },
@@ -314,6 +328,8 @@ local function HomeText()
         "Click a page on the left. When a page has a box at the top, type in it and press Enter.",
         "Minimap button: left-click shows or hides the side panel, right-click opens or closes this window. "
             .. "The side panel lists only what needs doing; click a line to open its page.",
+        "Keys for this window, the Places page and the nearest repair, inn or flight master can be set in the game's "
+            .. "Key Bindings, under AddOns. The game's AddOns menu by the minimap and its Options window (AddOns) list Forever Hub too.",
     }
     for _, section in ipairs(SECTIONS) do
         lines[#lines + 1] = ""
@@ -337,6 +353,7 @@ local function ManageIntro()
     return table.concat({
         "Switch a helper " .. GOLD .. "Off|r to hide its pages, its side panel lines and its pop-ups. It keeps running quietly; switch it On again any time.",
         "To stop a whole addon from loading, use the button next to its group, then reload.",
+        "Sound and taskbar flash for important pop-ups are under " .. GOLD .. "Alerts|r at the bottom.",
     }, "\n")
 end
 
@@ -489,6 +506,9 @@ local function RefreshManage()
         end
         row.open:SetShown(PAGES_BY_HELPER[helper.name] ~= nil and not off)
     end
+    if extras.RefreshManageAlerts then
+        extras.RefreshManageAlerts()
+    end
 end
 
 local function SetHelperOff(helper, off)
@@ -497,6 +517,10 @@ local function SetHelperOff(helper, off)
     rowsDirty = true
     LayoutSidebar()
     RefreshManage()
+    -- The Settings panel shows the same switches.
+    if extras.OnHelperSwitched then
+        extras.OnHelperSwitched()
+    end
 end
 
 -- Built once, the first time the Manage page opens; RefreshManage keeps it up to date.
@@ -577,6 +601,10 @@ local function BuildManage()
             end
         end
         y = y - 6
+    end
+    -- The Alerts switches (sound, flash) live in ForeverHubExtras.lua.
+    if extras.BuildManageAlerts then
+        y = extras.BuildManageAlerts(manageFrame, y) or y
     end
     manageHeight = -y
     manageFrame:SetHeight(manageHeight)
@@ -1416,6 +1444,13 @@ function ForeverHub_Receive(source, text)
     if frame then
         ShowToast(text)
     end
+    -- Sound and taskbar flash for the few pop-ups that matter (ForeverHubExtras.lua decides which).
+    if extras.OnPopup then
+        local ok, err = pcall(extras.OnPopup, source, text)
+        if not ok then
+            geterrorhandler()(err)
+        end
+    end
 end
 
 -- Anyone who still types a command gets the window instead of chat lines. Safe to run again: commands
@@ -1488,6 +1523,9 @@ local function Start()
     Attempt(function()
         panel:Show()
     end)
+    if extras.OnStart then
+        Attempt(extras.OnStart)
+    end
     Attempt(function()
         for index = math.max(#alerts - MAX_TOASTS + 1, 1), #alerts do
             ShowToast(alerts[index].text)
@@ -1538,6 +1576,38 @@ events:SetScript("OnEvent", function(_, event, ...)
         rowsDirty = true
     end
 end)
+
+-- What ForeverHubExtras.lua may use. Getters, because the window and panel are built at login.
+extras.Safe = Safe
+extras.Tip = Tip
+extras.HideTip = HideTip
+extras.ShowButtonTip = ShowButtonTip
+extras.RunCommand = RunCommand
+extras.HELPERS = HELPERS
+extras.SECTIONS = SECTIONS
+extras.PAGE_BY_LABEL = PAGE_BY_LABEL
+extras.PAGE_BY_KEY = PAGE_BY_KEY
+extras.TabVisible = TabVisible
+extras.SetHelperOff = function(helper, off)
+    if db then
+        SetHelperOff(helper, off)
+    end
+end
+extras.GetDB = function()
+    return db
+end
+extras.GetFrame = function()
+    return frame
+end
+extras.GetPanel = function()
+    return panel
+end
+extras.OpenPage = function(tab, prefixLines)
+    if frame then
+        OpenPage(tab, prefixLines)
+    end
+end
+extras.RefreshManage = RefreshManage
 
 SLASH_FOREVERHUB1 = "/hub"
 SlashCmdList.FOREVERHUB = function()

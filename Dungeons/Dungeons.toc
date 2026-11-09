@@ -2,7 +2,8 @@
 ## OptionalDeps: ForeverHub
 ## Title: Dungeons
 ## Notes: Which dungeons suit your level, where their entrances are, their quests and what you've done of them, and the loot worth having. Only gives information.
-## Version: 0.1.0
+## Version: 0.1.1
+## SavedVariables: DungeonsDB
 
 Data.lua
 Dungeons.lua

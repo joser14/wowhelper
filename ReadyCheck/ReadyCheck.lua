@@ -165,6 +165,29 @@ local function Knows(name)
     return known[name:lower()] ~= nil
 end
 
+-- Spells this addon asked the game to load; SPELL_DATA_LOAD_RESULT for one of them rescans.
+local waitingSpells = {}
+local SPELL_RETRY_DELAY, SPELL_RETRY_LIMIT = 3, 3
+local spellRetries = 0
+
+-- True when the spell's name and rank can be read now. Otherwise asks the game to load it
+-- (C_Spell.RequestLoadSpellData; the answer is SPELL_DATA_LOAD_RESULT) and returns false.
+local function SpellLoaded(id)
+    if not (C_Spell and C_Spell.IsSpellDataCached) then
+        return true
+    end
+    local ok, cached = pcall(C_Spell.IsSpellDataCached, id)
+    -- A hidden or failed answer can't be waited on; read what's there.
+    if not ok or Safe(cached) == nil or Safe(cached) then
+        return true
+    end
+    waitingSpells[id] = true
+    if C_Spell.RequestLoadSpellData then
+        pcall(C_Spell.RequestLoadSpellData, id)
+    end
+    return false
+end
+
 -- Every spell you know, with the highest rank seen. Some clients list only the top rank: that's all we need.
 local function ScanSpellBook()
     local list = {}
@@ -185,7 +208,7 @@ local function ScanSpellBook()
                     if type(item) == "table" and Safe(item.itemType) == spellType and not Safe(item.isOffSpec) then
                         local subName = Safe(item.subName)
                         local id = Safe(item.spellID) or Safe(item.actionID)
-                        if (type(subName) ~= "string" or subName == "") and id and C_Spell then
+                        if (type(subName) ~= "string" or subName == "") and id and C_Spell and SpellLoaded(id) then
                             subName = SafeCall(C_Spell.GetSpellSubtext, id)
                         end
                         Remember(list, Safe(item.name), RankOf(subName))
@@ -197,12 +220,70 @@ local function ScanSpellBook()
     return list
 end
 
--- The spell ID in an action slot, or nil for empty slots, macros, items and anything unreadable.
+-- Readable names for action slots, by blocks of 12. Slots 73-120 are the pages the main bar
+-- switches to in a stance or form (bonus bars 1-4), named per class where the page is well known.
+local BAR_BLOCKS = {
+    [1] = "Action bar 1", [2] = "Action bar 1 (page 2)", [3] = "Right bar", [4] = "Right bar 2",
+    [5] = "Bottom right bar", [6] = "Bottom left bar", [11] = "Special bar (possess or vehicle)",
+    [13] = "Action bar 6", [14] = "Action bar 7", [15] = "Action bar 8",
+}
+local FORM_BARS = {
+    WARRIOR = { "Battle Stance bar", "Defensive Stance bar", "Berserker Stance bar" },
+    DRUID = { "Cat Form bar", nil, "Bear Form bar", "Moonkin Form bar" },
+    ROGUE = { "Stealth bar" },
+    PRIEST = { "Shadowform bar" },
+}
+
+-- "Action bar 1, button 3", "Bottom left bar, button 5", "Battle Stance bar, button 2".
+local function SlotLabel(slot)
+    local block = math.floor((slot - 1) / 12) + 1
+    local button = (slot - 1) % 12 + 1
+    local bar = BAR_BLOCKS[block]
+    if not bar and block >= 7 and block <= 10 then
+        local forms = FORM_BARS[PlayerClass() or ""]
+        bar = forms and forms[block - 6] or ("Stance or form bar " .. (block - 6))
+    end
+    bar = bar or string.format("Bar slots %d-%d", (block - 1) * 12 + 1, block * 12)
+    return string.format("%s, button %d", bar, button)
+end
+
+-- A macro's spell: what the slot reports when it's a "spell" macro, else GetMacroSpell on the
+-- macro's index, else C_ActionBar.GetSpell for the slot. Also returns the macro's name.
+local function MacroSpell(slot, id, subType)
+    local name = C_ActionBar and SafeCall(C_ActionBar.GetActionText, slot) or SafeCall(GetActionText, slot)
+    name = type(name) == "string" and name ~= "" and name or nil
+    local spell
+    if subType == "spell" and type(id) == "number" then
+        spell = id
+    end
+    if not spell and type(id) == "number" then
+        spell = SafeCall(GetMacroSpell, id)
+        if not name and C_Macro then
+            name = SafeCall(C_Macro.GetMacroName, id)
+        end
+    end
+    if type(spell) ~= "number" and C_ActionBar then
+        spell = SafeCall(C_ActionBar.GetSpell, slot)
+    end
+    if type(spell) == "number" and spell > 0 then
+        return spell, type(name) == "string" and name or "a macro"
+    end
+    return nil
+end
+
+-- The spell ID in an action slot (and the macro's name when a macro holds it), or nil for empty
+-- slots, items and anything unreadable.
 local function ActionSpell(slot)
     if GetActionInfo then
-        local ok, kind, id = pcall(GetActionInfo, slot)
-        if ok and Safe(kind) == "spell" and type(Safe(id)) == "number" then
+        local ok, kind, id, subType = pcall(GetActionInfo, slot)
+        if not ok then
+            return nil
+        end
+        kind, id, subType = Safe(kind), Safe(id), Safe(subType)
+        if kind == "spell" and type(id) == "number" then
             return id
+        elseif kind == "macro" then
+            return MacroSpell(slot, id, subType)
         end
         return nil
     end
@@ -214,6 +295,8 @@ local function ActionSpell(slot)
 end
 
 local function ScanRanks()
+    -- Whatever is still unloaded is asked for again below.
+    waitingSpells = {}
     known = ScanSpellBook()
     onBars = {}
     local ranks = {}
@@ -223,14 +306,14 @@ local function ScanRanks()
         return
     end
     for slot = 1, NUM_ACTION_SLOTS do
-        local id = ActionSpell(slot)
-        local name = id and SafeCall(C_Spell.GetSpellName, id)
+        local id, macro = ActionSpell(slot)
+        local name = id and SpellLoaded(id) and SafeCall(C_Spell.GetSpellName, id)
         if type(name) == "string" and name ~= "" then
             local rank = RankOf(SafeCall(C_Spell.GetSpellSubtext, id))
             Remember(onBars, name, rank)
             local best = known[name:lower()]
             if rank and best and best.rank and best.rank > rank and not ignored[name:lower()] then
-                ranks[#ranks + 1] = { name = name, slot = slot, rank = rank, best = best.rank }
+                ranks[#ranks + 1] = { name = name, slot = slot, rank = rank, best = best.rank, macro = macro }
             end
         end
     end
@@ -491,7 +574,23 @@ local RUNNERS = {
         NotifyBuffs()
     end,
     reagents = ComputeReagents,
+    -- Spell data arrived (or a retry): ranks and reagents again, without buff pop-ups.
+    rescan = function()
+        ScanRanks()
+        ComputeReagents()
+    end,
 }
+
+local Schedule
+
+-- Some spells on your bars hadn't loaded: look again a little later, a few times at most. The count
+-- resets when the game reports a spell loaded, so this never loops.
+local function RetryWaiting()
+    if next(waitingSpells) and spellRetries < SPELL_RETRY_LIMIT then
+        spellRetries = spellRetries + 1
+        Schedule("rescan", SPELL_RETRY_DELAY)
+    end
+end
 
 local function Run(what)
     pending[what] = nil
@@ -504,10 +603,13 @@ local function Run(what)
         return
     end
     RUNNERS[what]()
+    if what == "ranks" or what == "rescan" then
+        RetryWaiting()
+    end
 end
 
 -- Throttle: one run per kind per delay, however many events arrive meanwhile.
-local function Schedule(what, delay)
+function Schedule(what, delay)
     if pending[what] then
         return
     end
@@ -535,6 +637,7 @@ local function ShowPage()
     if not InCombat() then
         ScanRanks()
         ComputeReagents()
+        RetryWaiting()
     end
     -- In combat this only notes that buffs wait until combat ends.
     ComputeBuffs()
@@ -548,7 +651,14 @@ local function ShowPage()
         Print("  None. Every spell on your bars is the best rank you know.")
     end
     for _, entry in ipairs(cache.ranks) do
-        Print(string.format("  %s on bar slot %d is Rank %d; you know Rank %d.", entry.name, entry.slot, entry.rank, entry.best))
+        local where = SlotLabel(entry.slot)
+        if entry.macro then
+            where = string.format("%s (in macro \"%s\")", where, entry.macro)
+        end
+        Print(string.format("  %s on %s is Rank %d; you know Rank %d.", entry.name, where, entry.rank, entry.best))
+    end
+    if next(waitingSpells) then
+        Print("  |cff999999Some spells on your bars are still loading; this list updates when they arrive.|r")
     end
     local ignoredCount = 0
     for _ in pairs(DB().ignored) do
@@ -644,6 +754,8 @@ for _, event in ipairs({
     "ACTIONBAR_SLOT_CHANGED", "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "LEARNED_SPELL_IN_TAB",
     "PLAYER_LEVEL_UP", "SPELL_TEXT_UPDATE", "UNIT_AURA", "UNIT_INVENTORY_CHANGED",
     "PLAYER_UPDATE_RESTING", "BAG_UPDATE_DELAYED",
+    -- The answer to C_Spell.RequestLoadSpellData, and macro edits (a macro can now cast another spell).
+    "SPELL_DATA_LOAD_RESULT", "UPDATE_MACROS",
 }) do
     -- An event this client doesn't have (LEARNED_SPELL_IN_TAB is gone from newer ones) mustn't stop loading.
     pcall(events.RegisterEvent, events, event)
@@ -662,9 +774,17 @@ events:SetScript("OnEvent", function(_, event, unit)
         Schedule("ranks", 2)
     elseif event == "PLAYER_REGEN_DISABLED" then
         inCombat = true
+    elseif event == "SPELL_DATA_LOAD_RESULT" then
+        -- Only spells this addon asked for; payload is (spellID, success).
+        local id = Safe(unit)
+        if id and waitingSpells[id] then
+            waitingSpells[id] = nil
+            spellRetries = 0
+            Schedule("rescan", 0.5)
+        end
     elseif event == "PLAYER_REGEN_ENABLED" then
         inCombat = false
-        if deferred.ranks then
+        if deferred.ranks or deferred.rescan then
             deferred = {}
             Schedule("ranks", 1)
         else

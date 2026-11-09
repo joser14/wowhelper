@@ -23,9 +23,16 @@ local CLASS_ARMOR = {
     HUNTER = { 2, 3 }, SHAMAN = { 2, 3 }, WARRIOR = { 3, 4 }, PALADIN = { 3, 4 },
 }
 
+-- The game's ready-check tick, drawn inline in the text.
+local TICK = "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t"
+-- ENCOUNTER_END and BOSS_KILL both report one kill; the second within this many seconds is the same kill.
+local SAME_KILL_SECONDS = 30
+
 local resolvedMaps = {}
 local statusDirty = true
 local readyQuests = {}
+local charKills          -- this character's kills (saved in DungeonsDB), read on first use
+local recentKills = {}   -- boss key -> GetTime() of the last recorded kill, this session only
 
 local function Safe(value)
     if issecretvalue and issecretvalue(value) then
@@ -133,7 +140,9 @@ local function CountsText(dungeon, level)
     end
     local counts = QuestCounts(dungeon, level)
     local parts = {}
-    parts[#parts + 1] = string.format("%d/%d done", counts.done, #dungeon.quests)
+    -- Every quest done: a tick in front.
+    local allDone = counts.done == #dungeon.quests and (TICK .. " ") or ""
+    parts[#parts + 1] = string.format("%s%d/%d done", allDone, counts.done, #dungeon.quests)
     if counts.log > 0 then
         parts[#parts + 1] = YELLOW .. counts.log .. " in your log|r"
     end
@@ -147,6 +156,89 @@ local function CountsText(dungeon, level)
         parts[#parts + 1] = GRAY .. counts.low .. " later|r"
     end
     return "quests: " .. table.concat(parts, ", ")
+end
+
+-- Boss kills ---------------------------------------------------------------------------------------
+-- Forever closes the combat log to addons, so kills come from ENCOUNTER_END (success) and BOSS_KILL,
+-- both documented with the encounter's name. Kept per character in DungeonsDB.kills["Name-Realm"].
+
+-- "The Baron" and "Baron", "Rhahk'Zor" and "Rhahk'zor" are the same boss.
+local function BossKey(name)
+    local key = name:lower():gsub("^the%s+", ""):gsub("[^%w]", "")
+    return key
+end
+
+local function CharKills()
+    if charKills then
+        return charKills
+    end
+    local name = UnitName and Safe(UnitName("player"))
+    if type(name) ~= "string" or name == "" then
+        return nil
+    end
+    local realm = GetRealmName and Safe(GetRealmName())
+    local key = name .. "-" .. (type(realm) == "string" and realm or "?")
+    DungeonsDB = type(DungeonsDB) == "table" and DungeonsDB or {}
+    DungeonsDB.kills = type(DungeonsDB.kills) == "table" and DungeonsDB.kills or {}
+    DungeonsDB.kills[key] = type(DungeonsDB.kills[key]) == "table" and DungeonsDB.kills[key] or {}
+    charKills = DungeonsDB.kills[key]
+    return charKills
+end
+
+local function RecordKill(encounterName)
+    encounterName = Safe(encounterName)
+    if type(encounterName) ~= "string" or encounterName == "" then
+        return
+    end
+    local kills = CharKills()
+    local key = BossKey(encounterName)
+    if not kills or key == "" then
+        return
+    end
+    local now = GetTime and tonumber(Safe(GetTime()))
+    if now and recentKills[key] and now - recentKills[key] < SAME_KILL_SECONDS then
+        return
+    end
+    recentKills[key] = now
+    local entry = type(kills[key]) == "table" and kills[key] or { name = encounterName, count = 0 }
+    entry.count = (tonumber(entry.count) or 0) + 1
+    entry.last = type(time) == "function" and Safe(time()) or entry.last
+    kills[key] = entry
+end
+
+-- How often this character killed a boss from our list, or nil. Names the game reports a little
+-- differently (a title added or dropped) match when one contains the other.
+local function KillsOf(boss)
+    local kills = CharKills()
+    if not kills or type(boss) ~= "string" then
+        return nil
+    end
+    local key = BossKey(boss)
+    local entry = kills[key]
+    if not entry and #key >= 5 then
+        for otherKey, other in pairs(kills) do
+            if #otherKey >= 5 and (otherKey:find(key, 1, true) or key:find(otherKey, 1, true)) then
+                entry = other
+                break
+            end
+        end
+    end
+    return type(entry) == "table" and tonumber(entry.count) or nil
+end
+
+local function BossLines(dungeon)
+    local lines, killed = {}, 0
+    for _, boss in ipairs(dungeon.bosses or {}) do
+        local count = KillsOf(boss)
+        if count and count > 0 then
+            killed = killed + 1
+            local times = count > 1 and string.format(" (%d times)", count) or ""
+            lines[#lines + 1] = "  " .. TICK .. " " .. GREEN .. boss .. "|r" .. GRAY .. " killed" .. times .. "|r"
+        else
+            lines[#lines + 1] = "  " .. boss
+        end
+    end
+    return lines, killed
 end
 
 -- Maps ---------------------------------------------------------------------------------------------
@@ -288,7 +380,8 @@ local function ShortLine(index, dungeon, level)
 end
 
 local STATE_TEXT = {
-    done = GREEN .. "Done|r",
+    -- A tick as well as the word, so finished quests stand out in the list.
+    done = TICK .. " " .. GREEN .. "Done|r",
     ready = GREEN .. "Ready to turn in|r",
     log = YELLOW .. "In your log|r",
     part = YELLOW .. "Part done|r",
@@ -372,7 +465,15 @@ local function ShowDetails(index, dungeon, level)
     end
     Print(GOLD .. "Entrance:|r " .. EntranceText(dungeon))
     if dungeon.bosses and #dungeon.bosses > 0 then
-        Print(GOLD .. "Bosses:|r " .. table.concat(dungeon.bosses, ", "))
+        local lines, killed = BossLines(dungeon)
+        if killed == 0 then
+            Print(GOLD .. "Bosses:|r " .. table.concat(dungeon.bosses, ", ") .. GRAY .. " (none killed on this character yet)|r")
+        else
+            Print(GOLD .. "Bosses:|r " .. GRAY .. string.format("(%d/%d killed on this character)", killed, #dungeon.bosses) .. "|r")
+            for _, line in ipairs(lines) do
+                Print(line)
+            end
+        end
     end
     if #(dungeon.quests or {}) > 0 then
         Print(GOLD .. "Quests|r " .. GRAY .. "(" .. CountsText(dungeon, level) .. ")|r")
@@ -509,7 +610,27 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("QUEST_LOG_UPDATE")
 events:RegisterEvent("QUEST_TURNED_IN")
-events:SetScript("OnEvent", function()
+-- pcall: a client without one of these events must still load the addon.
+pcall(events.RegisterEvent, events, "ENCOUNTER_END")
+pcall(events.RegisterEvent, events, "BOSS_KILL")
+events:SetScript("OnEvent", function(_, event, ...)
+    if event == "ENCOUNTER_END" then
+        -- encounterID, encounterName, difficultyID, groupSize, success (1 on a kill).
+        local _, encounterName, _, _, success = ...
+        success = Safe(success)
+        if success == 1 or success == true then
+            RecordKill(encounterName)
+        end
+        return
+    elseif event == "BOSS_KILL" then
+        -- encounterID, encounterName.
+        local _, encounterName = ...
+        RecordKill(encounterName)
+        return
+    elseif event == "PLAYER_LOGIN" then
+        -- Saved variables are read by now; pick up this character's kills on next use.
+        charKills = nil
+    end
     statusDirty = true
 end)
 

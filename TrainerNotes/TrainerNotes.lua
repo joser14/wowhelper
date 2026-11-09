@@ -193,6 +193,95 @@ local function ReadTrainer()
     ForgetMissing(listed, unread, openTrainer, untagged)
 end
 
+-- Spellbook check: a spell learned elsewhere (a quest, a book, another trainer) or already known
+-- leaves the list without a trainer visit. Uses the documented C_SpellBook skill-line calls.
+
+local function SafeCall(fn, ...)
+    if type(fn) ~= "function" then
+        return nil
+    end
+    local ok, result = pcall(fn, ...)
+    return ok and Safe(result) or nil
+end
+
+local function RankNumber(text)
+    return type(text) == "string" and tonumber(text:match("(%d+)")) or nil
+end
+
+-- Lower-case spell name -> highest rank number known (0 when the rank can't be read), or nil when
+-- the spellbook can't be read at all. Some clients list only the top rank; that's all this needs.
+local function SpellBookRanks()
+    if not (C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo
+        and C_SpellBook.GetSpellBookItemInfo) then
+        return nil
+    end
+    local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
+    local spellType = (Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell) or 1
+    local ranks, any = {}, false
+    for line = 1, SafeCall(C_SpellBook.GetNumSpellBookSkillLines) or 0 do
+        local info = SafeCall(C_SpellBook.GetSpellBookSkillLineInfo, line)
+        local offset = type(info) == "table" and Safe(info.itemIndexOffset)
+        local count = type(info) == "table" and Safe(info.numSpellBookItems)
+        if type(offset) == "number" and type(count) == "number" then
+            for slot = offset + 1, offset + count do
+                local item = SafeCall(C_SpellBook.GetSpellBookItemInfo, slot, bank)
+                local name = type(item) == "table" and Safe(item.name)
+                -- Only spells you actually have: not future spells, not another spec's.
+                if type(name) == "string" and name ~= "" and Safe(item.itemType) == spellType and not Safe(item.isOffSpec) then
+                    local subName = Safe(item.subName)
+                    local id = Safe(item.spellID) or Safe(item.actionID)
+                    if (type(subName) ~= "string" or subName == "") and type(id) == "number" and C_Spell then
+                        subName = SafeCall(C_Spell.GetSpellSubtext, id)
+                    end
+                    local key = name:lower()
+                    ranks[key] = math.max(ranks[key] or 0, RankNumber(subName) or 0)
+                    any = true
+                end
+            end
+        end
+    end
+    return any and ranks or nil
+end
+
+-- Drops noted services the spellbook says you know: same name, and for ranked spells a rank at
+-- least as high. When a rank can't be read, the entry stays rather than vanish by mistake.
+local function ForgetKnown()
+    if not charData then
+        return
+    end
+    local book = SpellBookRanks()
+    if not book then
+        return
+    end
+    for key, service in pairs(charData.services) do
+        local have = type(service.name) == "string" and book[service.name:lower()]
+        if have then
+            local want = RankNumber(service.rank)
+            if not want or (have > 0 and have >= want) then
+                charData.services[key] = nil
+            end
+        end
+    end
+end
+
+-- Spell events come in bursts (a trainer visit can teach several spells); check once afterwards.
+local SPELLBOOK_DELAY = 1
+local spellbookCheckPending = false
+local function ScheduleForgetKnown()
+    if spellbookCheckPending then
+        return
+    end
+    if C_Timer and C_Timer.After then
+        spellbookCheckPending = true
+        C_Timer.After(SPELLBOOK_DELAY, function()
+            spellbookCheckPending = false
+            ForgetKnown()
+        end)
+    else
+        ForgetKnown()
+    end
+end
+
 -- Returns services ready at this level, those due within the next few levels, and those your level
 -- allows but something else blocks, each sorted by level.
 local function SplitServices(level)
@@ -238,6 +327,8 @@ local function ShowNotes()
         Print("The game didn't report your level.")
         return
     end
+    -- Read fresh when you look, so nothing you already know is listed.
+    ForgetKnown()
     if next(charData.services) == nil then
         Print("Nothing noted yet. Open your trainer once, and I'll remember what they sell.")
         return
@@ -266,6 +357,7 @@ local function ShowNotes()
 end
 
 local function ReportLevelUp(level)
+    ForgetKnown()
     local ready = SplitServices(level)
     if #ready > 0 then
         Print(string.format("%d thing(s) to train, %s in total. See the Trainer page.", #ready, FormatMoney(TotalCost(ready))))
@@ -280,7 +372,18 @@ events:RegisterEvent("TRAINER_UPDATE")
 events:RegisterEvent("TRAINER_CLOSED")
 -- Names can arrive after the list does; this says they have.
 events:RegisterEvent("TRAINER_SERVICE_INFO_NAME_UPDATE")
+-- New spells in your spellbook. pcall: a client without one of these must still load the addon.
+local SPELLBOOK_EVENTS = { SPELLS_CHANGED = true, LEARNED_SPELL_IN_SKILL_LINE = true }
+for name in pairs(SPELLBOOK_EVENTS) do
+    pcall(events.RegisterEvent, events, name)
+end
 events:SetScript("OnEvent", function(_, event, newLevel)
+    if SPELLBOOK_EVENTS[event] then
+        if charData then
+            ScheduleForgetKnown()
+        end
+        return
+    end
     if event == "PLAYER_LOGIN" then
         TrainerNotesDB = TrainerNotesDB or {}
         local key = (Safe(UnitName("player")) or "Unknown") .. "-" .. (Safe(GetRealmName()) or "Unknown")
@@ -292,6 +395,8 @@ events:SetScript("OnEvent", function(_, event, newLevel)
                 charData.services[serviceKey] = nil
             end
         end
+        -- Spells learned since the last session (or on another addon-less login) leave the list.
+        ScheduleForgetKnown()
     elseif event == "TRAINER_CLOSED" then
         openList, trainerOpen, openTrainer = nil, false, nil
     elseif event == "PLAYER_LEVEL_UP" then

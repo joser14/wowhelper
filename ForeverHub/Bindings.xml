@@ -1,0 +1,21 @@
+<Bindings>
+	<!-- Key Bindings > AddOns > Forever Hub. Each runs only when the player presses the key; names are set in ForeverHubExtras.lua. -->
+	<Binding name="FOREVERHUB_TOGGLE" header="FOREVERHUB" category="ADDONS">
+		if ForeverHub_ToggleWindow then ForeverHub_ToggleWindow() end
+	</Binding>
+	<Binding name="FOREVERHUB_HOME" category="ADDONS">
+		if ForeverHub_OpenPage then ForeverHub_OpenPage("Home") end
+	</Binding>
+	<Binding name="FOREVERHUB_PLACES" category="ADDONS">
+		if ForeverHub_OpenPage then ForeverHub_OpenPage("Places") end
+	</Binding>
+	<Binding name="FOREVERHUB_REPAIR" category="ADDONS">
+		if ForeverHub_PinNearest then ForeverHub_PinNearest("repair") end
+	</Binding>
+	<Binding name="FOREVERHUB_INN" category="ADDONS">
+		if ForeverHub_PinNearest then ForeverHub_PinNearest("inn") end
+	</Binding>
+	<Binding name="FOREVERHUB_FLIGHT" category="ADDONS">
+		if ForeverHub_PinNearest then ForeverHub_PinNearest("flight") end
+	</Binding>
+</Bindings>

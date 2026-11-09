@@ -1,0 +1,19 @@
+## Interface: 16001
+## Title: ProfessionGuide
+## Notes: Leveling paths for every profession: what to make next, the materials you still need, and where the trainers are. Only gives information.
+## Version: 0.1.0
+## OptionalDeps: ForeverHub
+
+Data_Alchemy.lua
+Data_Blacksmithing.lua
+Data_Enchanting.lua
+Data_Engineering.lua
+Data_Leatherworking.lua
+Data_Tailoring.lua
+Data_Mining.lua
+Data_Herbalism.lua
+Data_Skinning.lua
+Data_Cooking.lua
+Data_FirstAid.lua
+Data_Fishing.lua
+ProfessionGuide.lua

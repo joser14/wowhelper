@@ -114,6 +114,23 @@ local CLASS_PROFILES = {
     MAGE = { "mage" }, WARLOCK = { "warlock" }, DRUID = { "feral", "caster", "healer", "tank" },
 }
 
+-- Talent tab names (lower case, as the talent window shows them) and the role each one suggests.
+-- A tab not listed here, or a class with one role, leaves the role as it is.
+local TAB_PROFILES = {
+    WARRIOR = { arms = "warrior", fury = "warrior", protection = "tank" },
+    PALADIN = { holy = "healer", protection = "tank", retribution = "retribution" },
+    HUNTER = { ["beast mastery"] = "hunter", marksmanship = "hunter", survival = "survival" },
+    PRIEST = { discipline = "healer", holy = "healer", shadow = "shadow" },
+    SHAMAN = { elemental = "caster", enhancement = "enhancement", restoration = "healer" },
+    DRUID = { balance = "caster", ["feral combat"] = "feral", feral = "feral", restoration = "healer" },
+}
+-- Fewer points than this says little about where a character is heading.
+local MIN_TALENT_POINTS = 5
+
+-- Leveling bias: below the level cap, staying alive matters more than raw damage, so these stats
+-- count this many times their usual weight. Switched on or off from the Bag advice page.
+local LEVELING_BONUS = { sta = 1.5, armor = 1.5 }
+
 -- From game files of build 1.60.1.70790 via Everloot's extraction: subclass ID = level it unlocks.
 local ARMOR_TYPES = {
     WARRIOR = { [1] = 1, [2] = 1, [3] = 1, [4] = 40, [6] = 1 },
@@ -222,12 +239,27 @@ end
 -- Items this addon asked the game to load. Other addons and the auction house load items too, and
 -- a repaint for each of those would be wasted work.
 local pendingItems = {}
+-- The game usually answers a load request with GET_ITEM_INFO_RECEIVED; if it stays quiet, look again
+-- a few times on a timer. The count only resets when an item does arrive, so this can't loop forever.
+local ITEM_RETRY_DELAY, ITEM_RETRY_LIMIT = 2, 3
+local itemRetries, itemRetryScheduled = 0, false
+
+local function RetryPendingItems()
+    itemRetryScheduled = false
+    if next(pendingItems) and charData and ScheduleRepaint then
+        ScheduleRepaint()
+    end
+end
 
 local function RequestItem(link)
     local id = tonumber(link:match("item:(%d+)"))
     if id then
         pendingItems[id] = true
         C_Item.RequestLoadItemDataByID(id)
+        if not itemRetryScheduled and itemRetries < ITEM_RETRY_LIMIT and C_Timer and C_Timer.After then
+            itemRetryScheduled, itemRetries = true, itemRetries + 1
+            C_Timer.After(ITEM_RETRY_DELAY, RetryPendingItems)
+        end
     end
 end
 
@@ -404,6 +436,30 @@ local function DpsWeight(weights, equipLoc, subClassID)
     return weights.melee or 0
 end
 
+-- Whether the leveling bias applies now: on unless switched off, and only below the level cap.
+local function LevelingBiasActive()
+    local level = Safe(UnitLevel("player"))
+    return charData.levelingBias ~= false and type(level) == "number" and level < MAX_LEVEL
+end
+
+-- The role's stat weights, with Stamina and Armor raised while the leveling bias applies.
+local biasedWeights = {}
+local function Weights()
+    local base = PROFILES[charData.profile]
+    if not LevelingBiasActive() then
+        return base
+    end
+    local weights = biasedWeights[charData.profile]
+    if not weights then
+        weights = {}
+        for stat, weight in pairs(base) do
+            weights[stat] = weight * (LEVELING_BONUS[stat] or 1)
+        end
+        biasedWeights[charData.profile] = weights
+    end
+    return weights
+end
+
 local function Score(link, dpsScale)
     local name, _, _, _, _, _, _, _, equipLoc, _, _, _, subClassID = C_Item.GetItemInfo(link)
     if not name then
@@ -414,7 +470,7 @@ local function Score(link, dpsScale)
     if not read then
         return nil
     end
-    local weights = PROFILES[charData.profile]
+    local weights = Weights()
     local total = 0
     for stat, amount in pairs(read) do
         if stat == "dps" then
@@ -560,7 +616,7 @@ local function StatChanges(link, wornLink)
     if not new or not worn or newUnknown or wornUnknown then
         return nil
     end
-    local weights = PROFILES[charData.profile]
+    local weights = Weights()
     local gains, losses = {}, {}
     for _, entry in ipairs(STAT_ORDER) do
         local stat, label = entry[1], entry[2]
@@ -635,6 +691,135 @@ local function NotNeeded(reason, classID, quality, sellPrice, bindType, isBound)
         return "SELL", reason .. ", " .. vendor
     end
     return "KEEP", reason .. ", " .. vendor
+end
+
+-- Weapon pairs. While you wear a two-hander, a one-hander or off-hand alone is only half of a
+-- replacement, so it is judged together with the best partner for the other hand in your bags.
+local MAIN_HAND_LOCS = { INVTYPE_WEAPON = true, INVTYPE_WEAPONMAINHAND = true }
+local OFF_HAND_LOCS = { INVTYPE_WEAPONOFFHAND = true, INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true }
+-- Bag items that could go in each hand; read once and forgotten whenever verdicts are (see ForgetVerdicts).
+local bagHands
+
+-- True when you could wear this now: your class can use its type, you have the level, and the game
+-- shows no red "can't use" line. Returns the item's slot type and class as well.
+local function WearableNow(link)
+    local name, _, _, _, minLevel, _, _, _, equipLoc, _, _, classID, subClassID = C_Item.GetItemInfo(link)
+    if not name then
+        RequestItem(link)
+        return false
+    end
+    if not (classID == CLASS_WEAPON or classID == CLASS_ARMOR) then
+        return false
+    end
+    local useLevel = UseLevel(classID, subClassID, equipLoc)
+    local level = Safe(UnitLevel("player"))
+    if not useLevel or not level or math.max(minLevel or 1, useLevel) > level or HasRedLine(link) then
+        return false
+    end
+    return true, equipLoc, classID
+end
+
+local function BagHands()
+    if bagHands then
+        return bagHands
+    end
+    bagHands = { main = {}, off = {} }
+    local dual = CanDualWieldNow()
+    for bag = 0, (NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4) do
+        for slot = 1, Safe(C_Container.GetContainerNumSlots(bag)) or 0 do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            local link = info and Safe(info.hyperlink)
+            local wearable, equipLoc, classID = false, nil, nil
+            if link then
+                wearable, equipLoc, classID = WearableNow(link)
+            end
+            if wearable then
+                if MAIN_HAND_LOCS[equipLoc] then
+                    bagHands.main[#bagHands.main + 1] = link
+                end
+                -- Off-hand weapons and one-handers in the off hand both need Dual Wield.
+                local offWeapon = equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_WEAPON"
+                if (OFF_HAND_LOCS[equipLoc] and not offWeapon) or (offWeapon and dual) then
+                    bagHands.off[#bagHands.off + 1] = { link = link, isWeapon = classID == CLASS_WEAPON }
+                end
+            end
+        end
+    end
+    return bagHands
+end
+
+-- Score of a main-hand and off-hand pair, and whether either has stats that can't be scored.
+local function PairScore(main, off, offIsWeapon)
+    local mainScore, mainUnknown = Score(main, 1)
+    local offScore, offUnknown = Score(off, offIsWeapon and OFF_HAND_DPS_SCALE or 1)
+    if not (mainScore and offScore) then
+        return nil
+    end
+    return mainScore + offScore, mainUnknown or offUnknown
+end
+
+-- The best pair this item can make with another item from your bags: partner link, pair score,
+-- unknown flag. nil when no bag item fits the other hand. A bag item skips its own copy once.
+local function BestPartner(link, equipLoc, classID, inBags)
+    local hands = BagHands()
+    local best
+    local function consider(main, off, offIsWeapon, partner)
+        local score, unknown = PairScore(main, off, offIsWeapon)
+        if score and (not best or score > best.score) then
+            best = { partner = partner, score = score, unknown = unknown }
+        end
+    end
+    local function skipSelf(candidate, skipped)
+        if inBags and not skipped and candidate == link then
+            return true
+        end
+        return false
+    end
+    if MAIN_HAND_LOCS[equipLoc] then
+        local skipped = false
+        for _, off in ipairs(hands.off) do
+            if skipSelf(off.link, skipped) then
+                skipped = true
+            else
+                consider(link, off.link, off.isWeapon, off.link)
+            end
+        end
+    end
+    -- An off-hand item, or a one-hander you'd carry in the off hand.
+    local canGoOff = OFF_HAND_LOCS[equipLoc] or (equipLoc == "INVTYPE_WEAPON" and CanDualWieldNow())
+    if canGoOff then
+        local skipped = false
+        for _, main in ipairs(hands.main) do
+            if skipSelf(main, skipped) then
+                skipped = true
+            else
+                consider(main, link, classID == CLASS_WEAPON, main)
+            end
+        end
+    end
+    if best then
+        return best.partner, best.score, best.unknown
+    end
+end
+
+-- Verdict for half of a pair against a worn two-hander, or nil to fall back to "compare it yourself".
+local function JudgePair(link, equipLoc, classID, inBags)
+    local partner, pairScore, pairUnknown = BestPartner(link, equipLoc, classID, inBags)
+    if not partner then
+        return nil
+    end
+    local wornScore, wornUnknown = SlotScore(MAIN_HAND, 1)
+    if not wornScore or pairUnknown or wornUnknown or not WearableNow(link) then
+        return nil
+    end
+    local gain = pairScore - wornScore
+    local margin = math.max(MIN_GAIN, wornScore * CLOSE_CALL_PERCENT / 100)
+    if gain >= margin then
+        return "EQUIP", string.format("Upgrade for %s together with %s from your bags: the pair beats your two-hander (+%d, %d%%)",
+            charData.profile, partner, math.floor(gain), math.floor(gain * 100 / math.max(wornScore, 1)))
+    end
+    -- Never a sell: the pair might still suit you, and that's your call.
+    return "CHECK", "You wear a two-hander; even paired with " .. partner .. " from your bags, it scores lower"
 end
 
 local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quality, sellPrice, bindType, isBound, inBags)
@@ -713,6 +898,10 @@ local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quali
         return "EQUIP", string.format("Upgrade for %s (%s)%s", action, amount, suffix)
     end
     if halfOfPair then
+        local pairVerdict, pairReason = JudgePair(link, equipLoc, classID, inBags)
+        if pairVerdict then
+            return pairVerdict, pairReason
+        end
         return "CHECK", "You wear a two-hander; this is only half of a replacement, so compare the pair yourself"
     end
     if unknown then
@@ -737,9 +926,14 @@ end
 -- role, or an item finishing loading): the hub asks every second and the tooltip asks while you hover.
 local verdictCache, verdictCount = {}, 0
 local VERDICT_CACHE_LIMIT = 2000
+-- The last finished bag scan, and a counter that tells a scan running over several frames that
+-- something changed under it (see ScanBagsSpread).
+local lastScan, scanStale, scanGeneration = nil, true, 0
 
 local function ForgetVerdicts()
     verdictCache, verdictCount = {}, 0
+    bagHands = nil
+    scanStale, scanGeneration = true, scanGeneration + 1
 end
 
 local function EvaluateNow(link, isBound, inBags)
@@ -797,44 +991,53 @@ local function Evaluate(link, isBound, inBags)
     return verdict, reason
 end
 
-local function ScanBags()
-    local results = { EQUIP = {}, DISENCHANT = {}, AUCTION = {}, KEEP = {}, CHECK = {}, SELL = {} }
-    local sellTotal = 0
-    local upgrades = {}
-    for bag = 0, (NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4) do
-        for slot = 1, Safe(C_Container.GetContainerNumSlots(bag)) or 0 do
-            local info = C_Container.GetContainerItemInfo(bag, slot)
-            local link = info and Safe(info.hyperlink)
-            if link then
-                local verdict, reason = Evaluate(link, Safe(info.isBound), true)
-                local bucket = results[verdict]
-                if bucket then
-                    bucket[#bucket + 1] = link .. ": " .. reason
-                    if verdict == "EQUIP" then
-                        upgrades[#upgrades + 1] = link
-                    end
-                    if verdict == "SELL" then
-                        local price = select(11, C_Item.GetItemInfo(link)) or 0
-                        sellTotal = sellTotal + price * (Safe(info.stackCount) or 1)
-                    end
-                end
-            end
-        end
-    end
-    return results, sellTotal, upgrades
+-- A bag scan in progress or finished: verdict lists, total vendor value, and the upgrades.
+local function NewScan()
+    return { results = { EQUIP = {}, DISENCHANT = {}, AUCTION = {}, KEEP = {}, CHECK = {}, SELL = {} }, sellTotal = 0, upgrades = {} }
 end
 
-local function ShowScan()
-    local results, sellTotal = ScanBags()
-    for _, verdict in ipairs({ "EQUIP", "SELL", "AUCTION", "DISENCHANT", "CHECK" }) do
-        for _, line in ipairs(results[verdict]) do
-            local color = COLORS[verdict]
-            Print(string.format("|cff%02x%02x%02x%s|r %s", math.floor(color[1] * 255), math.floor(color[2] * 255), math.floor(color[3] * 255), verdict, line))
+-- Every bag slot as { bag, slot }, so a scan can be split into pieces.
+local function BagSlots()
+    local slots = {}
+    for bag = 0, (NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4) do
+        for slot = 1, Safe(C_Container.GetContainerNumSlots(bag)) or 0 do
+            slots[#slots + 1] = { bag, slot }
         end
     end
-    Print(string.format("%d to equip, %d to sell (%s), %d to auction, %d to disenchant, %d to check, %d to keep.",
-        #results.EQUIP, #results.SELL, FormatMoney(sellTotal), #results.AUCTION, #results.DISENCHANT, #results.CHECK, #results.KEEP))
+    return slots
 end
+
+local function ScanSlot(scan, bag, slot)
+    local info = C_Container.GetContainerItemInfo(bag, slot)
+    local link = info and Safe(info.hyperlink)
+    if not link then
+        return
+    end
+    local verdict, reason = Evaluate(link, Safe(info.isBound), true)
+    local bucket = scan.results[verdict]
+    if bucket then
+        bucket[#bucket + 1] = link .. ": " .. reason
+        if verdict == "EQUIP" then
+            scan.upgrades[#scan.upgrades + 1] = link
+        end
+        if verdict == "SELL" then
+            local price = select(11, C_Item.GetItemInfo(link)) or 0
+            scan.sellTotal = scan.sellTotal + price * (Safe(info.stackCount) or 1)
+        end
+    end
+end
+
+-- The whole scan at once; used when you open the page and are waiting for the answer anyway.
+local function ScanBags()
+    local scan = NewScan()
+    for _, entry in ipairs(BagSlots()) do
+        ScanSlot(scan, entry[1], entry[2])
+    end
+    lastScan, scanStale = scan, false
+    return scan.results, scan.sellTotal, scan.upgrades
+end
+
+-- Role: picked from your talents unless you chose one on the page ----------------------------------
 
 local function ClassHasProfile(name)
     for _, profile in ipairs(CLASS_PROFILES[playerClass]) do
@@ -843,6 +1046,159 @@ local function ClassHasProfile(name)
         end
     end
     return false
+end
+
+-- Points per talent tab as { name, points }, or nil when the game gives no way to tell.
+-- Forever keeps talents as a trait tree (C_ClassTalents / C_Traits, documented in the client's API
+-- docs): each purchased node counts its ranks toward the sub-tree (tab) it belongs to.
+local function TraitTabs()
+    if not (C_ClassTalents and C_Traits and C_Traits.GetConfigInfo and C_Traits.GetTreeNodes and C_Traits.GetNodeInfo) then
+        return nil
+    end
+    local function call(fn, ...)
+        if type(fn) ~= "function" then
+            return nil
+        end
+        local ok, result = pcall(fn, ...)
+        return ok and Safe(result) or nil
+    end
+    local configID = call(C_ClassTalents.GetActiveConfigID)
+    local config = configID and call(C_Traits.GetConfigInfo, configID)
+    local treeIDs = type(config) == "table" and Safe(config.treeIDs)
+    if type(treeIDs) ~= "table" then
+        return nil
+    end
+    local points, order = {}, {}
+    for _, treeID in ipairs(treeIDs) do
+        local nodes = call(C_Traits.GetTreeNodes, Safe(treeID))
+        for _, nodeID in ipairs(type(nodes) == "table" and nodes or {}) do
+            local node = call(C_Traits.GetNodeInfo, configID, Safe(nodeID))
+            local ranks = type(node) == "table" and Safe(node.ranksPurchased)
+            local subTree = type(node) == "table" and Safe(node.subTreeID)
+            if type(ranks) == "number" and ranks > 0 and subTree then
+                if not points[subTree] then
+                    order[#order + 1] = subTree
+                end
+                points[subTree] = (points[subTree] or 0) + ranks
+            end
+        end
+    end
+    local tabs = {}
+    for _, subTree in ipairs(order) do
+        local info = call(C_Traits.GetSubTreeInfo, configID, subTree)
+        local name = type(info) == "table" and Safe(info.name)
+        if type(name) == "string" and name ~= "" then
+            tabs[#tabs + 1] = { name = name, points = points[subTree] }
+        end
+    end
+    return #tabs > 0 and tabs or nil
+end
+
+-- The older talent API, where a client still has it. Not in this client's API docs, so it is only a
+-- fallback and two return layouts are accepted: (name, icon, points) and (id, name, description, icon, points).
+local function LegacyTabs()
+    if type(GetTalentTabInfo) ~= "function" then
+        return nil
+    end
+    local count = 3
+    if type(GetNumTalentTabs) == "function" then
+        local ok, value = pcall(GetNumTalentTabs)
+        count = ok and type(Safe(value)) == "number" and Safe(value) or count
+    end
+    local tabs = {}
+    for index = 1, math.min(count, 5) do
+        local ok, r1, r2, r3, _, r5 = pcall(GetTalentTabInfo, index)
+        r1, r2, r3, r5 = Safe(r1), Safe(r2), Safe(r3), Safe(r5)
+        local name, points
+        if ok and type(r1) == "string" then
+            name, points = r1, r3
+        elseif ok and type(r2) == "string" then
+            name, points = r2, r5
+        end
+        if name and type(points) == "number" then
+            tabs[#tabs + 1] = { name = name, points = points }
+        end
+    end
+    return #tabs > 0 and tabs or nil
+end
+
+-- The role your talents point to: profile, tab name, points. nil if unreadable, too few points,
+-- a tie, or a tab this addon doesn't know.
+local function TalentProfile()
+    local known = TAB_PROFILES[playerClass]
+    if not known then
+        return nil
+    end
+    local tabs = TraitTabs() or LegacyTabs()
+    local best, tied
+    for _, tab in ipairs(tabs or {}) do
+        if not best or tab.points > best.points then
+            best, tied = tab, false
+        elseif tab.points == best.points then
+            tied = true
+        end
+    end
+    if not best or tied or best.points < MIN_TALENT_POINTS then
+        return nil
+    end
+    local profile = known[best.name:lower()]
+    if profile and ClassHasProfile(profile) then
+        return profile, best.name, best.points
+    end
+end
+
+-- Follows your talents unless you picked a role yourself. Returns true if the role changed.
+local function UpdateAutoRole()
+    if not charData or charData.roleChosen then
+        return false
+    end
+    local profile, tab, points = TalentProfile()
+    charData.roleFrom = profile and string.format("%d points in %s", points, tab) or nil
+    if profile and profile ~= charData.profile then
+        charData.profile = profile
+        ScheduleRepaint()
+        return true
+    end
+    return false
+end
+
+local function ShowSettings()
+    local roleText
+    if charData.roleChosen then
+        roleText = "you chose it. Type role auto to follow your talents again."
+    elseif charData.roleFrom then
+        roleText = "picked from your talents (" .. charData.roleFrom .. ")."
+    elseif TAB_PROFILES[playerClass] then
+        roleText = "the class default; your talents don't point anywhere clear yet."
+    else
+        roleText = "your class has one role."
+    end
+    Print(string.format("|cffffd100Role:|r %s, %s", charData.profile, roleText))
+    if #CLASS_PROFILES[playerClass] > 1 then
+        Print("  To choose another, type: role " .. table.concat(CLASS_PROFILES[playerClass], ", role "))
+    end
+    local state = charData.levelingBias == false and "off" or "on"
+    Print(string.format("|cffffd100Leveling bias:|r %s. Below level %d, Stamina and Armor count 50%% more, because staying alive matters most while leveling.%s",
+        state, MAX_LEVEL, LevelingBiasActive() and "" or " (Not in use right now.)"))
+    Print("  Type: leveling " .. (state == "on" and "off" or "on"))
+end
+
+local function ShowScan()
+    ShowSettings()
+    local results, sellTotal
+    if lastScan and not scanStale then
+        results, sellTotal = lastScan.results, lastScan.sellTotal
+    else
+        results, sellTotal = ScanBags()
+    end
+    for _, verdict in ipairs({ "EQUIP", "SELL", "AUCTION", "DISENCHANT", "CHECK" }) do
+        for _, line in ipairs(results[verdict]) do
+            local color = COLORS[verdict]
+            Print(string.format("|cff%02x%02x%02x%s|r %s", math.floor(color[1] * 255), math.floor(color[2] * 255), math.floor(color[3] * 255), verdict, line))
+        end
+    end
+    Print(string.format("%d to equip, %d to sell (%s), %d to auction, %d to disenchant, %d to check, %d to keep.",
+        #results.EQUIP, #results.SELL, FormatMoney(sellTotal), #results.AUCTION, #results.DISENCHANT, #results.CHECK, #results.KEEP))
 end
 
 local function ShowRawStats(link)
@@ -879,19 +1235,42 @@ local function HandleSlash(message)
     local command, rest = message:match("^(%S*)%s*(.-)%s*$")
     command = command:lower()
     if command == "" then
+        -- Talents may have changed since the last event; a cheap re-check before the page is drawn.
+        UpdateAutoRole()
         ShowScan()
     elseif command == "role" and ClassHasProfile(rest:lower()) then
         charData.profile = rest:lower()
+        -- Your choice wins over the talent guess until you type role auto.
+        charData.roleChosen = true
         -- Weights changed, so the bag arrows and coins may be stale.
         ScheduleRepaint()
         Print("Role set to " .. charData.profile .. ".")
+    elseif command == "role" and rest:lower() == "auto" then
+        charData.roleChosen = false
+        if not UpdateAutoRole() then
+            ScheduleRepaint()
+        end
+        if charData.roleFrom then
+            Print("Role follows your talents: " .. charData.profile .. " (" .. charData.roleFrom .. ").")
+        else
+            Print("Role follows your talents once they point somewhere clear; for now it stays " .. charData.profile .. ".")
+        end
+    elseif command == "leveling" or command == "levelling" then
+        local want = rest:lower()
+        if want == "on" or want == "off" then
+            charData.levelingBias = want == "on"
+            ScheduleRepaint()
+        end
+        Print(string.format("Leveling bias is %s: below level %d, Stamina and Armor count 50%% more. Type leveling on or leveling off.",
+            charData.levelingBias == false and "off" or "on", MAX_LEVEL))
     elseif command == "role" then
         Print("Your role is " .. charData.profile .. ". Choose: " .. table.concat(CLASS_PROFILES[playerClass], ", ") .. ".")
     elseif command == "stats" then
         ShowRawStats(rest)
     else
         Print("/ia - check every item in your bags")
-        Print("/ia role <name> - set what stats to favor")
+        Print("/ia role <name> - set what stats to favor (role auto follows your talents)")
+        Print("/ia leveling on|off - extra weight on Stamina and Armor below level 60")
         Print("/ia stats <shift-click item> - show the raw stats the game reports")
         Print("Hover any item to see its recommendation.")
     end
@@ -1035,23 +1414,50 @@ local function HideBagBadges()
     end
 end
 
+-- Buttons painted per frame: a first look at full bags evaluates every item, so it's spread out.
+local PAINT_BUTTONS_PER_FRAME = 20
+local paintGeneration = 0
+
 local function PaintBags()
     if not charData then
         return
     end
-    -- Bags can change in combat without a repaint, so a stale badge would point at the wrong slot.
-    if InCombatLockdown and InCombatLockdown() then
-        HideBagBadges()
-        repaintAfterCombat = true
-        return
-    end
+    paintGeneration = paintGeneration + 1
+    local generation = paintGeneration
+    local buttons = {}
     for _, bagFrame in ipairs(BagFrames()) do
         if bagFrame:IsShown() and type(bagFrame.Items) == "table" then
             for _, button in ipairs(bagFrame.Items) do
-                PaintBagButton(button)
+                buttons[#buttons + 1] = button
             end
         end
     end
+    local index = 1
+    local function step()
+        -- A newer repaint took over.
+        if generation ~= paintGeneration then
+            return
+        end
+        -- Bags can change in combat without a repaint, so a stale badge would point at the wrong slot.
+        if InCombatLockdown and InCombatLockdown() then
+            HideBagBadges()
+            repaintAfterCombat = true
+            return
+        end
+        local last = math.min(index + PAINT_BUTTONS_PER_FRAME - 1, #buttons)
+        for i = index, last do
+            PaintBagButton(buttons[i])
+        end
+        index = last + 1
+        if index <= #buttons then
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, function() Report(step) end)
+            else
+                step()
+            end
+        end
+    end
+    step()
 end
 
 local function RewardButton(index)
@@ -1234,11 +1640,70 @@ local function OpenRewardWindow(wantsToast)
     end)
 end
 
-local function ShowVendorReminder()
-    local results, sellTotal = ScanBags()
-    if #results.SELL > 0 then
-        Print(string.format("Sell %d item(s) for %s. A coin marks each one in your bags.", #results.SELL, ShortMoney(sellTotal)))
+-- Bag scan spread over frames, a few slots each, so full bags never cause a hitch. onDone (optional)
+-- gets the finished scan. If verdicts are forgotten mid-way (bags or gear changed), it starts over.
+local SCAN_SLOTS_PER_FRAME = 12
+local scanRunning, scanWaiters = false, {}
+
+local function ScanBagsSpread(onDone)
+    if onDone then
+        scanWaiters[#scanWaiters + 1] = onDone
     end
+    if scanRunning then
+        return
+    end
+    scanRunning = true
+    local generation, index, scan = scanGeneration, 1, NewScan()
+    local slots = {}
+    local step
+    -- Never leave the scan marked as running after an error, or it would never run again.
+    local function guarded()
+        local ok, err = pcall(step)
+        if not ok then
+            scanRunning = false
+            geterrorhandler()(err)
+        end
+    end
+    function step()
+        if generation ~= scanGeneration then
+            scanRunning = false
+            return ScanBagsSpread()
+        end
+        local last = math.min(index + SCAN_SLOTS_PER_FRAME - 1, #slots)
+        for i = index, last do
+            ScanSlot(scan, slots[i][1], slots[i][2])
+        end
+        index = last + 1
+        if index <= #slots then
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, guarded)
+                return
+            end
+            return step()
+        end
+        scanRunning = false
+        lastScan, scanStale = scan, false
+        local waiters = scanWaiters
+        scanWaiters = {}
+        for _, waiter in ipairs(waiters) do
+            Report(waiter, scan)
+        end
+    end
+    local ok, err = pcall(function() slots = BagSlots() end)
+    if not ok then
+        scanRunning = false
+        geterrorhandler()(err)
+        return
+    end
+    guarded()
+end
+
+local function ShowVendorReminder()
+    ScanBagsSpread(function(scan)
+        if #scan.results.SELL > 0 then
+            Print(string.format("Sell %d item(s) for %s. A coin marks each one in your bags.", #scan.results.SELL, ShortMoney(scan.sellTotal)))
+        end
+    end)
 end
 
 local events = CreateFrame("Frame")
@@ -1248,13 +1713,26 @@ for _, name in ipairs({ "PLAYER_LOGIN", "QUEST_LOG_UPDATE", "QUEST_DETAIL", "QUE
     "LEARNED_SPELL_IN_SKILL_LINE" }) do
     events:RegisterEvent(name)
 end
+-- Talent changes can change the role. Registered one by one with pcall: a client without one of
+-- these events must still load the addon.
+local TALENT_EVENTS = { TRAIT_CONFIG_UPDATED = true, PLAYER_TALENT_UPDATE = true, CHARACTER_POINTS_CHANGED = true }
+for name in pairs(TALENT_EVENTS) do
+    pcall(events.RegisterEvent, events, name)
+end
 events:SetScript("OnEvent", function(_, event, arg1)
     if event == "GET_ITEM_INFO_RECEIVED" then
         -- Only items this addon asked for; the game loads items for many other reasons.
         local id = Safe(arg1)
         if id and pendingItems[id] and charData then
             pendingItems[id] = nil
+            itemRetries = 0
             ScheduleRepaint()
+        end
+        return
+    end
+    if TALENT_EVENTS[event] then
+        if charData then
+            Report(UpdateAutoRole)
         end
         return
     end
@@ -1304,9 +1782,15 @@ events:SetScript("OnEvent", function(_, event, arg1)
     charData = ItemAdvisorDB[key]
     if not charData.profile or not ClassHasProfile(charData.profile) then
         charData.profile = CLASS_PROFILES[playerClass][1]
+        charData.roleChosen = false
+    elseif charData.roleChosen == nil then
+        -- Saved before roles followed talents (nil, never false): a role other than the default was
+        -- picked by hand, so keep it.
+        charData.roleChosen = charData.profile ~= CLASS_PROFILES[playerClass][1]
     end
+    Report(UpdateAutoRole)
     if isNew and #CLASS_PROFILES[playerClass] > 1 then
-        Print("Using the " .. charData.profile .. " role. Change it with /ia role if your spec differs.")
+        Print("Using the " .. charData.profile .. " role. It follows your talents; choose another on the Bag advice page.")
     end
     RebuildQuestItems()
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltip)
@@ -1333,7 +1817,15 @@ ForeverHubStatus.ItemAdvisor = function()
     if not charData then
         return nil
     end
-    local results, sellTotal, upgrades = ScanBags()
+    -- The hub asks every second: answer from the last finished scan, and refresh it in the
+    -- background (spread over frames) when something changed.
+    if scanStale then
+        ScanBagsSpread()
+    end
+    if not lastScan then
+        return nil
+    end
+    local results, sellTotal, upgrades = lastScan.results, lastScan.sellTotal, lastScan.upgrades
     local items = {}
     for _, link in ipairs(upgrades) do
         items[#items + 1] = { text = "|cff33ff33Equip|r " .. link, page = "Bag advice", link = link }
