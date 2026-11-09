@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: RestGuard
+## Notes: Warns when you log out outside a rested area, and shows your rested XP and Hearthstone. Only gives information.
+## Version: 0.1.1
+
+RestGuard.lua

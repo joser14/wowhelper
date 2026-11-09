@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: TalentNudge
+## Notes: Tells you once when you have unspent talent points. Only gives information.
+## Version: 0.1.3
+
+TalentNudge.lua

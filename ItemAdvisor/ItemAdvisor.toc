@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: ItemAdvisor
+## Notes: Recommends whether to equip, keep, sell, or auction each item. Only gives advice; never moves, equips, or sells anything.
+## Version: 0.2.9
+## SavedVariables: ItemAdvisorDB
+
+ItemAdvisor.lua

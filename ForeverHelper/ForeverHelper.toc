@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: ForeverHelper
+## Notes: Leveling rates, rested XP, a per-character to-do list, and an overview of your characters.
+## Version: 0.1.4
+## SavedVariables: ForeverHelperDB
+
+ForeverHelper.lua

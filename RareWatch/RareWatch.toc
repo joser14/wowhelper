@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: RareWatch
+## Notes: A pop-up and sound when a rare appears on your minimap, and a hub row for rares and treasure nearby. Only shows information.
+## Version: 0.1.0
+
+RareWatch.lua

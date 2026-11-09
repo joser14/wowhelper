@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: ZoneLevels
+## Notes: Shows a zone's level range and warns when you walk into one above your level. Only gives information.
+## Version: 0.1.1
+
+ZoneLevels.lua

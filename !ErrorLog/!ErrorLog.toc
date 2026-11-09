@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: ErrorLog
+## Notes: Saves Lua errors so you can read or share them later. Doesn't change what the game does with an error.
+## Version: 0.1.2
+## SavedVariables: ErrorLogDB
+
+!ErrorLog.lua

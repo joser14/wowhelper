@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: TrainerNotes
+## Notes: Remembers what your trainers sell, then tells you when something is ready and what it costs. Never buys anything.
+## Version: 0.1.4
+## SavedVariables: TrainerNotesDB
+
+TrainerNotes.lua

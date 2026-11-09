@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: QuestCheck
+## Notes: Shows how full your quest log is, what's ready to turn in, and which quests are gray or need a group. Never accepts, completes, or abandons anything.
+## Version: 0.1.2
+
+QuestCheck.lua

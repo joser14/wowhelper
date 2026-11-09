@@ -1,0 +1,11 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: LevelGuide
+## Notes: Step-by-step leveling guide with an arrow, worked out live from your quest log and map. Never accepts or turns in anything for you.
+## Version: 0.1.0
+## SavedVariables: LevelGuideDB
+
+QuestIDs.lua
+Prereqs.lua
+Routes.lua
+LevelGuide.lua

@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: DurabilityWatch
+## Notes: Warns when gear is nearly broken and shows the repair cost at repair vendors. Never repairs for you.
+## Version: 0.1.2
+
+DurabilityWatch.lua

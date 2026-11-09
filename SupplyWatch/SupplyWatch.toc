@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: SupplyWatch
+## Notes: Warns when ammo or items you choose run low, and lists what to restock at vendors. Never buys anything.
+## Version: 0.1.2
+## SavedVariables: SupplyWatchDB
+
+SupplyWatch.lua

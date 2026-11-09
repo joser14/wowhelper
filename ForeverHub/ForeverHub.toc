@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: ForeverHub
+## Notes: One window and on-screen pop-ups for all your helper addons, so nothing goes through chat. Only shows information.
+## Version: 0.1.4
+## SavedVariables: ForeverHubDB
+
+ForeverHub.lua

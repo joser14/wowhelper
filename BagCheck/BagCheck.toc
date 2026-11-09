@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: BagCheck
+## Notes: Warns when bags are nearly full and shows what your junk is worth. Never sells anything for you.
+## Version: 0.1.2
+
+BagCheck.lua

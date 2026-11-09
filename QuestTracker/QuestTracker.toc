@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: QuestTracker
+## Notes: A cleaner quest tracker: turn-ins first, your zone next, nearest quests on top, XP on every quest. Only shows information; you click everything yourself.
+## Version: 0.2.0
+## SavedVariables: QuestTrackerDB
+
+QuestTracker.lua

@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: ProfessionCap
+## Notes: Warns when a profession hits its skill cap and needs the next rank from a trainer. Only gives information.
+## Version: 0.1.3
+
+ProfessionCap.lua
