@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: DeathNotes
+## Notes: Remembers where you died, to what and at what level, and warns you when you walk back into one of those spots. Only gives information.
+## Version: 0.1.0
+## SavedVariables: DeathNotesDB
+
+DeathNotes.lua

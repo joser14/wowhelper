@@ -9,7 +9,7 @@ local DEFAULT_ANGLE = 215
 local MAX_LEVEL = 60
 
 -- Most useful first; the panel shows these in this order.
-local STATUS_ORDER = { "RareWatch", "ItemAdvisor", "TalentNudge", "TrainerNotes", "QuestCheck", "DurabilityWatch", "BagCheck", "SupplyWatch", "ProfessionCap", "WeaponSkillWatch", "GoldGoal" }
+local STATUS_ORDER = { "RareWatch", "DeathNotes", "ItemAdvisor", "TalentNudge", "TrainerNotes", "QuestCheck", "DurabilityWatch", "BagCheck", "SupplyWatch", "ProfessionCap", "WeaponSkillWatch", "GoldGoal" }
 
 -- Pages in the details window. "hidden" pages open from the panel but take no sidebar space.
 local TABS = {
@@ -24,6 +24,7 @@ local TABS = {
     { label = "Gold goal", key = "GOLDGOAL", hint = "Gold and a name: 500 Bags   Or: clear" },
     { label = "Rested XP", key = "RESTGUARD" },
     { label = "Places", key = "LANDMARKS", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer" },
+    { label = "Deaths", key = "DEATHNOTES", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
     { label = "Reputation", key = "REPWATCH", arg = "all" },
     { label = "Level log", key = "LEVELLOG", arg = "all" },
     { label = "Characters", key = "FOREVERHELPER", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
