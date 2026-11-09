@@ -55,3 +55,5 @@ edits at the moment this file was written (may not pass tests; review before mer
 ## Research reports (research/)
 curseforge_forever.md, thirdparty.md, thirdparty_features.md, rxp_deep.md, auctionator_deep.md,
 popular_quests_maps.md, popular_items_spells.md, popular_qol_routes.md, plus earlier review reports.
+
+- Tooltips extras (drop, questitem, giver, upgrade) done. Follow-up: giver 'Turn in' lines for quests you don't hold are noisy at busy NPCs; consider showing only held turn-ins.

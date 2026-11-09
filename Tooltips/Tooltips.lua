@@ -16,11 +16,21 @@ local LINES = {
       about = "How many you have on every character, in bags, bank, and worn (from ItemFinder)." },
     { name = "profession", label = "Profession guide", default = true,
       about = "Which profession guide steps use the item as a material." },
+    { name = "drop", label = "Dungeon drop", default = true,
+      about = "Which dungeon boss drops the item, or which dungeon quest gives it (from the Dungeons guide)." },
+    { name = "questitem", label = "Quest item", default = true,
+      about = "Which quest in your log still needs the item, with your count, unless the game already says so." },
+    { name = "giver", label = "Quest giver", default = true,
+      about = "Leveling guide quests a creature starts or takes back that you haven't done yet; (ready) when you can turn it in. Not shown inside dungeons." },
+    { name = "upgrade", label = "Upgrade", default = false,
+      about = "Upgrade for you, from ItemAdvisor, when ItemAdvisor isn't already showing its own verdict." },
     { name = "id", label = "Item ID and level", default = false,
       about = "The item's ID number and item level." },
     { name = "npc", label = "NPC ID", default = false,
-      about = "The ID number of the creature under your mouse." },
+      about = "The ID number of the creature under your mouse. Not shown inside dungeons." },
 }
+local MAX_LIST = 3
+local MORE_R, MORE_G, MORE_B = 0.6, 0.6, 0.6
 local LINE_BY_NAME = {}
 for _, line in ipairs(LINES) do
     LINE_BY_NAME[line.name] = line
@@ -230,25 +240,51 @@ end
 
 -- PriceMemory and ItemFinder can add their own lines; this reads what's already on the tooltip so
 -- the same fact isn't shown twice.
-local function LinesAlreadyThere(tooltip)
-    local found = {}
+-- The left-hand text of every line already on the tooltip (secret ones left out).
+local function ExistingTexts(tooltip)
+    local texts = {}
     local name = tooltip.GetName and Safe(tooltip:GetName())
     local count = tooltip.NumLines and Safe(tooltip:NumLines())
     if type(name) ~= "string" or type(count) ~= "number" then
-        return found
+        return texts
     end
     for index = 1, count do
         local fontString = _G[name .. "TextLeft" .. index]
         local text = fontString and fontString.GetText and Safe(fontString:GetText())
         if type(text) == "string" then
-            if text:find("^Auction, seen ") then
-                found.auction = true
-            elseif text:find("^Owned: ") then
-                found.count = true
+            texts[#texts + 1] = text
+        end
+    end
+    return texts
+end
+
+-- ItemAdvisor's own tooltip line reads "<VERDICT>: <reason>" (ItemAdvisor.lua OnTooltip).
+local ITEMADVISOR_VERDICTS = { EQUIP = true, KEEP = true, SELL = true, AUCTION = true, DISENCHANT = true, CHECK = true, EQUIPPED = true }
+
+local function LinesAlreadyThere(texts)
+    local found = {}
+    for _, text in ipairs(texts) do
+        if text:find("^Auction, seen ") then
+            found.auction = true
+        elseif text:find("^Owned: ") then
+            found.count = true
+        else
+            local verdict = text:match("^(%u+): ")
+            if verdict and ITEMADVISOR_VERDICTS[verdict] then
+                found.advisor = true
             end
         end
     end
     return found
+end
+
+local function MentionedIn(texts, title)
+    for _, text in ipairs(texts) do
+        if text:find(title, 1, true) then
+            return true
+        end
+    end
+    return false
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -480,6 +516,307 @@ local function AddProfessionLine(tooltip, id)
     AddPair(tooltip, "Needed", text)
 end
 
+-- Dungeon drops: item ID -> { boss, dungeon, quest } from the Dungeons guide, worked out once per table.
+-- Its loot entries are { itemID, name, boss, slot }; a boss text "quest: <title>" is a quest reward.
+local dropIndex, indexedDungeons
+
+local function BuildDropIndex(dungeons)
+    local index = {}
+    for _, dungeon in ipairs(dungeons) do
+        local dungeonName = type(dungeon) == "table" and Safe(dungeon.name)
+        if type(dungeonName) == "string" and type(dungeon.loot) == "table" then
+            for _, entry in ipairs(dungeon.loot) do
+                if type(entry) == "table" then
+                    local id = Safe(entry[1]) or Safe(entry.itemID)
+                    local boss = Safe(entry[3]) or Safe(entry.boss)
+                    if type(id) == "number" and type(boss) == "string" and boss ~= "" then
+                        local quest = boss:match("^quest:%s*(.+)$")
+                        local list = index[id] or {}
+                        list[#list + 1] = { boss = quest or boss, dungeon = dungeonName, quest = quest ~= nil }
+                        index[id] = list
+                    end
+                end
+            end
+        end
+    end
+    return index
+end
+
+local function AddDropLine(tooltip, id)
+    local dungeons = DungeonsData
+    if type(dungeons) ~= "table" then
+        return
+    end
+    if dungeons ~= indexedDungeons or not dropIndex then
+        indexedDungeons = dungeons
+        local ok, index = pcall(BuildDropIndex, dungeons)
+        dropIndex = ok and index or {}
+    end
+    local sources = dropIndex[id]
+    if not sources or #sources == 0 then
+        return
+    end
+    local first = sources[1]
+    local more = #sources > 1 and string.format(" |cff999999+%d more|r", #sources - 1) or ""
+    if first.quest then
+        AddPair(tooltip, "Quest reward", first.boss .. " (" .. first.dungeon .. ")" .. more)
+    else
+        AddPair(tooltip, "Drops from", first.boss .. " in " .. first.dungeon .. more)
+    end
+end
+
+-- Your quest log, read once after each QUEST_LOG_UPDATE (the next tooltip that needs it rebuilds it).
+local questLog, questLogDirty = nil, true
+
+local function ObjectiveName(text)
+    text = text:gsub("%s*:%s*%d+%s*/%s*%d+%s*$", "")
+    text = text:gsub("^%d+%s*/%s*%d+%s+", "")
+    text = text:gsub("%s+$", ""):gsub("^%s+", "")
+    return text
+end
+
+local function ReadQuestLog()
+    local log = { byTitle = {}, objectives = {} }
+    local api = C_QuestLog
+    if type(api) ~= "table" or type(api.GetNumQuestLogEntries) ~= "function" or type(api.GetInfo) ~= "function" then
+        return log
+    end
+    local ok, count = pcall(api.GetNumQuestLogEntries)
+    count = ok and Safe(count)
+    if type(count) ~= "number" then
+        return log
+    end
+    for index = 1, math.min(count, 100) do
+        local got, info = pcall(api.GetInfo, index)
+        info = got and Safe(info)
+        if type(info) == "table" and Safe(info.isHeader) ~= true then
+            local title, questID = Safe(info.title), Safe(info.questID)
+            if type(title) == "string" and title ~= "" then
+                local complete = Safe(info.isComplete)
+                if type(questID) == "number" and type(api.IsComplete) == "function" then
+                    local done, value = pcall(api.IsComplete, questID)
+                    if done and Safe(value) ~= nil then
+                        complete = Safe(value)
+                    end
+                end
+                log.byTitle[title] = { questID = questID, complete = complete == true or complete == 1 }
+                if type(questID) == "number" and type(api.GetQuestObjectives) == "function" then
+                    local fine, objectives = pcall(api.GetQuestObjectives, questID)
+                    objectives = fine and Safe(objectives)
+                    if type(objectives) == "table" then
+                        for _, objective in ipairs(objectives) do
+                            local text = type(objective) == "table" and Safe(objective.text)
+                            if type(text) == "string" and text ~= "" then
+                                local have, need = Safe(objective.numFulfilled), Safe(objective.numRequired)
+                                if type(have) ~= "number" or type(need) ~= "number" then
+                                    local a, b = text:match("(%d+)%s*/%s*(%d+)")
+                                    have, need = tonumber(a), tonumber(b)
+                                end
+                                log.objectives[#log.objectives + 1] = {
+                                    title = title,
+                                    name = ObjectiveName(text):lower(),
+                                    isItem = Safe(objective.type) == "item",
+                                    finished = Safe(objective.finished) == true or (have and need and have >= need) or false,
+                                    have = have, need = need,
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return log
+end
+
+local function QuestLog()
+    if questLogDirty or not questLog then
+        questLogDirty = false
+        local ok, log = pcall(ReadQuestLog)
+        questLog = ok and log or { byTitle = {}, objectives = {} }
+    end
+    return questLog
+end
+
+-- "+N more" under a capped list.
+local function AddCapped(tooltip, rows)
+    for index = 1, math.min(#rows, MAX_LIST) do
+        local row = rows[index]
+        tooltip:AddLine(row.text, row.r, row.g, row.b)
+    end
+    if #rows > MAX_LIST then
+        tooltip:AddLine(string.format("+%d more", #rows - MAX_LIST), MORE_R, MORE_G, MORE_B)
+    end
+end
+
+local function AddQuestItemLine(tooltip, itemName, texts)
+    local name = itemName:lower()
+    local rows, seen = {}, {}
+    for _, objective in ipairs(QuestLog().objectives) do
+        local matches = objective.name == name or (objective.isItem and objective.name:find(name, 1, true) ~= nil)
+        if matches and not objective.finished and not seen[objective.title] and not MentionedIn(texts, objective.title) then
+            seen[objective.title] = true
+            local text = "Needed for: " .. objective.title
+            if objective.have and objective.need then
+                text = text .. string.format(" (%d/%d)", objective.have, objective.need)
+            end
+            rows[#rows + 1] = { text = text, r = 1, g = 0.82, b = 0 }
+        end
+    end
+    AddCapped(tooltip, rows)
+end
+
+local function AddUpgradeLine(tooltip, already)
+    local check = ItemAdvisor_IsUpgrade
+    if type(check) ~= "function" or already.advisor or not (TooltipUtil and TooltipUtil.GetDisplayedItem) then
+        return
+    end
+    local _, link = TooltipUtil.GetDisplayedItem(tooltip)
+    link = Safe(link)
+    if type(link) ~= "string" then
+        return
+    end
+    local ok, upgrade = pcall(check, link)
+    if ok and Safe(upgrade) == true then
+        tooltip:AddLine("Upgrade for you", 0.2, 1, 0.2)
+    end
+end
+
+-- Quest givers from the leveling guide: cleaned NPC name -> steps, worked out once per route table.
+-- A route's npc text can carry notes: "Shanda (in Aldrassil)", "Arbal, Grove of the Ancients",
+-- "Buzzbox 323, near the bridge", "<Title>" - only the name before them is kept.
+local giverIndex, indexedRoutes
+
+local function CleanName(text)
+    text = text:gsub("<[^>]*>", ""):gsub("%b()", "")
+    -- Coordinates ("at 44.9, 35.6", "42.1,65.3") have decimals, unlike names such as "Buzzbox 323".
+    text = text:gsub("%s+at%s+%d+%.%d+.*$", ""):gsub("%s+%d+%.%d+%s*,?%s*%d+%.%d+.*$", "")
+    text = text:match("^[^,;]*") or ""
+    text = text:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+    return text:lower()
+end
+
+local function BuildGiverIndex(routes)
+    local index, seenRoute, seenStep = {}, {}, {}
+    local chains = type(routes.chains) == "table" and routes.chains or {}
+    for _, chain in pairs(chains) do
+        if type(chain) == "table" then
+            for _, route in ipairs(chain) do
+                if type(route) == "table" and not seenRoute[route] and type(route.steps) == "table" then
+                    seenRoute[route] = true
+                    for _, step in ipairs(route.steps) do
+                        local kind = type(step) == "table" and step.t
+                        if (kind == "accept" or kind == "turnin") and type(step.q) == "string" and type(step.npc) == "string" then
+                            local name = CleanName(step.npc)
+                            local part = tonumber(step.part) or 1
+                            local key = name .. "|" .. kind .. "|" .. step.q .. "|" .. part
+                            if name ~= "" and not seenStep[key] then
+                                seenStep[key] = true
+                                local list = index[name] or {}
+                                list[#list + 1] = { kind = kind, q = step.q, part = part }
+                                index[name] = list
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return index
+end
+
+local function RealTitle(title)
+    local data = LevelGuideQuestIDs
+    local renamed = type(data) == "table" and type(data.renamed) == "table" and data.renamed[title]
+    return type(renamed) == "string" and renamed or title
+end
+
+-- True only when the game says this part of the quest is done; unknown counts as not done
+-- (or, with unknownIs, as that).
+local function QuestDone(title, part, unknownIs)
+    local data = LevelGuideQuestIDs
+    local ids = type(data) == "table" and type(data.ids) == "table" and (data.ids[title] or data.ids[RealTitle(title)])
+    local id = type(ids) == "table" and ids[part]
+    local check = C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted
+    if type(id) ~= "number" or type(check) ~= "function" then
+        return unknownIs == true
+    end
+    local ok, done = pcall(check, id)
+    return ok and Safe(done) == true
+end
+
+-- Part 2 of a chain isn't offered until part 1 is done (when the IDs say so).
+local function Offered(step)
+    return step.part <= 1 or QuestDone(step.q, step.part - 1, true)
+end
+
+local function InLog(log, title)
+    return log.byTitle[title] or log.byTitle[RealTitle(title)]
+end
+
+local function AddGiverLines(tooltip, unitName)
+    local routes = LevelGuideRoutes
+    if type(routes) ~= "table" then
+        return
+    end
+    if routes ~= indexedRoutes or not giverIndex then
+        indexedRoutes = routes
+        local ok, index = pcall(BuildGiverIndex, routes)
+        giverIndex = ok and index or {}
+    end
+    local steps = giverIndex[CleanName(unitName)]
+    if not steps then
+        return
+    end
+    local log = QuestLog()
+    -- Ready turn-ins first, then turn-ins you hold, then new quests, then turn-ins for quests you don't hold.
+    local buckets, shown = { {}, {}, {}, {} }, {}
+    for _, step in ipairs(steps) do
+        local key = step.kind .. "|" .. step.q
+        if not shown[key] and not QuestDone(step.q, step.part) then
+            local held = InLog(log, step.q)
+            if step.kind == "accept" then
+                if not held and Offered(step) then
+                    shown[key] = true
+                    table.insert(buckets[3], { text = "Starts: " .. step.q, r = 1, g = 0.82, b = 0 })
+                end
+            else
+                shown[key] = true
+                if held and held.complete then
+                    table.insert(buckets[1], { text = "Turn in: " .. step.q .. " |cff33ff33(ready)|r", r = 1, g = 0.82, b = 0 })
+                elseif held then
+                    table.insert(buckets[2], { text = "Turn in: " .. step.q, r = 1, g = 0.82, b = 0 })
+                else
+                    table.insert(buckets[4], { text = "Turn in: " .. step.q, r = 0.7, g = 0.7, b = 0.7 })
+                end
+            end
+        end
+    end
+    local rows = {}
+    for _, bucket in ipairs(buckets) do
+        for _, row in ipairs(bucket) do
+            rows[#rows + 1] = row
+        end
+    end
+    AddCapped(tooltip, rows)
+end
+
+-- Inside a dungeon or raid nearly every unit value is secret; unit lines stay out of there entirely.
+-- An answer we can't read counts as inside.
+local function InInstance()
+    if type(IsInInstance) ~= "function" then
+        return false
+    end
+    local ok, inside = pcall(IsInInstance)
+    if not ok then
+        return false
+    end
+    if issecretvalue and issecretvalue(inside) then
+        return true
+    end
+    return inside == true or inside == 1
+end
+
 local function ShownTooltip(tooltip)
     return tooltip ~= nil and (tooltip == GameTooltip or tooltip == ItemRefTooltip)
 end
@@ -497,10 +834,12 @@ local function ItemBody(tooltip, data)
         return
     end
     local facts = ItemFacts(id)
-    local already = {}
-    if IsOn("auction") or IsOn("count") then
-        local ok, found = pcall(LinesAlreadyThere, tooltip)
-        already = ok and found or already
+    local texts, already = {}, {}
+    if IsOn("auction") or IsOn("count") or IsOn("questitem") or IsOn("upgrade") then
+        local ok, found = pcall(ExistingTexts, tooltip)
+        texts = ok and found or texts
+        local fine, flags = pcall(LinesAlreadyThere, texts)
+        already = fine and flags or already
     end
 
     -- Each line on its own, so one helper's odd saved data can't take the other lines with it.
@@ -515,6 +854,15 @@ local function ItemBody(tooltip, data)
     end
     if IsOn("profession") then
         pcall(AddProfessionLine, tooltip, id)
+    end
+    if IsOn("drop") then
+        pcall(AddDropLine, tooltip, id)
+    end
+    if facts and IsOn("questitem") then
+        pcall(AddQuestItemLine, tooltip, facts.name, texts)
+    end
+    if IsOn("upgrade") then
+        pcall(AddUpgradeLine, tooltip, already)
     end
     if IsOn("id") then
         AddPair(tooltip, "Item ID", tostring(id))
@@ -535,18 +883,26 @@ local function NpcID(guid)
 end
 
 local function UnitBody(tooltip, data)
-    if not IsOn("npc") or not ShownTooltip(tooltip) or type(data) ~= "table" then
+    local wantID, wantGiver = IsOn("npc"), IsOn("giver")
+    if not (wantID or wantGiver) or not ShownTooltip(tooltip) or type(data) ~= "table" or InInstance() then
         return
     end
+    local unitName, unit
+    if tooltip.GetUnit then
+        unitName, unit = tooltip:GetUnit()
+        unitName, unit = Safe(unitName), Safe(unit)
+    end
     local guid = Safe(data.guid)
-    if type(guid) ~= "string" and tooltip.GetUnit and UnitGUID then
-        local _, unit = tooltip:GetUnit()
-        unit = Safe(unit)
-        guid = type(unit) == "string" and Safe(UnitGUID(unit)) or nil
+    if type(guid) ~= "string" and type(unit) == "string" and UnitGUID then
+        guid = Safe(UnitGUID(unit))
     end
     local id = NpcID(guid)
-    if id then
+    if wantID and id then
         AddPair(tooltip, "NPC ID", tostring(id))
+    end
+    -- Only creatures give quests: a player or pet that happens to share a name gets nothing.
+    if wantGiver and id and type(unitName) == "string" and unitName ~= "" then
+        pcall(AddGiverLines, tooltip, unitName)
     end
 end
 
@@ -588,7 +944,13 @@ local registered = false
 
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
-events:SetScript("OnEvent", function()
+events:RegisterEvent("QUEST_LOG_UPDATE")
+events:SetScript("OnEvent", function(_, event)
+    if event == "QUEST_LOG_UPDATE" then
+        -- Only marks the cache old; the next tooltip that needs the log reads it again.
+        questLogDirty = true
+        return
+    end
     if type(TooltipsDB) ~= "table" then
         TooltipsDB = {}
     end
@@ -619,7 +981,7 @@ local function ShowPage()
         Print(string.format("%s  |cffffffff%s|r |cff999999(%s)|r - %s", state, line.label, line.name, line.about))
     end
     Print(" ")
-    Print("|cff999999The auction and count lines stay out of the way while PriceMemory or ItemFinder already shows the same thing on a tooltip. A vendor price the game shows itself isn't repeated.|r")
+    Print("|cff999999The auction and count lines stay out of the way while PriceMemory or ItemFinder already shows the same thing on a tooltip. A vendor price the game shows itself isn't repeated, nor a quest the tooltip already names, nor an upgrade ItemAdvisor already rates.|r")
     Print("|cff999999Type: off vendor   Or: on id   Or: toggle npc|r")
 end
 
