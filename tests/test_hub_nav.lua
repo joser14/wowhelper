@@ -118,7 +118,7 @@ assert(has("How to use the hub"), "home shown on open")
 local helpers = { "LevelGuide", "ProfessionCap", "ProfessionGuide", "GoldGoal", "GoldGuide", "Dungeons", "QuestTracker", "QuestCheck",
     "ZoneLevels", "ItemAdvisor", "BagCheck", "ItemFinder", "PriceMemory", "FoodCheck", "SupplyWatch", "DurabilityWatch", "TalentNudge",
     "TrainerNotes", "WeaponSkillWatch", "RestGuard", "RepWatch", "LevelLog", "SpellReady", "Landmarks", "DeathNotes", "RareWatch",
-    "MapPins", "ForeverHelper", "ErrorLog", "QuestMobs", "WindowBadges" }
+    "MapPins", "ForeverHelper", "ErrorLog", "QuestMobs", "WindowBadges", "Builds" }
 for _, name in ipairs(helpers) do
     assert(has("|cffffffff" .. name .. "|r"), "home lists " .. name)
 end
@@ -181,6 +181,21 @@ assert(not rowShown("Died here before"), "status row skipped while off")
 click(switchFor("DeathNotes"))
 tick()
 assert(rowShown("Died here before"), "status row back when on")
+-- Builds' "take X next" row replaces TalentNudge's unspent-points row; TalentNudge's shows when Builds has none.
+local buildsRows
+ForeverHubStatus.TalentNudge = function() return { { text = "Spend 2 talent point(s)", page = "Talents" } } end
+ForeverHubStatus.Builds = function() return buildsRows end
+hub.scripts.OnEvent(hub, "BAG_UPDATE_DELAYED"); tick()
+assert(rowShown("Spend 2 talent"), "TalentNudge row when Builds has none")
+buildsRows = { { text = "|cff88bbeeTalent|r take Deflection next", page = "Builds" } }
+hub.scripts.OnEvent(hub, "BAG_UPDATE_DELAYED"); tick()
+assert(rowShown("take Deflection next") and not rowShown("Spend 2 talent"), "Builds row replaces TalentNudge's")
+click(switchFor("Builds"))
+hub.scripts.OnEvent(hub, "BAG_UPDATE_DELAYED"); tick()
+assert(rowShown("Spend 2 talent") and not rowShown("take Deflection next"), "Builds off: TalentNudge row back")
+click(switchFor("Builds"))
+ForeverHubStatus.TalentNudge, ForeverHubStatus.Builds = nil, nil
+hub.scripts.OnEvent(hub, "BAG_UPDATE_DELAYED"); tick()
 -- Back on.
 click(switchFor("Landmarks"))
 assert(not ForeverHub_IsOff("Landmarks") and nav("Places").shown, "on again shows the page")

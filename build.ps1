@@ -34,7 +34,7 @@ $Bundles = [ordered]@{
     'ForeverBags'      = @{ Title = 'Forever Bags'; Notes = 'Item advice, bag space, item search, prices, food and supplies, repairs.'
                             Modules = @('ItemAdvisor', 'BagCheck', 'ItemFinder', 'PriceMemory', 'FoodCheck', 'SupplyWatch', 'DurabilityWatch', 'Tooltips', 'WindowBadges') }
     'ForeverCharacter' = @{ Title = 'Forever Character'; Notes = 'Talents, trainer, weapon skills, rested XP, level log, reputation, spell ranks and buffs.'
-                            Modules = @('TalentNudge', 'TrainerNotes', 'WeaponSkillWatch', 'RestGuard', 'LevelLog', 'RepWatch', 'ReadyCheck') }
+                            Modules = @('TalentNudge', 'Builds', 'TrainerNotes', 'WeaponSkillWatch', 'RestGuard', 'LevelLog', 'RepWatch', 'ReadyCheck') }
     'ForeverWorld'     = @{ Title = 'Forever World'; Notes = 'Remembered places, death spots and rare alerts.'
                             Modules = @('Landmarks', 'DeathNotes', 'RareWatch', 'MapPins') }
 }

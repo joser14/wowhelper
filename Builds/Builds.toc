@@ -1,0 +1,9 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: Builds
+## Notes: Recommended talent builds for your class and which talent to take next. Only gives information.
+## Version: 0.1.0
+## SavedVariables: BuildsDB
+
+Data.lua
+Builds.lua

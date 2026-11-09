@@ -114,7 +114,7 @@ local MAX_LEVEL = 60
 local GOLD, GRAY, GREEN, ORANGE, RED = "|cffffd100", "|cff999999", "|cff33ff33", "|cffffaa66", "|cffff6666"
 
 -- Most useful first; the panel shows these in this order.
-local STATUS_ORDER = { "RareWatch", "DeathNotes", "ItemAdvisor", "TalentNudge", "TrainerNotes", "SpellReady", "QuestCheck", "Dungeons",
+local STATUS_ORDER = { "RareWatch", "DeathNotes", "ItemAdvisor", "Builds", "TalentNudge", "TrainerNotes", "SpellReady", "QuestCheck", "Dungeons",
     "DurabilityWatch", "BagCheck", "SupplyWatch", "ProfessionCap", "ProfessionGuide", "WeaponSkillWatch", "GoldGoal", "GoldGuide" }
 
 -- The sidebar groups, one per installed addon (see build.ps1), in the order they're shown.
@@ -158,6 +158,8 @@ local HELPERS = {
     { name = "FoodCheck", section = "bags", about = "The best food and drink in your bags for your level, and which ones you've outgrown." },
     { name = "SupplyWatch", section = "bags", about = "Warns when ammo or items you choose run low, and lists what to restock." },
     { name = "DurabilityWatch", section = "bags", about = "Warns when gear is nearly broken and shows the repair cost." },
+    { name = "Builds", section = "character",
+        about = "Recommended talent builds for your class for leveling, PvP and dungeons/raids, and which talent to take next." },
     { name = "TalentNudge", section = "character", about = "Tells you when you have unspent talent points." },
     { name = "TrainerNotes", section = "character", about = "Remembers what your trainers sell and tells you when something new is ready." },
     { name = "WeaponSkillWatch", section = "character", about = "Warns when the weapon you hold is far below its skill cap." },
@@ -205,6 +207,7 @@ local TABS = {
     { label = "Repairs", key = "DURABILITYWATCH", helper = "DurabilityWatch" },
     { label = "Tooltips", key = "TOOLTIPS", helper = "Tooltips", hint = "Type: off vendor   Or: on id   Or: on npc" },
     { label = "Window badges", key = "WINDOWBADGES", helper = "WindowBadges", hint = "Type: off reward   Or: on merchant   Or: off trainer" },
+    { label = "Builds", key = "BUILDS", helper = "Builds", hint = "Goal: leveling, pvp, tank, healer, dps   Or: all   Or: a class name like mage" },
     { label = "Talents", key = "TALENTNUDGE", helper = "TalentNudge" },
     { label = "Trainer", key = "TRAINERNOTES", helper = "TrainerNotes" },
     { label = "Weapon skills", key = "WEAPONSKILLWATCH", helper = "WeaponSkillWatch", arg = "all" },
@@ -1200,9 +1203,14 @@ end
 
 local function GatherStatus()
     local items = {}
+    local buildsRow = false
     for _, name in ipairs(STATUS_ORDER) do
         -- A helper you switched off on the Manage page gets no lines here.
         local source = not ForeverHub_IsOff(name) and ForeverHubStatus and ForeverHubStatus[name]
+        -- Builds' "take X next" row already covers unspent points, so TalentNudge's row would repeat it.
+        if name == "TalentNudge" and buildsRow then
+            source = nil
+        end
         if source then
             local ok, result = pcall(source)
             if ok then
@@ -1210,6 +1218,7 @@ local function GatherStatus()
                 for _, entry in ipairs(type(result) == "table" and result or {}) do
                     if type(entry) == "table" then
                         items[#items + 1] = entry
+                        buildsRow = buildsRow or name == "Builds"
                     end
                 end
             elseif not quietStatus then
