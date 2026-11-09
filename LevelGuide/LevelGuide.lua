@@ -838,31 +838,44 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
     return shown
 end
 
+-- A pick-up hidden only because its prerequisites (a level, an earlier quest) aren't met yet is still
+-- work this route owes you, so the route isn't finished while one remains.
+local function RouteStepPending(route, index, step, byTitle, level)
+    if step.t ~= "accept" or charData.skips[RouteKey(route, index)] or InLog(byTitle, step.q) then
+        return false
+    end
+    if level and step.lvl and level >= step.lvl + OUTLEVELED then
+        return false
+    end
+    return TurnedIn(step.q) < (tonumber(step.part) or 1) and not PrereqsMet(step.q, level)
+end
+
+local function RouteUnfinished(route, byTitle, level)
+    for index, step in ipairs(route.steps) do
+        if not RouteStepDone(route, index, step, byTitle, level) or RouteStepPending(route, index, step, byTitle, level) then
+            return true
+        end
+    end
+    return false
+end
+
 local function FindRoute(level, byTitle)
     local chains = LevelGuideRoutes and LevelGuideRoutes.chains
     local race = UnitRace and Safe(select(2, UnitRace("player")))
     local routes = chains and race and chains[race] or {}
     -- The zone you're standing in comes first once you're its level: a few leftover steps in the
     -- zone before shouldn't keep the guide pointing back there.
-    local mapID = PlayerPosition()
-    local here = mapID and ZoneName(mapID)
+    -- ZoneMap climbs from the map you're on (a town, a cave, a city) to its zone, so standing in
+    -- Darnassus or Dolanaar still counts as Teldrassil.
     for _, route in ipairs(routes) do
-        if route.zone == here and level >= route.min and level <= route.max then
-            for index, step in ipairs(route.steps) do
-                if not RouteStepDone(route, index, step, byTitle, level) then
-                    return route
-                end
-            end
+        if level >= route.min and level <= route.max and ZoneMap(route.zone) and RouteUnfinished(route, byTitle, level) then
+            return route
         end
     end
     for _, route in ipairs(routes) do
         -- A zone more than a couple of levels above you waits, even when the ones before it are done.
-        if level <= route.max and level >= route.min - 2 then
-            for index, step in ipairs(route.steps) do
-                if not RouteStepDone(route, index, step, byTitle, level) then
-                    return route
-                end
-            end
+        if level <= route.max and level >= route.min - 2 and RouteUnfinished(route, byTitle, level) then
+            return route
         end
     end
 end
@@ -971,7 +984,9 @@ local function RouteSteps(level)
                 known[shown.id] = true
             end
             if shown.title then
+                -- The map's "!" list uses Forever's name, the route may use the old one.
                 known[shown.title] = true
+                known[RealTitle(shown.title)] = true
             end
         end
     end
@@ -1187,14 +1202,51 @@ local function MarkStep(step)
     end
 end
 
+-- Skips are deliberate (Shift+right-click) and undoable (right-click the header), since a stray
+-- click used to drop a step with no way back but clearing every skip.
+local skipHistory = {}
+local skipNotice
+local SKIP_NOTICE_SECONDS = 10
+
 local function SkipStep(step)
-    if step and step.routeKey and charData then
-        charData.skips[step.routeKey] = true
-        dirty = true
-    elseif step and step.id then
-        db.skipped[step.id] = true
-        dirty = true
+    if not step then
+        return
     end
+    if step.routeKey and charData then
+        charData.skips[step.routeKey] = true
+        skipHistory[#skipHistory + 1] = { routeKey = step.routeKey }
+    elseif step.id then
+        db.skipped[step.id] = true
+        skipHistory[#skipHistory + 1] = { id = step.id }
+    else
+        return
+    end
+    skipNotice = { text = "Skipped " .. (step.title or "a step") .. ". Right-click here to undo.", until_ = GetTime() + SKIP_NOTICE_SECONDS }
+    dirty = true
+end
+
+local function UndoSkip()
+    local last = table.remove(skipHistory)
+    if last then
+        if last.routeKey and charData then
+            charData.skips[last.routeKey] = nil
+        elseif last.id then
+            db.skipped[last.id] = nil
+        end
+        skipNotice = nil
+        dirty = true
+        return true
+    end
+    return false
+end
+
+local function UndoAllSkips()
+    db.skipped = {}
+    if charData then
+        charData.skips = {}
+    end
+    skipHistory, skipNotice = {}, nil
+    dirty = true
 end
 
 -- The guide's own tooltip, so it never changes Blizzard's shared one.
@@ -1230,7 +1282,7 @@ local function StepTooltip(owner, step)
     end
     Tip():AddLine("Left-click: show it on your map and screen.", 0.6, 0.6, 0.6)
     if step.routeKey or (step.id and step.kind ~= "travel") then
-        Tip():AddLine("Right-click: skip this step.", 0.6, 0.6, 0.6)
+        Tip():AddLine("Shift+right-click: skip this step.", 0.6, 0.6, 0.6)
     end
     Tip():Show()
 end
@@ -1249,7 +1301,13 @@ local function MakeStepButton(height, font)
     button.left:SetPoint("RIGHT", button.right, "LEFT", -4, 0)
     button:SetScript("OnClick", function(self, mouseButton)
         if mouseButton == "RightButton" then
-            SkipStep(self.step)
+            if IsShiftKeyDown and IsShiftKeyDown() then
+                SkipStep(self.step)
+            else
+                -- A plain right-click was too easy to do by accident; say how instead.
+                skipNotice = { text = "Hold Shift and right-click a step to skip it.", until_ = GetTime() + SKIP_NOTICE_SECONDS }
+                dirty = true
+            end
         else
             MarkStep(self.step)
         end
@@ -1277,6 +1335,13 @@ local function Render(mapID, playerX, playerY, later)
         headerText:SetText(string.format("%s  %sLevel %d, %d%%|r%s", title, COLOR_DIM, level, math.floor(xp * 100 / maxXP), readyText))
     else
         headerText:SetText("Guide")
+    end
+    if skipNotice then
+        if GetTime() < skipNotice.until_ then
+            headerText:SetText(COLOR_ALERT .. skipNotice.text .. "|r")
+        else
+            skipNotice = nil
+        end
     end
     currentRow.step = current
     if current then
@@ -1451,17 +1516,18 @@ local function Build()
         SavePosition()
     end)
     header:SetScript("OnClick", function()
-        db.skipped = {}
-        if charData then
-            charData.skips = {}
+        if IsShiftKeyDown and IsShiftKeyDown() then
+            UndoAllSkips()
+        elseif not UndoSkip() then
+            -- Nothing skipped this session: fall back to bringing everything back.
+            UndoAllSkips()
         end
-        dirty = true
     end)
     header:SetScript("OnEnter", function(self)
         Tip():SetOwner(self, "ANCHOR_LEFT")
         Tip():SetText("Leveling guide")
         Tip():AddLine("Steps are worked out from your quest log and map, nearest first.", 1, 1, 1, true)
-        Tip():AddLine("Drag to move. Right-click: bring back skipped steps.", 0.6, 0.6, 0.6)
+        Tip():AddLine("Drag to move. Right-click: undo the last skip. Shift+right-click: bring back every skipped step.", 0.6, 0.6, 0.6, true)
         Tip():Show()
     end)
     header:SetScript("OnLeave", function()
