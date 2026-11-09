@@ -11,7 +11,7 @@ local LINES = {
     { name = "vendor", label = "Vendor price", default = true,
       about = "What a merchant pays for the item, and for the whole stack when the tooltip shows one." },
     { name = "auction", label = "Auction price", default = true,
-      about = "The cheapest auction price you've seen on this realm and faction (from PriceMemory)." },
+      about = "The cheapest auction price you've seen on this realm and faction (from PriceMemory), and for the whole stack. Not shown on bound items; marked (old) after 10 days." },
     { name = "count", label = "Counts", default = true,
       about = "How many you have on every character, in bags, bank, and worn (from ItemFinder)." },
     { name = "profession", label = "Profession guide", default = true,
@@ -108,11 +108,11 @@ local function ItemFacts(id)
     if type(getInfo) ~= "function" then
         return nil
     end
-    local ok, name, _, _, level, _, _, _, _, _, _, sellPrice, classID = pcall(getInfo, id)
+    local ok, name, _, _, level, _, _, _, _, _, _, sellPrice, classID, _, bindType = pcall(getInfo, id)
     if not ok then
         return nil
     end
-    name, level, sellPrice, classID = Safe(name), Safe(level), Safe(sellPrice), Safe(classID)
+    name, level, sellPrice, classID, bindType = Safe(name), Safe(level), Safe(sellPrice), Safe(classID), Safe(bindType)
     -- An item the game hasn't loaded yet returns nothing; ask again next time instead of remembering that.
     if type(name) ~= "string" or name == "" then
         return nil
@@ -122,25 +122,47 @@ local function ItemFacts(id)
         level = type(level) == "number" and level or nil,
         sellPrice = type(sellPrice) == "number" and sellPrice or nil,
         classID = type(classID) == "number" and classID or nil,
+        bindType = type(bindType) == "number" and bindType or nil,
     }
     itemCache[id] = facts
     return facts
 end
 
--- How many are in the slot this tooltip shows, from Blizzard's own record of how it filled the
--- tooltip (read only). Unknown sources give nil, and the stack part is left out.
-local function StackCount(tooltip, data)
-    local count = Safe(data.stackCount)
-    if type(count) == "number" then
-        return count
-    end
+-- Where the game filled this tooltip from: the documented C_TooltipInfo getter name and its arguments
+-- (read only). nil when the tooltip doesn't say.
+local function Source(tooltip)
     local getInfo = tooltip.GetProcessingTooltipInfo or tooltip.GetPrimaryTooltipInfo
     local info = type(getInfo) == "function" and getInfo(tooltip)
     if type(info) ~= "table" or type(info.getterArgs) ~= "table" then
         return nil
     end
-    local getter = Safe(info.getterName)
-    local a, b = Safe(info.getterArgs[1]), Safe(info.getterArgs[2])
+    return Safe(info.getterName), Safe(info.getterArgs[1]), Safe(info.getterArgs[2])
+end
+
+-- The n-th value a function returns, or nil when it is missing or fails.
+local function Pick(position, fn, ...)
+    if type(fn) ~= "function" then
+        return nil
+    end
+    local results = { pcall(fn, ...) }
+    if not results[1] then
+        return nil
+    end
+    return Safe(results[position + 1])
+end
+
+-- How many are in the slot this tooltip shows. Unknown sources give nil, and the stack part is left out.
+-- Mail, trade and loot-roll counts come from the game's older global functions; they are only used
+-- when they exist (they aren't in this client's API documentation).
+local function StackCount(tooltip, data)
+    local count = Safe(data.stackCount)
+    if type(count) == "number" then
+        return count
+    end
+    local getter, a, b = Source(tooltip)
+    if not getter then
+        return nil
+    end
     if getter == "GetBagItem" and type(a) == "number" and type(b) == "number" and C_Container then
         local item = C_Container.GetContainerItemInfo(a, b)
         count = item and Safe(item.stackCount)
@@ -150,8 +172,45 @@ local function StackCount(tooltip, data)
         count = Safe(GetInventoryItemCount(a, b))
     elseif getter == "GetBuybackItem" and type(a) == "number" and GetBuybackItemInfo then
         count = Safe(select(4, GetBuybackItemInfo(a)))
+    elseif getter == "GetMerchantItem" and type(a) == "number" and C_MerchantFrame and C_MerchantFrame.GetItemInfo then
+        -- How many one purchase gives you.
+        local ok, item = pcall(C_MerchantFrame.GetItemInfo, a)
+        item = ok and Safe(item)
+        count = type(item) == "table" and Safe(item.stackCount) or nil
+    elseif getter == "GetInboxItem" and type(a) == "number" then
+        count = Pick(4, GetInboxItem, a, type(b) == "number" and b or 1)
+    elseif getter == "GetSendMailItem" and type(a) == "number" then
+        count = Pick(4, GetSendMailItem, a)
+    elseif getter == "GetTradePlayerItem" and type(a) == "number" then
+        count = Pick(3, GetTradePlayerItemInfo, a)
+    elseif getter == "GetTradeTargetItem" and type(a) == "number" then
+        count = Pick(3, GetTradeTargetItemInfo, a)
+    elseif getter == "GetLootRollItem" and type(a) == "number" then
+        count = Pick(3, GetLootRollItemInfo, a)
     end
-    return type(count) == "number" and count or nil
+    return type(count) == "number" and count > 0 and count or nil
+end
+
+-- Item binds that can never go on the auction house (Enum.ItemBind): on pickup, quest, account-bound.
+local NEVER_TRADED = { [1] = true, [4] = true, [7] = true, [8] = true }
+
+-- A copy that can't be auctioned: bind-on-pickup and quest items, a bag copy the game marks bound, or
+-- something you're wearing. A bind-on-equip item still on the market is fine.
+local function IsBound(tooltip, facts)
+    if facts and facts.bindType and NEVER_TRADED[facts.bindType] then
+        return true
+    end
+    local getter, a, b = Source(tooltip)
+    if getter == "GetBagItem" and type(a) == "number" and type(b) == "number" and C_Container then
+        local item = C_Container.GetContainerItemInfo(a, b)
+        return type(item) == "table" and Safe(item.isBound) == true
+    elseif getter == "GetInventoryItem" and a == "player" and type(b) == "number" then
+        -- Equipment slots 1-19; worn gear is always bound.
+        return b >= 1 and b <= 19
+    elseif getter == "GetLootRollItem" and type(a) == "number" then
+        return Pick(5, GetLootRollItemInfo, a) == true
+    end
+    return false
 end
 
 -- The game already printing a sell price on this tooltip, so ours would only repeat it.
@@ -215,6 +274,7 @@ local function AddVendorLine(tooltip, data, facts)
     AddPair(tooltip, "Sells for", text)
 end
 
+-- Only used when PriceMemory isn't loaded: the same "Realm-Faction" key it files prices under.
 local function ScopeKey()
     local realm = GetRealmName and Safe(GetRealmName())
     local faction = UnitFactionGroup and Safe(UnitFactionGroup("player"))
@@ -227,26 +287,63 @@ local function ValidPrice(entry)
     return type(entry) == "table" and type(entry.price) == "number" and entry.price > 0 and type(entry.seen) == "number"
 end
 
-local function AddAuctionLine(tooltip, id)
+local STALE_SECONDS = 10 * SECONDS_PER_DAY
+
+-- { price, seen, legacy, stale } from PriceMemory's shared lookup, or read straight from its saved
+-- data when that lookup isn't there.
+local function AuctionRecord(id)
+    if type(PriceMemory_Get) == "function" then
+        local ok, record = pcall(PriceMemory_Get, id)
+        if ok and type(record) == "table" and ValidPrice(record) then
+            return record
+        end
+        return nil
+    end
     local db = PriceMemoryDB
     if type(db) ~= "table" then
-        return
+        return nil
     end
     local scope = ScopeKey()
     local prices = scope and db[scope]
     local entry = type(prices) == "table" and prices[id]
-    local note = ""
+    local legacy = false
     -- Older saves sit directly under the item ID, with no realm or faction.
     if not ValidPrice(entry) then
-        entry = db[id]
-        note = " |cff999999(older save)|r"
+        entry, legacy = db[id], true
     end
     if not ValidPrice(entry) then
+        return nil
+    end
+    local now = time and Safe(time())
+    local stale = type(now) == "number" and now - entry.seen > STALE_SECONDS
+    return { price = entry.price, seen = entry.seen, legacy = legacy, stale = stale }
+end
+
+local function AddAuctionLine(tooltip, data, id, facts)
+    -- A bound copy can't be sold there, so a price would only mislead.
+    if IsBound(tooltip, facts) then
+        return
+    end
+    local record = AuctionRecord(id)
+    if not record then
         return
     end
     local now = time and Safe(time())
-    local age = type(now) == "number" and " |cff999999(" .. Age(math.max(now - entry.seen, 0)) .. ")|r" or ""
-    AddPair(tooltip, "Auction", Money(entry.price) .. age .. note)
+    local text = Money(record.price)
+    if type(now) == "number" then
+        text = text .. " |cff999999(" .. Age(math.max(now - record.seen, 0)) .. ")|r"
+    end
+    if record.legacy then
+        text = text .. " |cff999999(older save)|r"
+    end
+    if record.stale then
+        text = text .. " |cffff9933(old)|r"
+    end
+    local count = StackCount(tooltip, data)
+    if count and count > 1 then
+        text = text .. "  |cff999999x" .. count .. ":|r " .. Money(record.price * count)
+    end
+    AddPair(tooltip, "Auction", text)
 end
 
 local function ShortName(characterKey)
@@ -411,7 +508,7 @@ local function ItemBody(tooltip, data)
         pcall(AddVendorLine, tooltip, data, facts)
     end
     if IsOn("auction") and not already.auction then
-        pcall(AddAuctionLine, tooltip, id)
+        pcall(AddAuctionLine, tooltip, data, id, facts)
     end
     if facts and IsOn("count") and not already.count then
         pcall(AddCountLine, tooltip, facts.name)

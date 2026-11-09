@@ -61,7 +61,7 @@ C_Item = { GetItemInfo = function(id)
     infoCalls = infoCalls + 1
     local i = items[id]
     if not i then return end
-    return i[1], "link", 1, i[2], 1, "t", "s", 20, "", 1, i[3], i[4]
+    return i[1], "link", 1, i[2], 1, "t", "s", 20, "", 1, i[3], i[4], 0, i[5]
 end }
 C_CurrencyInfo = nil
 GetCoinTextureString = nil
@@ -123,6 +123,8 @@ hover(2589)
 need("Sells for = |cffc7c7cf1s|r |cffeda55f30c|r", "vendor price")
 need("x20:|r |cffc7c7cf26s|r", "stack price for 20")
 need("Auction = |cffffd7003g|r |cffc7c7cf10s|r |cff999999(2 days ago)|r", "auction price with age")
+need("(2 days ago)|r  |cff999999x20:|r |cffffd70062g|r", "auction price for the whole stack")
+lack("(old)", "a 2-day-old price isn't old")
 need("You have = 15 |cff999999(Juan 5 bags, 7 bank; Alt 3)|r", "counts on every character")
 need("Needed = Alchemy guide step 60-110, Profession guide step 1-75", "profession guide uses")
 lack("Item ID", "id line off by default")
@@ -131,10 +133,102 @@ lack("Item ID", "id line off by default")
 tipInfo = { getterName = "GetLootItem", getterArgs = { 2 } }
 hover(2589)
 need("x3:", "loot stack count")
-tipInfo = { getterName = "GetMerchantItem", getterArgs = { 1 } }
+tipInfo = { getterName = "GetHyperlink", getterArgs = { "item:2589" } }
 hover(2589)
 lack("|cff999999x", "no stack part from an unknown source")
+-- Merchant without the merchant API: no stack part, no error.
+tipInfo = { getterName = "GetMerchantItem", getterArgs = { 1 } }
+hover(2589)
+lack("|cff999999x", "no stack part when the merchant API is missing")
+-- Merchant, mail, trade and loot roll stacks.
+C_MerchantFrame = { GetItemInfo = function(i) if i == 1 then return { price = 100, stackCount = 5, numAvailable = -1 } end end }
+hover(2589)
+need("Sells for = |cffc7c7cf1s|r |cffeda55f30c|r  |cff999999x5:|r", "merchant purchase stack")
+need("x5:|r |cffffd70015g|r |cffc7c7cf50s|r", "merchant auction stack total")
+GetInboxItem = function(m, a) if m == 2 and a == 3 then return "Linen Cloth", 2589, "tex", 7, 1, true end end
+tipInfo = { getterName = "GetInboxItem", getterArgs = { 2, 3 } }
+hover(2589)
+need("x7:", "inbox attachment stack")
+GetSendMailItem = function(i) if i == 1 then return "Linen Cloth", 2589, "tex", 4, 1 end end
+tipInfo = { getterName = "GetSendMailItem", getterArgs = { 1 } }
+hover(2589)
+need("x4:", "send-mail attachment stack")
+GetTradePlayerItemInfo = function(i) return "Linen Cloth", "tex", 6, 1, true, nil end
+GetTradeTargetItemInfo = function(i) return "Linen Cloth", "tex", 9, 1, true, nil end
+tipInfo = { getterName = "GetTradePlayerItem", getterArgs = { 1 } }
+hover(2589)
+need("x6:", "trade (yours) stack")
+tipInfo = { getterName = "GetTradeTargetItem", getterArgs = { 1 } }
+hover(2589)
+need("x9:", "trade (theirs) stack")
+local rollBop = false
+GetLootRollItemInfo = function(id) return "tex", "Linen Cloth", 2, 1, rollBop end
+tipInfo = { getterName = "GetLootRollItem", getterArgs = { 44 } }
+hover(2589)
+need("x2:", "loot roll stack")
+need("Auction =", "loot roll item that doesn't bind shows its auction price")
+rollBop = true
+hover(2589)
+lack("Auction", "bind-on-pickup loot roll hides the auction line")
+GetTradePlayerItemInfo = function() error("boom") end
+tipInfo = { getterName = "GetTradePlayerItem", getterArgs = { 1 } }
+hover(2589)
+need("Sells for", "a failing count lookup only drops the stack part")
+lack("|cff999999x", "no stack part when the count lookup fails")
 tipInfo = nil
+
+-- Bound items get no auction line; bind-on-equip ones still do.
+items[2590] = { "Soul Thing", 5, 100, 4, 1 }
+items[2591] = { "BoE Thing", 5, 100, 4, 2 }
+PriceMemoryDB["R-Alliance"][2590] = { price = 500, seen = clock }
+PriceMemoryDB["R-Alliance"][2591] = { price = 500, seen = clock }
+hover(2590)
+lack("Auction", "bind-on-pickup item: no auction line")
+need("Sells for", "bound item still shows its vendor price")
+hover(2591)
+need("Auction =", "bind-on-equip item keeps its auction line")
+local boundSlot = { stackCount = 1, isBound = true }
+local savedContainer = C_Container.GetContainerItemInfo
+C_Container.GetContainerItemInfo = function(bag, slot) if bag == 1 and slot == 2 then return boundSlot end end
+tipInfo = { getterName = "GetBagItem", getterArgs = { 1, 2 } }
+hover(2591)
+lack("Auction", "a bag copy the game marks bound: no auction line")
+boundSlot.isBound = SECRET
+hover(2591)
+need("Auction =", "secret bind state is not taken as bound")
+tipInfo = { getterName = "GetInventoryItem", getterArgs = { "player", 5 } }
+hover(2591)
+lack("Auction", "worn gear: no auction line")
+C_Container.GetContainerItemInfo = savedContainer
+tipInfo = nil
+
+-- Old prices are marked.
+PriceMemoryDB["R-Alliance"][2591] = { price = 500, seen = clock - 11 * 86400 }
+hover(2591)
+need("(11 days ago)|r |cffff9933(old)|r", "stale price marked old")
+
+-- PriceMemory's shared lookup is used when it's loaded, instead of reading its saved data.
+do
+    local asked
+    PriceMemory_Get = function(id)
+        asked = id
+        if id == 2589 then return { price = 777, seen = clock - 3600, stale = false, legacy = false } end
+        if id == 118 then return { vendorBuy = 25 } end
+    end
+    hover(2589)
+    check(asked == 2589, "shared lookup asked for the item")
+    need("Auction = |cffc7c7cf7s|r |cffeda55f77c|r |cff999999(1h ago)|r", "price from the shared lookup")
+    hover(118)
+    lack("Auction", "a merchant-only record has no auction line")
+    PriceMemory_Get = function() return { price = 900, seen = clock - 20 * 86400, stale = true, legacy = true } end
+    hover(2589)
+    need("(20 days ago)|r |cff999999(older save)|r |cffff9933(old)|r", "legacy and stale from the shared lookup")
+    PriceMemory_Get = function() error("boom") end
+    hover(2589)
+    lack("Auction", "a failing lookup adds no auction line")
+    need("Sells for", "and doesn't take the other lines with it")
+    PriceMemory_Get = nil
+end
 
 -- Legacy flat price entry, and hours ago.
 hover(118)

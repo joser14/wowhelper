@@ -188,11 +188,13 @@ level = 12; profs = {}
 page("")
 need("Linen Cloth (last AH price 40c (3 days ago))", "AH price on a farm drop")
 need("Worth more at the auction house", "auction section")
--- Silk: 20 * (1000-150) = 17000 gain; Kingsblood 10*(2000-20)=19800; Linen 20*(40-13)=540
-need("Kingsblood x10: AH 2g 0s vs vendor 2s 0c", "kingsblood line from older save")
+-- After the 5% cut: Silk 20 * (950-150) = 16000 gain; Kingsblood 10*(1900-20)=18800; Linen 20*(38-13)=500
+need("Kingsblood x10: AH 1g 90s vs vendor 2s 0c", "kingsblood line from older save, after the cut")
 need("older save", "older save marked")
-need("Silk Cloth x20: AH 2g 0s vs vendor 30s 0c", "silk line")
-need("Linen Cloth x20: AH 8s 0c vs vendor 2s 60c", "linen line")
+need("Silk Cloth x20: AH 1g 90s vs vendor 30s 0c", "silk line, after the cut")
+need("Linen Cloth x20: AH 7s 60c vs vendor 2s 60c", "linen line, after the cut")
+need("5% cut", "the cut is explained")
+needNot("old price", "nothing stale yet")
 needNot("Grey Thing x", "items below vendor price not suggested")
 local iK, iS, iL
 for i, t in ipairs(out) do
@@ -201,6 +203,40 @@ for i, t in ipairs(out) do
     if t:find("Linen Cloth x20", 1, true) then iL = i end
 end
 check(iK and iS and iL and iK < iS and iS < iL, "sorted by gain")
+
+----- An auction price that only beats the vendor before the cut isn't suggested
+PriceMemoryDB["R-Alliance"][9999] = { price = 520, seen = clock }   -- 520 * 0.95 = 494 < 500 vendor
+page("")
+needNot("Grey Thing x", "below vendor after the cut")
+PriceMemoryDB["R-Alliance"][9999] = { price = 100, seen = clock }
+
+----- Old prices are flagged
+PriceMemoryDB["R-Alliance"][2589] = { price = 40, seen = clock - 12 * 86400 }
+page("")
+need("Linen Cloth (last AH price 40c (12 days ago, old price))", "stale farm drop price")
+need("old price, search again before selling", "stale bag price flagged")
+PriceMemoryDB["R-Alliance"][2589] = { price = 40, seen = clock - 3 * 86400 }
+
+----- The shared PriceMemory lookup is used when it's there
+do
+    local asked = {}
+    PriceMemory_Get = function(id)
+        asked[id] = true
+        if id == 4306 then return { price = 2000, seen = clock - 11 * 86400, stale = true, ageDays = 11 } end
+        if id == 2589 then return { vendorBuy = 10 } end  -- merchant price only: no auction price
+        return nil
+    end
+    page("")
+    check(asked[4306] and asked[2589], "shared lookup asked")
+    need("Silk Cloth x20: AH 3g 80s vs vendor 30s 0c", "price from the shared lookup")
+    need("old price, search again before selling", "stale from the shared lookup")
+    needNot("Linen Cloth x20", "a merchant-only record isn't an auction price")
+    needNot("Kingsblood x10", "the shared lookup replaces the direct read")
+    PriceMemory_Get = function() error("boom") end
+    page("")
+    need("Nothing in your bags has a saved auction price", "a failing lookup is quiet")
+    PriceMemory_Get = nil
+end
 
 ----- Bound items aren't suggested; items still loading are reported and requested
 bags[0][3] = { itemID = 7777, stackCount = 1, quality = 3, isBound = true }
@@ -236,6 +272,19 @@ if pinned then
 end
 page("99")
 need("There's no farm number 99", "bad number")
+
+----- Forever uses the Classic-era map IDs: when the game accepts them, they win
+if pinned then
+    MAPNAME[1439] = "Darkshore"
+    page("") -- refresh the list the number refers to
+    page(tostring(pinned[1]))
+    local w = waypoints[#waypoints]
+    check(w and w.uiMapID == 1439, "Darkshore pinned on the Classic-era map 1439: " .. tostring(w and w.uiMapID))
+    MAPNAME[1439] = nil
+end
+for zone, ids in pairs(D.zones) do
+    check(ids[1] >= 1400 and ids[1] < 1460, zone .. ": Classic-era map ID listed first")
+end
 
 ----- Stranglethorn: map 50 is Northern Stranglethorn on Mainline, so the pin goes to 224 by name
 page("all")

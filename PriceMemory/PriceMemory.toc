@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## OptionalDeps: ForeverHub
 ## Title: PriceMemory
-## Notes: Remembers auction prices you've seen and shows them on item tooltips. Never searches, bids, buys, or posts.
-## Version: 0.1.1
+## Notes: Remembers auction prices from your own searches (two weeks of daily lows, highs and amounts listed) and what merchants charge, and shows them on item tooltips. Never searches, bids, buys, or posts.
+## Version: 0.2.0
 ## SavedVariables: PriceMemoryDB
 
 PriceMemory.lua

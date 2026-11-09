@@ -104,9 +104,28 @@ local function ScopeKey()
     end
 end
 
--- { price, seen, old } for an item, or nil. "old" marks an entry saved without a realm and faction.
+local AH_CUT = 0.95                         -- what you keep after the auction house's 5% cut
+local STALE_SECONDS = 10 * SECONDS_PER_DAY  -- a price older than this is shown as an old price
+
+local function ValidPrice(entry)
+    return type(entry) == "table" and type(entry.price) == "number" and entry.price > 0 and type(entry.seen) == "number"
+end
+
+-- { price, seen, old, stale } for an item, or nil. "old" marks an entry saved without a realm and faction;
+-- "stale" a price older than 10 days. Uses PriceMemory's shared lookup, or reads its saved data directly
+-- when that lookup isn't loaded.
 local function AuctionPrice(itemID)
-    if type(PriceMemoryDB) ~= "table" or type(itemID) ~= "number" then
+    if type(itemID) ~= "number" then
+        return nil
+    end
+    if type(PriceMemory_Get) == "function" then
+        local ok, record = pcall(PriceMemory_Get, itemID)
+        if ok and ValidPrice(record) then
+            return { price = record.price, seen = record.seen, old = record.legacy == true, stale = record.stale == true }
+        end
+        return nil
+    end
+    if type(PriceMemoryDB) ~= "table" then
         return nil
     end
     local scope = ScopeKey()
@@ -115,8 +134,8 @@ local function AuctionPrice(itemID)
     if type(entry) ~= "table" then
         entry, old = PriceMemoryDB[itemID], true
     end
-    if type(entry) == "table" and type(entry.price) == "number" and entry.price > 0 and type(entry.seen) == "number" then
-        return { price = entry.price, seen = entry.seen, old = old }
+    if ValidPrice(entry) then
+        return { price = entry.price, seen = entry.seen, old = old, stale = Now() - entry.seen > STALE_SECONDS }
     end
     return nil
 end
@@ -126,8 +145,8 @@ local function AuctionText(itemID)
     if not auction then
         return nil
     end
-    return string.format("last AH price %s (%s%s)", FormatMoney(auction.price), FormatAge(Now() - auction.seen),
-        auction.old and ", older save" or "")
+    return string.format("last AH price %s (%s%s%s)", FormatMoney(auction.price), FormatAge(Now() - auction.seen),
+        auction.old and ", older save" or "", auction.stale and ", old price" or "")
 end
 
 ----- Your bags
@@ -189,10 +208,13 @@ local function ScanBags()
     for itemID, entry in pairs(byID) do
         local sellable = entry.count - (entry.boundCount or 0)
         local auction = sellable > 0 and AuctionPrice(itemID)
-        if auction and auction.price > (entry.sellPrice or 0) then
+        -- Compare what you'd actually keep from a sale, after the auction house's cut.
+        local net = auction and auction.price * AH_CUT
+        if net and net > (entry.sellPrice or 0) then
             entry.sellable = sellable
             entry.auction = auction
-            entry.gain = (auction.price - (entry.sellPrice or 0)) * sellable
+            entry.net = net
+            entry.gain = (net - (entry.sellPrice or 0)) * sellable
             result.items[#result.items + 1] = entry
         end
     end
@@ -416,13 +438,14 @@ local function ShowBags()
         Print("|cff999999Nothing in your bags has a saved auction price above its vendor price.|r")
         return
     end
-    Print("Worth more at the auction house than at a vendor (before the auction house's cut):")
+    Print("Worth more at the auction house than at a vendor (what you keep after the auction house's 5% cut):")
     for index = 1, math.min(TOP_AUCTION, #scan.items) do
         local item = scan.items[index]
-        Print(string.format("  %s x%d: AH %s vs vendor %s |cff999999(price seen %s%s)|r",
+        Print(string.format("  %s x%d: AH %s vs vendor %s |cff999999(price seen %s%s)|r%s",
             item.name or ("item " .. item.itemID), item.sellable,
-            FormatMoney(item.auction.price * item.sellable), FormatMoney((item.sellPrice or 0) * item.sellable),
-            FormatAge(Now() - item.auction.seen), item.auction.old and ", older save" or ""))
+            FormatMoney(item.net * item.sellable), FormatMoney((item.sellPrice or 0) * item.sellable),
+            FormatAge(Now() - item.auction.seen), item.auction.old and ", older save" or "",
+            item.auction.stale and " |cffff9933old price, search again before selling|r" or ""))
     end
 end
 
