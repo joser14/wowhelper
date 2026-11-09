@@ -107,6 +107,14 @@ local function Killer()
     if lastHit and lastHit.name and GetTime() - lastHit.when < 8 then
         return lastHit.name
     end
+    -- Without the combat log, the enemy you were targeting is the best guess. The game may hide
+    -- the name during combat, and then the death is saved without one.
+    if UnitExists and UnitCanAttack and Safe(UnitExists("target")) and Safe(UnitCanAttack("player", "target")) then
+        local name = UnitName and Safe(UnitName("target"))
+        if type(name) == "string" and name ~= "" then
+            return name
+        end
+    end
     return nil
 end
 
@@ -329,7 +337,9 @@ end
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_DEAD")
-events:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+-- Midnight-era clients (Forever included) closed the combat log to addons. Where the event is
+-- refused, deaths are still recorded, just without the name of what killed you.
+pcall(events.RegisterEvent, events, "COMBAT_LOG_EVENT_UNFILTERED")
 events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         DeathNotesDB = DeathNotesDB or {}

@@ -379,6 +379,29 @@ local function OpenPage(tab, prefixLines)
     SelectTab(tab, prefixLines)
 end
 
+-- XP waiting in quests that are finished but not turned in yet. Read at most every few seconds,
+-- since the panel refreshes more often than the quest log changes.
+local QUEST_XP_SECONDS = 5
+local questXP, questXPAt = 0, -QUEST_XP_SECONDS
+local function FinishedQuestXP(now)
+    if now - questXPAt < QUEST_XP_SECONDS then
+        return questXP
+    end
+    questXPAt = now
+    local total = 0
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo and C_QuestLog.IsComplete and GetQuestLogRewardXP then
+        for index = 1, Safe(C_QuestLog.GetNumQuestLogEntries()) or 0 do
+            local info = C_QuestLog.GetInfo(index)
+            local questID = info and not Safe(info.isHeader) and Safe(info.questID)
+            if questID and Safe(C_QuestLog.IsComplete(questID)) then
+                total = total + (tonumber(Safe(GetQuestLogRewardXP(questID))) or 0)
+            end
+        end
+    end
+    questXP = total
+    return total
+end
+
 -- The always-on panel: your rates at the top, then only what needs doing.
 local function RefreshStats()
     local now = GetTime()
@@ -393,7 +416,9 @@ local function RefreshStats()
     local level = Safe(UnitLevel("player"))
     local xp, maxXP = Safe(UnitXP("player")), Safe(UnitXPMax("player"))
     if level and level < MAX_LEVEL and xp and maxXP and maxXP > 0 then
-        statLines[1]:SetText(string.format("Level %d  |cffffd100%d%%|r", level, math.floor(xp * 100 / maxXP)))
+        local banked = FinishedQuestXP(now)
+        statLines[1]:SetText(string.format("Level %d  |cffffd100%d%%|r%s", level, math.floor(xp * 100 / maxXP),
+            banked > 0 and string.format("  |cff33ff33+%d%% to turn in|r", math.floor(banked * 100 / maxXP)) or ""))
         -- Recent play only, so a break or a long town visit doesn't drag the estimate out.
         local rate = recentXP * 3600 / math.min(elapsed, XP_WINDOW_SECONDS)
         if rate > 0 then
