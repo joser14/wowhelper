@@ -283,3 +283,143 @@ recorder modules) measured what the client answers in combat before features wer
 - Our helpers decide secrecy after reading (`Safe()` with `issecretvalue`); asking `C_Secrets` first is cleaner for
   aura reads in ReadyCheck/FoodCheck.
 
+## Leatrix Plus (Forever build 1.60.29)
+
+**Mostly automation and Blizzard-frame changes (out of scope):** quest/gossip automation, accept summons and
+resurrection, sell junk, repair, block duels/invites/friend requests, invite from whispers, chat and minimap
+restyling, hide UI elements, class-coloured frames, faster loot, max camera zoom, sound muting, easy item destroy,
+train-all button, Edit Mode layout. All of these hook or modify Blizzard frames.
+
+**Information features worth noting.**
+- Flight times (opt-in): shipped per-faction tables (`Leatrix_Plus_Flight_Alliance/Horde.lua`) keyed by continent and
+  by the chain of node map positions (`TaxiNodePosition` rounded to 2 decimals) for the whole multi-hop route, so a
+  route with stops has its own time. While flying a progress bar shows destination, next stop and time left; a
+  missing or off-by-15-s time opens a "report this flight" window to send to the author. **Forever-specific:** checks
+  the Legacy perk "Frequent Flier" with `IsPlayerSpell(1225490)` and divides flight time by 1.2 (20% faster).
+- Info cards / Wowhead links: shows IDs of the item, spell, quest, NPC under the cursor with a copyable Wowhead link
+  (Forever paths under wowhead.com/forever).
+- Durability status on the character frame (cost and %), tooltip guild rank and target.
+- Forever quirks it codes around: the second name of a player is a surname, not a realm; realms are hidden; the
+  armory does not list characters under level 10; one spec per class with three trees in one modern tree; Legacy
+  challenges replace achievements; tooltip extras don't apply during instanced combat (secret units).
+
+**Secret values.** A `Safe()` wrapper around realm/name reads; tooltip extras disabled in instanced combat.
+
+**Compared with ours.** Nothing in our suite times flights. If we add travel estimates (Landmarks item 2 above),
+Frequent Flier must be honoured, or measured times per character must be used (Shortest Path's approach), otherwise
+estimates are 20% long for characters with the perk.
+
+## Leatrix Maps (Forever build 1.60.28)
+
+**Features (map display):** reveal unexplored areas (shipped overlay art, the reason the zip is 24 MB), zone level
+ranges and minimum fishing skill per zone on the map title, icons for dungeons/raids (with level range), flight
+points, boats/zeppelins/tram, portals, spirit healers, zone crossings, opposing-faction POIs, coordinates, dungeon
+maps from the entrance, map scaling/moving. All are WorldMapFrame hooks and pins; no automation.
+
+**Data notes.** Zone table has min/max level and minimum fishing skill per zone; icons table per uiMap with position,
+type, faction and level range. Data is static; flight points are drawn whether known or not.
+
+**Map IDs (important for our suite).** Leatrix Maps, Tweaks, Shortest Path and OneForAll all key their Forever data by
+the Classic-era UiMap IDs (Durotar 1411 ... Teldrassil 1438, Darkshore 1439, Ashenvale 1440, Stormwind 1453,
+Ironforge 1455). research/BRIEF.md:13 says Forever's map IDs are Mainline (Teldrassil 57 ...). GoldGuide/Data.lua:17-19
+already stores both, and Dungeons/Dungeons.lua:13 maps between them, so the suite hedges; but every helper that
+compares `C_Map.GetBestMapForUnit` with a stored ID should accept both or convert. Worth confirming in game with
+one `/dump C_Map.GetBestMapForUnit("player")` in Teldrassil.
+
+**Compared with ours.** Our ZoneLevels shows level ranges; fishing minimum skill per zone is a cheap add (S) for
+ZoneLevels or GoldGuide's farm list.
+
+## OneForAll - Forever (Smoergi, 6.2.1)
+
+**Automation/frame changes (out of scope):** looting, repairs, junk selling, quest automation, bag management, UI
+moving, chat tools, node sparkle via soft-target CVars (changes game settings), "update all low ranks" on bars
+(places spells), Crafting List has a craft button.
+
+**Information features and how they work.**
+- Flight times (Flights.lua): computed from path lengths extracted from the client DB (TaxiPath/TaxiPathNode yards,
+  summed over stops) divided by taxi speed, then corrected: each measured flight ("From>To" by node ID) is kept and
+  used first, and the ratio measured/computed is kept as a global correction factor for routes not yet flown. Without
+  path data: straight distance on the flight map at a learned pace, marked "about". Node IDs from
+  `C_TaxiMap.GetAllTaxiNodes`, because node names are translated (a German-client bug taught them that). A 1 s
+  ticker only while `UnitOnTaxi`.
+- Professions: all recipes with sources (vendors with coordinates, drops, objects; generated from QuestieDB Forever
+  and Wowhead Forever item pages), who knows a recipe (guild and other users via addon messages), nearest trainers,
+  and **Merchant's Favor** recipes: Forever-only recipes (spell IDs ~1250000+, e.g. lesser/greater elixirs, Acolyte's
+  smithing gear) bought with currency 3402, with required skill and reagents, plus a "Favor guide".
+- Crafting list across characters: materials vs bags + bank + alts (same realm/faction), sub-crafts broken down when
+  any of your characters knows the recipe, vendor-sold reagents marked; item tooltips say "N more needed".
+- Quest marks on nameplates from `C_TooltipInfo.GetUnit` QuestObjective lines (kill vs loot by objective type); the
+  data is secret inside instances, so nothing is shown there.
+- Gear planner with stat weights per spec and level (leveling curves below 60), suggestions from dungeon loot, quest
+  rewards, sets, rep rewards, crafted items; wishlist per character.
+- Trainer "what can I learn next" from client data; training costs remembered when you visit a trainer.
+- Library books (Forever collectible books) with locations, status and a nearby alert using world-coordinate distance;
+  Skyborne Ley Line / Convergence spots; hunter pet families and abilities; dungeon maps, drop chances, quest chains,
+  keys, attunements; talent planner with imports from two Forever talent sites.
+
+**Compared with ours.**
+- ProfessionGuide/GoldGuide do not know Merchant's Favor recipes or the currency at all; for Forever these are new
+  recipes that can be part of a levelling path (Data_Alchemy.lua steps 55-300 use only Classic recipes).
+- ProfessionGuide's shopping list (in progress) counts only this character; OneForAll counts bank and alts.
+- Landmarks has no flight times at all; OneForAll's "path length / speed, corrected by a learned factor" is the
+  simplest good-enough flight ETA, simpler than Shortest Path's planner.
+
+## Glowing Bars (vattiss, 2.8.2; TypeScript compiled to Lua)
+
+**What it does.** Glows on action-bar buttons (Blizzard's and Bartender/Dominos/ElvUI): missing self and party buffs,
+paladin blessings and seals, weapon imbues/poisons/stones, gathering tracking off, low reagents, low stock of items you
+add by ID, Well Fed missing, old ranks on bars, ready important cooldowns and procs in combat. Drawing on Blizzard
+action buttons is outside our rules; the logic is the interesting part.
+
+**Mechanisms.**
+- A tick every 1 s out of combat, 0.5 s in combat, plus event-driven refreshes; few new tables per tick.
+- Buff memory bridges combat secrecy: a buff seen or cast is trusted as up until its usual duration ends, since in
+  combat the client may return no auras or auras with secret name/ID. A full list the client does show is believed.
+  Cooldowns likewise: last readable cooldown remembered; a successful cast starts the base cooldown.
+- Well Fed learning: the game does not say which Well Fed spell a food gives, so after you eat an item it watches for
+  the next new Well Fed and links the two, per character.
+- Party buffs only out of combat, members online/alive/in range; suggests the group version when enough members lack
+  a buff and the reagent is in bags.
+- Reagent need read from the spell tooltip's "Reagents:" line (English wording), so a reagent the client dropped never
+  nags.
+- "When" rules per reminder: always / in combat / out of combat / enemy targeted / in a town or inn (low reagents and
+  stock only nag where you can buy).
+- Forever detail: Shield Block has block charges on Forever.
+
+**Compared with ours.**
+- FoodCheck is only reachable via `/food` (FoodCheck.lua:103-104) and reports best food/drink; it does not track Well Fed
+  or remind you to eat a buff food before a fight.
+- SupplyWatch warns about stock at merchants (SupplyWatch.lua:110-111), good; Glowing Bars' "only nag in a town or inn"
+  rule would suit SupplyWatch's hub status lines too.
+- ReadyCheck skips buffs in combat (ReadyCheck.lua:340-341); the "remember what was seen/cast" trick would let it keep
+  a correct status line through a fight without reading secret auras.
+
+## Ranked improvements for our suite (read-only, own frames, no Blizzard hooks)
+
+| # | Helper | Improvement | Size | Learned from |
+|---|---|---|---|---|
+| 1 | ForeverHub | XP panel: 5-minute warm-up (or 60 s floor is not enough, ForeverHub.lua:942); split kill vs quest XP (QUEST_TURNED_IN payload, combat window); "about N kills / N quests to level" from medians | S | Tweaks |
+| 2 | ForeverHub | Quest XP: add "all quests in log" total and "reaches level N, x%" (needs a per-level XP table); subtract finished-quest XP from the time-to-level line (:959) | S | Tweaks |
+| 3 | ForeverHub | Keep the XP/gold session in saved variables, restart only on real login (PLAYER_ENTERING_WORLD isInitialLogin), plus a "restart" button for breaks (:1367) | S | ForeverPlus |
+| 4 | ProfessionGuide | Derive crafts per step from thresholds with the chance formula (grey-s)/(grey-yellow), and a 90%-safe count for the shopping list, instead of the 1.5/3 rule (Data_Alchemy.lua:9-10) | S | SkillUp |
+| 5 | Landmarks | Save the character's known flight points at TAXIMAP_OPENED (slot type not NONE) next to the flight master record (Landmarks.lua:284-285) | S | Shortest Path |
+| 6 | DurabilityWatch | Repair cost anywhere from `C_TooltipInfo.GetInventoryItem(...).repairCost`, shown on the hub status line (DurabilityWatch.lua:60-65, 93-98) | S | ForeverPlus |
+| 7 | Landmarks + LevelGuide | Travel estimate: walk vs fly (known nodes, Dijkstra, measured per-pair flight times with path-length/speed fallback and learned correction factor, Frequent Flier 1.2x) vs hearth; "~4 min: fly X -> Y, then 120 yd" | M | Shortest Path, OneForAll, Leatrix Plus |
+| 8 | ProfessionGuide | Live grey from `C_TradeSkillUI.GetRecipeInfo(id).maxTrivialLevel`, Working Overtime bonus (Legacy trait tree), and "next best known recipe" by cost per point net of product value | M | SkillUp |
+| 9 | ProfessionGuide / GoldGuide | Merchant's Favor: show currency 3402 and the Forever-only Favor recipes as optional steps/targets | M | OneForAll, ForeverPlus |
+| 10 | ReadyCheck / FoodCheck | Bridge combat secrecy with a "seen or cast" buff memory; ask `C_Secrets.Should...BeSecret` before reading auras; Well Fed learning; "better buff line known" (Frost vs Ice Armor) | M | Glowing Bars, ForeverPlus |
+
+Also: verify Forever map IDs in game (Classic 14xx vs Mainline); every third-party Forever addon reviewed uses 14xx.
+
+## Notable techniques
+
+- Known flight points: `TaxiNodeGetType(slot) ~= "NONE"` at a flight master; the node `state` field lies on Forever.
+- Flight ETA: measure per directed pair with UnitOnTaxi; fallback path yards / speed scaled by learned ratio;
+  Frequent Flier perk (`IsPlayerSpell(1225490)`) = 20% faster.
+- Bind point position is unknown to the API: learn it from the first position jump after a hearth.
+- Secrets: `canaccessvalue` (Tweaks/Shortest Path), `C_Secrets` predicates (ForeverPlus), memory of last readable value
+  (Glowing Bars, Shortest Path run speed); every tooltip hook checks `IsForbidden()`.
+- Forever SavedVariables sometimes fail to load: always start from defaults and merge (SkillUp).
+- Forever-only systems to know: Legacy trait trees (profession perk Working Overtime, Frequent Flier), Merchant's
+  Favor currency 3402, campsites/camp benefits, library books, Skyborne ley lines, player surnames instead of realms,
+  `C_GameRules` ruleset ID, Shield Block/Inner Fire charges.

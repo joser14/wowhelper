@@ -10,7 +10,7 @@ C:\Users\you\AppData\Local\Temp\claude\cb2f3a55e03b1ab7\c31d37c7-e117-4d9f-bde3-
 - "World of Warcraft: Forever", client 1.60.1, interface 16001. It is a Classic-era world running on a Mainline/Midnight-based client.
 - Many API returns are "secret values" in combat or when tainted: comparing or doing arithmetic on them errors. Addons wrap reads in a Safe() helper that uses issecretvalue/canaccessvalue. Check that every value used in arithmetic/comparison/concat goes through Safe() or is otherwise known safe.
 - Taint: an addon must never Hide/Show/Update Blizzard frames, hook Blizzard functions (hooksecurefunc included unless clearly safe), call protected functions, or write into Blizzard tables/globals. The error log shows: "GetAuraDataByIndex(): Auras cannot be accessed when secret while tainted by 'QuestTracker'" with a stack through Blizzard_ObjectiveTracker -> Blizzard_MawBuffs. Find how QuestTracker taints the objective tracker's execution path.
-- Map IDs are Mainline (Teldrassil 57, Darkshore 62, Ashenvale 63, Darnassus 89, Kalimdor 12, Eastern Kingdoms 13).
+- Map IDs are the Classic-era ones (Teldrassil 1438, Darkshore 1439, Ashenvale 1440, Darnassus 1457, Elwynn 1429, Stormwind City 1453, Kalimdor 1414, Eastern Kingdoms 1415). An earlier version of this brief said Mainline (57, 62, ...); that was wrong. Confirmed on 2026-11-09 from Zone Info: Forever, Shortest Path Forever and RestedXP's Forever database. Resolve maps by name where possible.
 
 ## The owner's rules (violations are findings)
 1. Read-only: never automate sell, buy, equip, accept, turn-in, repair, abandon, or any gameplay action.
