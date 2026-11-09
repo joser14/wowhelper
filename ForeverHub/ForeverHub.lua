@@ -23,6 +23,7 @@ local TABS = {
     { label = "Find an item", key = "ITEMFINDER", hint = "Type part of an item name and press Enter", emptyHint = "Search your bags, bank, and gear on every character.", search = true },
     { label = "Gold goal", key = "GOLDGOAL", hint = "Gold and a name: 500 Bags   Or: clear" },
     { label = "Rested XP", key = "RESTGUARD" },
+    { label = "Places", key = "LANDMARKS", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer" },
     { label = "Reputation", key = "REPWATCH", arg = "all" },
     { label = "Level log", key = "LEVELLOG", arg = "all" },
     { label = "Characters", key = "FOREVERHELPER", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
