@@ -352,11 +352,18 @@ local function BuildCanvas()
 end
 
 -- True once the page is in the Options window. Any missing piece of the Settings API leaves it out.
-local settingsCategory
+-- Only out of combat: a /reload in combat waits for combat to end, so the Options window's own code
+-- never meets our category while the game is locked down.
+local settingsCategory, settingsPending
 local function RegisterSettings()
     if settingsCategory then
         return true
     end
+    if InCombat() then
+        settingsPending = true
+        return false
+    end
+    settingsPending = false
     if not (type(Settings) == "table" and type(Settings.RegisterCanvasLayoutCategory) == "function"
         and type(Settings.RegisterAddOnCategory) == "function") then
         return false
@@ -530,6 +537,9 @@ events:SetScript("OnEvent", function(_, event)
         return
     end
     if event == "PLAYER_REGEN_ENABLED" then
+        if settingsPending then
+            Attempt(RegisterSettings)
+        end
         if hearthPending or not hearth then
             Attempt(SyncHearth)
         end
@@ -540,6 +550,6 @@ end)
 
 -- For the tests: what was registered and the hearth button.
 hub.extrasState = function()
-    return { settingsCategory = settingsCategory, canvas = canvas, hearth = hearth, hearthPending = hearthPending,
+    return { settingsCategory = settingsCategory, settingsPending = settingsPending, canvas = canvas, hearth = hearth, hearthPending = hearthPending,
         canvasRows = canvasRows, manageAlertRows = manageAlertRows }
 end

@@ -237,4 +237,22 @@ issecretvalue = function() return true end
 events.scripts.OnEvent(events, "QUEST_LOG_UPDATE"); tick()
 for _ = 1, 4 do tick() end
 assert(#handled == 0, "clean: " .. tostring(handled[1]))
+
+-- Taint audit (2026-11-09): Blizzard's tracker is only made clear with SetAlpha, and a secret alpha
+-- (which can't be compared) is skipped instead of erroring every second, in or out of combat.
+-- In the game a secret number still has type "number"; this stand-in is one too.
+local SECRET_ALPHA = 0.37
+local trackerAlpha, alphaWrites = 1, 0
+ObjectiveTrackerFrame.GetAlpha = function() return trackerAlpha end
+ObjectiveTrackerFrame.SetAlpha = function(_, a) alphaWrites = alphaWrites + 1; trackerAlpha = a end
+issecretvalue = function(v) return v == SECRET_ALPHA end
+combat = true
+tick()
+assert(trackerAlpha == 0 and alphaWrites == 1, "tracker made clear")
+trackerAlpha = SECRET_ALPHA
+tick(); tick()
+assert(alphaWrites == 1, "secret alpha left alone")
+combat = false
+tick()
+assert(#handled == 0 and #blocked == 0, "secret alpha clean: " .. tostring(handled[1]))
 print("ALL TESTS PASSED")

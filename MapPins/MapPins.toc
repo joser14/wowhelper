@@ -6,4 +6,3 @@
 ## SavedVariables: MapPinsDB
 
 MapPins.lua
-MapPins.xml

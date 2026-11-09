@@ -46,9 +46,12 @@ The 30-odd helpers are installed as six addons:
 
 - **Read-only, by design.** The test suite fails if any helper calls a buy, sell, train, choose-reward or targeting
   function.
-- **Safe with Blizzard's interface.** Helpers use Blizzard's official extension points: tooltip lines, world-map pins,
-  minimap markers, the Settings panel, the addon menu and keybindings. They never replace or rewrite Blizzard's frames
-  or functions, which is what causes "action blocked" (taint) errors.
+- **Safe with Blizzard's interface.** Helpers use Blizzard's official extension points: tooltip lines, minimap
+  markers, the Settings panel, the addon menu and keybindings. They never replace or rewrite Blizzard's frames,
+  functions or global tables, which is what causes "action blocked" (taint) errors.
+- **World-map pins are our own frames.** They are drawn over the map, not added to Blizzard's map pin system:
+  Blizzard's map code makes protected calls on every pin in that system, so in combat the game blocked it and blamed
+  the addon. `research\taint_audit.md` records the audit of every helper for this kind of problem.
 - **Built for Forever's client.** Forever runs on a modern client with Midnight-era addon rules. The combat log is
   closed to addons, and many values are hidden during combat or in instances, so every value a helper reads from
   the game goes through a check.

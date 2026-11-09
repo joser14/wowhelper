@@ -746,7 +746,6 @@ end)
 
 SLASH_RAREWATCH1 = "/rares"
 SLASH_RAREWATCH2 = "/rarewatch"
-SlashCmdList = SlashCmdList or {}
 SlashCmdList.RAREWATCH = ShowPage
 
 ForeverHubStatus = ForeverHubStatus or {}

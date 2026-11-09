@@ -741,7 +741,6 @@ local function ClassFromArg(arg)
 end
 
 SLASH_BUILDS1 = "/builds"
-SlashCmdList = SlashCmdList or {}
 SlashCmdList.BUILDS = function(msg)
     local arg = Lower(type(msg) == "string" and msg or ""):gsub("^%s+", ""):gsub("%s+$", "")
     local classFile = PlayerClass()

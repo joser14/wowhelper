@@ -1227,7 +1227,8 @@ end
 local function OnTick()
     secondsSinceSort = secondsSinceSort + 1
     if ObjectiveTrackerFrame and not db.keepBlizzard then
-        local alpha = ObjectiveTrackerFrame:GetAlpha()
+        -- Safe: a hidden (secret) alpha can't be compared; the next tick tries again.
+        local alpha = Safe(ObjectiveTrackerFrame:GetAlpha())
         if type(alpha) == "number" and alpha > 0 then
             ObjectiveTrackerFrame:SetAlpha(0)
         end

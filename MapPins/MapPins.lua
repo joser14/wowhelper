@@ -2,13 +2,20 @@
 -- the guide's next stops, remembered places, your deaths, rares, gold farms for your level and
 -- dungeon entrances. Read-only: it reads the other helpers' saved data and your map position.
 --
--- How it attaches (Blizzard's documented extension points, nothing of theirs is changed):
---   World map: a data provider made with CreateFromMixins(MapCanvasDataProviderMixin) and added with
---     WorldMapFrame:AddDataProvider(provider). The map calls our RefreshAllData / OnMapChanged /
---     RemoveAllData itself; we place pins with map:AcquirePin("MapPinsPinTemplate", record) and clear
---     them with map:RemoveAllPinsByTemplate("MapPinsPinTemplate"). The template is a virtual frame in
---     MapPins.xml whose mixin (MapPinsPinMixin) takes MapCanvasPinMixin's methods.
---   Minimap: our own small buttons parented to Minimap, placed by our own throttled OnUpdate.
+-- How it attaches (nothing of Blizzard's is changed, hooked or added to):
+--   World map: our own overlay frame, parented to UIParent and drawn one frame strata above the
+--     world map, holding a pool of our own pin buttons made when the file loads. Our OnUpdate only
+--     READS the map: WorldMapFrame:IsShown(), :GetMapID(), :GetFrameStrata(), :GetFrameLevel(), and the
+--     screen rectangle (GetLeft/GetTop/GetWidth/GetHeight/GetEffectiveScale) of
+--     WorldMapFrame.ScrollContainer and its canvas child (ScrollContainer.Child). A pin at map point
+--     x, y sits at canvas left + x * width, canvas top - y * height (screen pixels), and hides when
+--     that falls outside the visible ScrollContainer (the map can be zoomed and panned).
+--     Earlier versions put pins into Blizzard's own map canvas pin pool (a data provider); the map
+--     then made protected calls on our pins too, and in combat the game blocked them and blamed us
+--     ("ForeverWorld has been blocked from an action only available to the Blizzard UI").
+--   Minimap: our own small buttons parented to Minimap (not a protected frame), placed by our own
+--     throttled OnUpdate.
+-- No frames are made in combat: both pin pools are made when the file loads.
 --
 -- Minimap math. The offset of a pin from the minimap centre is its east/north distance from you in
 -- yards, divided by the minimap's view radius in yards, times half the minimap's width/height in
@@ -192,8 +199,9 @@ if not ForeverWaypoint_Set then
 end
 
 
-local TEMPLATE = "MapPinsPinTemplate"
-local TICK = 0.1            -- minimap placement, seconds
+local TICK = 0.1            -- world map shown check and minimap placement, seconds
+local WORLD_POOL = 120      -- world map pins made at load; more on one map are left out
+local MINI_POOL = 40        -- minimap pins made at load; more are made only out of combat
 local DATA_TICK = 1         -- data changes are looked at no more than once a second
 local MAX_DEATHS = 30       -- the newest deaths only; older ones crowd the map
 local FARM_LEVELS = 3       -- farms within this many levels of their range
@@ -263,8 +271,6 @@ local records = {}           -- every pin we know, rebuilt when data changes
 local counts = {}            -- layer key -> number of pins
 local dirty = true
 local signature
-local provider               -- our world map data provider
-local worldPending = false   -- a world map refresh waits for combat to end
 local tooltip
 
 local function Safe(value)
@@ -609,6 +615,8 @@ local function HideTooltip()
     end
 end
 
+Tooltip()  -- made now, never in combat
+
 -- A click on one of our pins sets the game's own map pin there and tracks it.
 local function SetWaypoint(mapID, record)
     if not (record and mapID and C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
@@ -635,83 +643,9 @@ end
 
 ---------------------------------------------------------------------------- world map
 
--- The pin template's mixin. MapCanvasPinMixin's methods are copied in when the map is ready, so this
--- works whether Blizzard's map code loads before or after us.
-MapPinsPinMixin = {}
+-- Everything here is our own frames. Blizzard's map frames are only read (see the top of the file).
 
-function MapPinsPinMixin:OnLoad()
-    if self.UseFrameLevelType then
-        self:UseFrameLevelType("PIN_FRAME_LEVEL_AREA_POI")
-    end
-    if self.SetScalingLimits then
-        self:SetScalingLimits(1, 1.0, 1.2)
-    end
-    self.mapPinsReady = true
-end
-
-local function NoCenter()
-    return nil
-end
-
-function MapPinsPinMixin:OnAcquired(record, mapID)
-    if not self.mapPinsReady then
-        self:OnLoad()
-    end
-    self.record, self.mapID = record, mapID
-    if type(record) ~= "table" or not (record.x and record.y) then
-        self:Hide()
-        return
-    end
-    -- Forever's gamepad cursor reads every canvas pin's centre, and reading an addon pin's centre
-    -- taints its protected target update when the map closes. With the gamepad UI on, our pins (our
-    -- own objects) give it no centre; the mouse still hovers and clicks them as usual.
-    if InputUtil and InputUtil.IsGamepadUIEnabled and Safe(InputUtil.IsGamepadUIEnabled()) then
-        self.GetCenter = NoCenter
-    else
-        self.GetCenter = nil  -- back to the frame's own method
-    end
-    local size = ApplyIcon(self.Icon, record and record.icon, WORLD_SIZE)
-    self:SetSize(size, size)
-    self:SetPosition(record.x, record.y)
-end
-
-function MapPinsPinMixin:OnReleased()
-    self.record, self.mapID = nil, nil
-end
-
-function MapPinsPinMixin:OnMouseEnter()
-    ShowTooltip(self, self.record)
-end
-
-function MapPinsPinMixin:OnMouseLeave()
-    HideTooltip()
-end
-
--- The canvas reports a click through OnMouseUp (upInside is false when the button left the pin) and,
--- on newer maps, OnMouseClickAction as well; one click sets the waypoint once.
-function MapPinsPinMixin:MapPinsClick(button)
-    if button ~= "LeftButton" or not self.record then
-        return
-    end
-    local now = GetTime and GetTime() or 0
-    if self.clickedAt == now then
-        return
-    end
-    self.clickedAt = now
-    SetWaypoint(self.mapID, self.record)
-end
-
-function MapPinsPinMixin:OnMouseUp(button, upInside)
-    if upInside ~= false then
-        self:MapPinsClick(button)
-    end
-end
-
-function MapPinsPinMixin:OnMouseClickAction(button)
-    self:MapPinsClick(button)
-end
-
--- Whether a pin belongs on the map the canvas shows: static points by zone name, live ones by ID.
+-- Whether a pin belongs on the map shown: static points by zone name, live ones by ID.
 local function OnMap(record, mapID, mapName)
     if record.zone and mapName then
         return SameName(record.zone, mapName)
@@ -719,70 +653,190 @@ local function OnMap(record, mapID, mapName)
     return record.mapID == mapID
 end
 
-local function WorldRefresh(map)
-    if not map then
-        return
+local STRATA_ORDER = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
+local STRATA_RANK = {}
+for rank, name in ipairs(STRATA_ORDER) do
+    STRATA_RANK[name] = rank
+end
+
+-- One strata above the map's, so our pins draw over the map's canvas and all of its own pins
+-- (their frame levels run far above the map frame's own). Never TOOLTIP: tooltips stay on top.
+local function StrataAbove(strata)
+    local rank = STRATA_RANK[strata] or STRATA_RANK.HIGH
+    return STRATA_ORDER[math.min(rank + 1, #STRATA_ORDER - 1)]
+end
+
+local function NoCenter()
+    return nil
+end
+
+local overlay = CreateFrame("Frame", nil, UIParent)
+overlay:SetAllPoints(UIParent)
+overlay:Hide()
+
+local worldPins = {}
+local worldUsed = 0
+local worldMapID            -- the map our pins were laid out for
+local worldStale = true     -- records changed: pick the pins again
+local worldRecords          -- the records list the pins were picked from
+local worldGeometry         -- last screen rectangle string; pins move only when it changes
+local overlayStrata, overlayLevel
+
+local function WorldPinClick(self, button)
+    if button == "LeftButton" and self.record then
+        SetWaypoint(self.mapID, self.record)
     end
-    if InCombat() then
-        -- Adding and removing canvas pins isn't done in combat; ours just hide until it ends.
-        if map.EnumeratePinsByTemplate then
-            for pin in map:EnumeratePinsByTemplate(TEMPLATE) do
-                pin:Hide()
-            end
-        end
-        worldPending = true
-        return
+end
+
+for index = 1, WORLD_POOL do
+    local pin = CreateFrame("Button", nil, overlay)
+    pin.Icon = pin:CreateTexture(nil, "OVERLAY")
+    pin.Icon:SetAllPoints(pin)
+    pin:RegisterForClicks("LeftButtonUp")
+    pin:SetScript("OnEnter", function(self) ShowTooltip(self, self.record) end)
+    pin:SetScript("OnLeave", HideTooltip)
+    pin:SetScript("OnClick", WorldPinClick)
+    pin:Hide()
+    worldPins[index] = pin
+end
+
+local function HideWorld()
+    if overlay:IsShown() then
+        overlay:Hide()
     end
-    worldPending = false
-    map:RemoveAllPinsByTemplate(TEMPLATE)
-    if not db or IsOff("MapPins") then
-        return
+    worldGeometry = nil
+end
+
+-- Screen rectangle of a frame in pixels: left, top, width, height. Reads only.
+local function ScreenRect(frame)
+    if type(frame) ~= "table" or not (frame.GetLeft and frame.GetTop and frame.GetWidth and frame.GetHeight
+        and frame.GetEffectiveScale) then
+        return nil
     end
-    local mapID = Safe(map:GetMapID())
-    if not mapID then
-        return
+    local left, top = Safe(frame:GetLeft()), Safe(frame:GetTop())
+    local width, height = Safe(frame:GetWidth()), Safe(frame:GetHeight())
+    local scale = Safe(frame:GetEffectiveScale())
+    if type(left) ~= "number" or type(top) ~= "number" or type(width) ~= "number" or type(height) ~= "number"
+        or type(scale) ~= "number" or width <= 0 or height <= 0 or scale <= 0 then
+        return nil
     end
-    if dirty then
+    return left * scale, top * scale, width * scale, height * scale
+end
+
+-- The map's canvas (the zoomed, panned picture) and the visible window onto it.
+local function MapFrames(map)
+    local scroll = map.ScrollContainer
+    if type(scroll) ~= "table" then
+        return nil
+    end
+    local canvas = scroll.Child
+    if type(canvas) ~= "table" and map.GetCanvas then
+        canvas = map:GetCanvas()
+    end
+    if type(canvas) ~= "table" then
+        return nil
+    end
+    return scroll, canvas
+end
+
+-- Pick which records get a pin on this map. Only our own frames are touched.
+local function AssignWorld(mapID)
+    local used = 0
+    if mapID and dirty then
         Rebuild()
     end
-    local mapName = MapName(mapID)
-    for _, record in ipairs(records) do
-        if OnMap(record, mapID, mapName) then
-            map:AcquirePin(TEMPLATE, record, mapID)
+    worldMapID, worldStale, worldGeometry, worldRecords = mapID, false, nil, records
+    if mapID then
+        local mapName = MapName(mapID)
+        local gamepad = InputUtil and InputUtil.IsGamepadUIEnabled and Safe(InputUtil.IsGamepadUIEnabled())
+        for _, record in ipairs(records) do
+            if used >= WORLD_POOL then
+                break
+            end
+            if record.x and record.y and OnMap(record, mapID, mapName) then
+                used = used + 1
+                local pin = worldPins[used]
+                pin.record, pin.mapID = record, mapID
+                -- Gamepad guard: Forever's gamepad cursor looks for pin centres; ours give none.
+                pin.GetCenter = gamepad and NoCenter or nil
+                local size = ApplyIcon(pin.Icon, record.icon, WORLD_SIZE)
+                pin:SetSize(size, size)
+            end
         end
     end
+    for index = used + 1, worldUsed do
+        local pin = worldPins[index]
+        pin:Hide()
+        pin.record, pin.mapID = nil, nil
+    end
+    worldUsed = used
 end
 
-local function SetupWorldMap()
-    if provider or not (WorldMapFrame and WorldMapFrame.AddDataProvider and CreateFromMixins
-        and MapCanvasDataProviderMixin and MapCanvasPinMixin) then
+-- Move our pins to where their map points are on screen; hide the ones outside the visible map.
+local function LayoutWorld(map)
+    local scroll, canvas = MapFrames(map)
+    local cl, ct, cw, ch = ScreenRect(canvas)
+    local sl, st, sw, sh = ScreenRect(scroll)
+    local own = Safe(overlay:GetEffectiveScale())
+    if not (cl and sl and type(own) == "number" and own > 0) then
+        for index = 1, worldUsed do
+            worldPins[index]:Hide()
+        end
+        worldGeometry = nil
         return
     end
-    for key, value in pairs(MapCanvasPinMixin) do
-        if MapPinsPinMixin[key] == nil then
-            MapPinsPinMixin[key] = value
+    local geometry = string.format("%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.4f", cl, ct, cw, ch, sl, st, sw, sh, own)
+    if geometry == worldGeometry then
+        return
+    end
+    worldGeometry = geometry
+    local right, bottom = sl + sw, st - sh
+    for index = 1, worldUsed do
+        local pin = worldPins[index]
+        local record = pin.record
+        local x = cl + record.x * cw
+        local y = ct - record.y * ch
+        if x >= sl and x <= right and y >= bottom and y <= st then
+            pin:ClearAllPoints()
+            pin:SetPoint("CENTER", overlay, "BOTTOMLEFT", x / own, y / own)
+            pin:Show()
+        else
+            pin:Hide()
         end
     end
-    provider = CreateFromMixins(MapCanvasDataProviderMixin)
-    function provider:RemoveAllData()
-        local map = self:GetMap()
-        if map and not InCombat() then
-            map:RemoveAllPinsByTemplate(TEMPLATE)
-        end
-    end
-    function provider:RefreshAllData()
-        WorldRefresh(self:GetMap())
-    end
-    function provider:OnMapChanged()
-        self:RefreshAllData()
-    end
-    WorldMapFrame:AddDataProvider(provider)
 end
 
-local function RefreshWorldMap()
-    if provider and provider.GetMap and provider:GetMap() and WorldMapFrame and WorldMapFrame:IsShown() then
-        provider:RefreshAllData()
+-- Called from our own OnUpdate. Reads the world map; shows, hides and moves only our frames.
+local function UpdateWorld()
+    local map = WorldMapFrame
+    if not (db and type(map) == "table" and map.IsShown and not IsOff("MapPins")) or not map:IsShown() then
+        HideWorld()
+        return
     end
+    local strata = StrataAbove(Safe(map:GetFrameStrata()))
+    local level = (Safe(map:GetFrameLevel()) or 0) + 1
+    if strata ~= overlayStrata then
+        overlay:SetFrameStrata(strata)
+        overlayStrata = strata
+    end
+    if level ~= overlayLevel then
+        overlay:SetFrameLevel(level)
+        overlayLevel = level
+    end
+    local mapID = Safe(map:GetMapID())
+    if mapID ~= worldMapID or worldStale or worldRecords ~= records then
+        AssignWorld(mapID)
+    end
+    if not overlay:IsShown() then
+        overlay:Show()
+    end
+    LayoutWorld(map)
+end
+
+-- Records changed: pick and place the world map pins again on the next update.
+local function RefreshWorldMap()
+    worldStale = true
+    UpdateWorld()
 end
 
 ---------------------------------------------------------------------------- minimap
@@ -826,9 +880,13 @@ local miniPins, miniUsed = {}, 0
 local axes = {}
 local lastState
 
+-- Pin number index, or nil when it would have to be made in combat (the pool is made at load).
 local function MiniPin(index)
     local pin = miniPins[index]
     if not pin then
+        if not Minimap or InCombat() then
+            return nil
+        end
         pin = CreateFrame("Button", nil, Minimap)
         pin:SetFrameLevel((Minimap:GetFrameLevel() or 0) + 5)
         pin.Icon = pin:CreateTexture(nil, "OVERLAY")
@@ -841,9 +899,16 @@ local function MiniPin(index)
                 SetWaypoint(self.record.mapID, self.record)
             end
         end)
+        pin:Hide()
         miniPins[index] = pin
     end
     return pin
+end
+
+if Minimap then
+    for index = 1, MINI_POOL do
+        MiniPin(index)
+    end
 end
 
 local function HideMiniPins(from)
@@ -930,9 +995,9 @@ local function UpdateMinimap(force)
                 local size = record.icon and record.icon.size and 14 or MINIMAP_SIZE
                 local x, y, inside = MapPins_MinimapOffset(east, north, radius, halfW, halfH, facing, square,
                     halfW > 0 and (size / 2) / halfW or 0)
-                if inside then
+                local pin = inside and MiniPin(used + 1)
+                if pin then
                     used = used + 1
-                    local pin = MiniPin(used)
                     pin.record = record
                     local shown = ApplyIcon(pin.Icon, record.icon, MINIMAP_SIZE)
                     pin:SetSize(shown, shown)
@@ -962,6 +1027,11 @@ driver:SetScript("OnUpdate", function(_, elapsed)
     sinceTick = sinceTick + (elapsed or 0)
     sinceData = sinceData + (elapsed or 0)
     if sinceTick < TICK then
+        -- Between checks, keep our pins under the map while it pans or zooms (reads only; nothing
+        -- moves unless the map's rectangle changed).
+        if overlay:IsShown() and WorldMapFrame then
+            LayoutWorld(WorldMapFrame)
+        end
         return
     end
     sinceTick = 0
@@ -977,12 +1047,11 @@ driver:SetScript("OnUpdate", function(_, elapsed)
             if dirty then
                 Rebuild()
                 force = true
-                RefreshWorldMap()
-            elseif worldPending then
-                RefreshWorldMap()
+                worldStale = true
             end
         end
     end
+    UpdateWorld()
     UpdateMinimap(force)
 end)
 
@@ -1083,11 +1152,11 @@ SlashCmdList.MAPPINS = ShowPage
 ---------------------------------------------------------------------------- events
 
 local events = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS",
+for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS",
     "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "MINIMAP_UPDATE_ZOOM" }) do
     events:RegisterEvent(event)
 end
-events:SetScript("OnEvent", function(_, event, name)
+events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         MapPinsDB = type(MapPinsDB) == "table" and MapPinsDB or {}
         db = MapPinsDB
@@ -1095,14 +1164,7 @@ events:SetScript("OnEvent", function(_, event, name)
         if db.minimap == nil then
             db.minimap = true
         end
-        SetupWorldMap()
         MarkDirty()
-        return
-    end
-    if event == "ADDON_LOADED" then
-        if name == "Blizzard_WorldMap" or name == "Blizzard_MapCanvas" then
-            SetupWorldMap()
-        end
         return
     end
     if event == "MINIMAP_UPDATE_ZOOM" then
@@ -1110,9 +1172,8 @@ events:SetScript("OnEvent", function(_, event, name)
         return
     end
     if event == "PLAYER_REGEN_ENABLED" then
-        if worldPending then
-            RefreshWorldMap()
-        end
+        -- Data changes are not looked at in combat; look on the next tick.
+        sinceData = DATA_TICK
         return
     end
     -- Zone changes, entering the world, a new level: the farms and "this zone" counts change.

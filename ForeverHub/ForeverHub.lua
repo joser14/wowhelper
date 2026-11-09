@@ -1606,13 +1606,25 @@ local function OnTick()
     end
 end
 
-local function Start()
-    ForeverHubDB = ForeverHubDB or {}
-    db = ForeverHubDB
-    -- You asked for the screen narration voice to stay off; this also keeps it off at the login screen.
+-- You asked for the screen narration voice to stay off; this also keeps it off at the login screen.
+-- Game settings are only changed out of combat (a /reload in combat waits for it to end), since the
+-- game can refuse some of them to addons while it is locked down.
+local narrationPending = false
+local function NarrationOff()
+    if InCombatLockdown and InCombatLockdown() then
+        narrationPending = true
+        return
+    end
+    narrationPending = false
     if C_CVar and C_CVar.SetCVar then
         pcall(C_CVar.SetCVar, "accessibilityScreenNarrationEnabled", "0")
     end
+end
+
+local function Start()
+    ForeverHubDB = ForeverHubDB or {}
+    db = ForeverHubDB
+    NarrationOff()
     -- A fresh session for now; the first PLAYER_ENTERING_WORLD swaps in the saved one after a /reload.
     NewSession()
     -- Each step runs on its own, so a problem with one still leaves the rest usable.
@@ -1667,6 +1679,9 @@ events:SetScript("OnEvent", function(_, event, ...)
         -- Also fires on /reload: the gold baseline may have been read only after login.
         Attempt(SaveSession)
     else
+        if event == "PLAYER_REGEN_ENABLED" and narrationPending then
+            NarrationOff()
+        end
         if event == "PLAYER_ENTERING_WORLD" then
             local isInitialLogin, isReloadingUi = ...
             Attempt(function()

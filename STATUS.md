@@ -2,12 +2,15 @@
 
 **INSTALLED 2026-11-09 (reinstalled 09:17)** as six addons (!ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld), now including Builds (all nine classes) and the corrected ItemAdvisor weights. First install moved the old per-helper folders to `_forever_\Interface\AddOns_ForeverBackup_20261109_083113`; a full copy of WTF is at `_forever_\WTF_Backup_20261109`. To roll back: close WoW, delete the six bundle folders, move the backup folders back. 41 current tests pass (tests\runall.ps1); 11 older tests (test, 3-7, 9-12, 15) were already failing before and check for chat output and window layouts that later work replaced. Blizzard class tuning on 2026-11-10 may change builds; re-run the builds research after it.
 
+**TAINT FIX 2026-11-09 (committed, NOT yet installed):** MapPins rewritten as overlay frames; SlashCmdList rewrite removed from three helpers; Options registration, narration CVar and QuestTracker alpha made combat-safe. Reinstall with `.\build.ps1 -Install` (WoW closed), then do the in-game checks in research/taint_audit.md.
+
 Start here when resuming. Main branch = finished, tested work. Branch `wip-snapshot` = unfinished worker
 edits at the moment this file was written (may not pass tests; review before merging anything from it).
 
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/accept/turn-in/equip/train/cast) and nothing that causes taint errors.
-- Blizzard's official extension points are fine: tooltip lines (TooltipDataProcessor), world-map data providers and pins, our frames on the minimap, Settings panel, addon compartment, keybindings, our own badges anchored over Blizzard buttons, cosmetic alpha (QuestTracker makes Blizzard's tracker transparent).
+- NEVER use the world-map canvas pin pool (WorldMapFrame:AddDataProvider / AcquirePin): it caused "ForeverWorld has been blocked from an action" (UNKNOWN()) in game on 2026-11-09. MapPins now draws its own overlay frames. Never assign Blizzard globals either (`SlashCmdList = SlashCmdList or {}` was removed from RareWatch, QuestMobs, Builds). See research/taint_audit.md.
+- Blizzard's official extension points are fine: tooltip lines (TooltipDataProcessor), our frames on the minimap, Settings panel, addon compartment, keybindings, our own badges anchored over Blizzard buttons, cosmetic alpha (QuestTracker makes Blizzard's tracker transparent).
 - Never replace/hook/rewrite Blizzard functions, never write Blizzard tables, never call protected functions.
 - UI in our own windows (ForeverHub pages, side panel, pop-ups). No chat output.
 - Third-party code: may be downloaded only into a quarantine folder after a malware check, never run or installed; reverse-engineering is described in our own words, no code copied.

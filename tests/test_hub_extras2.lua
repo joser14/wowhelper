@@ -453,4 +453,35 @@ do
     assert(ForeverHub_ToggleWindow == nil, "no hub, no extras")
 end
 
+------------------------------------------------------------------------------------------------
+-- 8. Taint audit (2026-11-09): a login in combat (a /reload mid-fight) neither registers the Options
+-- page nor changes a game setting until combat ends; both happen once it does.
+------------------------------------------------------------------------------------------------
+do
+    local cvars = {}
+    local hub, hubEvents, extraEvents = Setup({ settings = true, combat = true, snapshot = function()
+        C_CVar = { SetCVar = function(name, value) cvars[#cvars + 1] = name .. "=" .. value end }
+    end })
+    assert(#settingsCalls == 0, "no Settings registration in combat")
+    assert(hub.extrasState().settingsCategory == nil and hub.extrasState().settingsPending, "registration queued")
+    assert(#cvars == 0, "no CVar change in combat")
+    combat = false
+    hubEvents.scripts.OnEvent(hubEvents, "PLAYER_REGEN_ENABLED")
+    extraEvents.scripts.OnEvent(extraEvents, "PLAYER_REGEN_ENABLED")
+    assert(cvars[1] == "accessibilityScreenNarrationEnabled=0" and #cvars == 1, "CVar set after combat: " .. table.concat(cvars, ","))
+    assert(hub.extrasState().settingsCategory ~= nil and not hub.extrasState().settingsPending, "registered after combat")
+    assert(settingsCalls[1][1] == "canvas" and settingsCalls[2][1] == "addon", "same two calls")
+    hubEvents.scripts.OnEvent(hubEvents, "PLAYER_REGEN_ENABLED")
+    extraEvents.scripts.OnEvent(extraEvents, "PLAYER_REGEN_ENABLED")
+    assert(#cvars == 1 and #settingsCalls == 2, "done once only")
+    assert(#blocked == 0 and #handled == 0, "combat login clean: " .. table.concat(handled, "|"))
+
+    -- Out of combat both happen at login, as before.
+    cvars = {}
+    Setup({ settings = true, snapshot = function()
+        C_CVar = { SetCVar = function(name, value) cvars[#cvars + 1] = name .. "=" .. value end }
+    end })
+    assert(#cvars == 1 and #settingsCalls == 2, "normal login registers and sets")
+end
+
 realPrint("ALL TESTS PASSED")

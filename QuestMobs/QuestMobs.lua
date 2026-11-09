@@ -730,5 +730,4 @@ events:SetScript("OnEvent", function(_, event, unit)
 end)
 
 SLASH_QUESTMOBS1 = "/questmobs"
-SlashCmdList = SlashCmdList or {}
 SlashCmdList.QUESTMOBS = Command

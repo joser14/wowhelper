@@ -1,8 +1,12 @@
--- MapPins test: a world map data provider is added through WorldMapFrame:AddDataProvider and places
--- each layer's pins on the right map (live IDs for places/deaths/rares, zone names for farms/dungeons),
--- layers toggle, missing or broken sources and secret values never error, the minimap offset maths is
--- right at 0 degrees and rotated, pins outside the minimap circle hide, clicks set the game's waypoint,
--- combat defers canvas work, and Blizzard's own frames are never shown, hidden or scripted.
+-- MapPins test: world map pins are OUR OWN frames on an overlay parented to UIParent, drawn one strata
+-- above the world map and placed from the map canvas's screen rectangle (zoomed and panned pins that
+-- fall outside the visible map hide); the overlay hides with the map; Blizzard's world map frames are
+-- only ever read (IsShown, GetMapID, GetFrameStrata, GetFrameLevel, GetLeft/Top/Width/Height,
+-- GetEffectiveScale, GetRect, GetCanvas) and any other use of them fails the test; nothing is added to
+-- the map's canvas pin pool. Also: each layer's pins land on the right map (live IDs for
+-- places/deaths/rares, zone names for farms/dungeons), layers toggle, missing or broken sources and
+-- secret values never error, the minimap offset maths is right at 0 degrees and rotated, pins outside
+-- the minimap circle hide, clicks set the game's waypoint, and no frame is made in combat.
 -- Run from the harness folder:  node run.js "<workspace root>" test_mappins.lua
 local base = ADDON_PATH
 local failures = {}
@@ -36,7 +40,14 @@ local indoors = false
 IsIndoors = function() return indoors end
 SlashCmdList = {}
 
+-- The old canvas-pool route must be gone: these globals exist but must never be used.
+CreateFromMixins = function() failures[#failures + 1] = "CreateFromMixins called"; return {} end
+MapCanvasDataProviderMixin = setmetatable({}, { __index = function(_, k) failures[#failures + 1] = "MapCanvasDataProviderMixin." .. tostring(k) .. " read" end })
+MapCanvasPinMixin = setmetatable({}, { __index = function(_, k) failures[#failures + 1] = "MapCanvasPinMixin." .. tostring(k) .. " read" end,
+    __pairs = function() failures[#failures + 1] = "MapCanvasPinMixin copied"; return next, {}, nil end })
+
 -- Generic frame for our own frames.
+local uiScale = 0.8
 local function texture()
     local t = {}
     function t:SetAllPoints() end
@@ -53,6 +64,7 @@ local function newFrame(kind, name, parent)
     function f:GetScript(s) return self.scripts[s] end
     function f:SetSize(w, h) self.w, self.h = w, h end
     function f:SetPoint(...) self.point = { ... } end
+    function f:SetAllPoints(rel) self.allPoints = rel end
     function f:ClearAllPoints() self.point = nil end
     function f:Show() self.shown = true end
     function f:Hide() self.shown = false end
@@ -61,6 +73,7 @@ local function newFrame(kind, name, parent)
     function f:RegisterForClicks() end
     function f:SetFrameLevel(l) self.level = l end
     function f:SetFrameStrata(s) self.strata = s end
+    function f:GetEffectiveScale() return uiScale end
     function f:SetOwner(o) self.owner = o; self.lines = {} end
     function f:AddLine(t) self.lines[#self.lines + 1] = t end
     frames[#frames + 1] = f
@@ -68,6 +81,7 @@ local function newFrame(kind, name, parent)
 end
 local tooltipTemplate
 CreateFrame = function(kind, name, parent, template)
+    check(not combat, "a frame was made in combat")
     local f = newFrame(kind, name, parent)
     if name then _G[name] = f end
     if template == "GameTooltipTemplate" then tooltipTemplate = true end
@@ -82,7 +96,7 @@ local function strict(name, extra)
     end
     return f
 end
-UIParent = strict("UIParent")
+UIParent = strict("UIParent", { GetEffectiveScale = function() return uiScale end })
 local mmZoom, mmWidth = 0, 140
 Minimap = strict("Minimap", {
     GetZoom = function() return mmZoom end,
@@ -91,59 +105,43 @@ Minimap = strict("Minimap", {
     GetFrameLevel = function() return 2 end,
 })
 
--- Map canvas mixins as Blizzard's map uses them.
-CreateFromMixins = function(...)
-    local t = {}
-    for _, m in ipairs({ ... }) do for k, v in pairs(m) do t[k] = v end end
-    return t
+-- World map frames: read-only. Any key other than the allowed reads (and the two child fields) fails.
+local READS = { IsShown = true, GetMapID = true, GetFrameStrata = true, GetFrameLevel = true, GetLeft = true,
+    GetTop = true, GetWidth = true, GetHeight = true, GetEffectiveScale = true, GetRect = true, GetCanvas = true }
+local touched = {}
+local function readOnly(name, fields, methods)
+    return setmetatable(fields, { __index = function(_, key)
+        if READS[key] and methods[key] then
+            return function(self, ...)
+                touched[#touched + 1] = name .. ":" .. key
+                return methods[key](self, ...)
+            end
+        end
+        failures[#failures + 1] = name .. "." .. tostring(key) .. " was used (only reads allowed)"
+        return function() failures[#failures + 1] = name .. ":" .. tostring(key) .. " was called" end
+    end, __newindex = function(_, key) failures[#failures + 1] = name .. "." .. tostring(key) .. " was written" end })
 end
-MapCanvasDataProviderMixin = {
-    OnAdded = function(self, map) self.owningMap = map end,
-    GetMap = function(self) return self.owningMap end,
-    RemoveAllData = function() end,
-    RefreshAllData = function() end,
-    OnMapChanged = function(self) self:RefreshAllData() end,
-}
-MapCanvasPinMixin = {
-    SetPosition = function(self, x, y) self.nx, self.ny = x, y end,
-    UseFrameLevelType = function(self, t) self.levelType = t end,
-    SetScalingLimits = function(self, ...) self.limits = { ... } end,
-    OnAcquired = function() end,
-    OnReleased = function() end,
-}
-local canvasMap = 1429
-local pins, providers, acquires = {}, {}, 0
-WorldMapFrame = strict("WorldMapFrame", {})
-WorldMapFrame.IsShown = function() return true end
-WorldMapFrame.GetMapID = function() return canvasMap end
-WorldMapFrame.AddDataProvider = function(self, p) providers[#providers + 1] = p; p:OnAdded(self) end
-WorldMapFrame.AcquirePin = function(self, template, ...)
-    acquires = acquires + 1
-    assert(not combat, "AcquirePin in combat")
-    local pin = newFrame("Frame", nil, self)
-    for k, v in pairs(MapPinsPinMixin) do pin[k] = v end
-    pin.Icon = texture()
-    pin.template = template
-    pin:OnLoad()
-    pin:OnAcquired(...)
-    pins[#pins + 1] = pin
-    return pin
+-- Rectangles in each frame's own units (scale = effective scale), like the game reports them.
+local view = { left = 100, top = 700, w = 800, h = 500, scale = uiScale }       -- ScrollContainer
+local canvas = { left = 100, top = 700, w = 800, h = 500, scale = uiScale }     -- its Child (the map picture)
+local function rectMethods(r)
+    return {
+        GetLeft = function() return r.left end, GetTop = function() return r.top end,
+        GetWidth = function() return r.w end, GetHeight = function() return r.h end,
+        GetEffectiveScale = function() return r.scale end,
+        GetRect = function() return r.left, r.top - r.h, r.w, r.h end,
+    }
 end
-WorldMapFrame.RemoveAllPinsByTemplate = function(self, template)
-    assert(not combat, "RemoveAllPinsByTemplate in combat")
-    local keep = {}
-    for _, pin in ipairs(pins) do
-        if pin.template == template then pin:OnReleased() else keep[#keep + 1] = pin end
-    end
-    pins = keep
-end
-WorldMapFrame.EnumeratePinsByTemplate = function(self, template)
-    local i = 0
-    return function()
-        repeat i = i + 1 until not pins[i] or pins[i].template == template
-        return pins[i]
-    end
-end
+local Child = readOnly("ScrollContainer.Child", {}, rectMethods(canvas))
+local ScrollContainer = readOnly("WorldMapFrame.ScrollContainer", { Child = Child }, rectMethods(view))
+local canvasMap, mapShown, mapStrata = 1429, true, "HIGH"
+WorldMapFrame = readOnly("WorldMapFrame", { ScrollContainer = ScrollContainer }, {
+    IsShown = function() return mapShown end,
+    GetMapID = function() return canvasMap end,
+    GetFrameStrata = function() return mapStrata end,
+    GetFrameLevel = function() return 5 end,
+    GetCanvas = function() return Child end,
+})
 
 -- Maps: rectangles on continents. World X runs north, world Y west (the game's convention).
 local MAPS = {
@@ -213,10 +211,11 @@ LevelGuide_UpcomingStops = function() return stops end
 ---------------------------------------------------------------------------- load
 local ok, err = pcall(function() assert(loadfile(base .. "/MapPins/MapPins.lua"))("MapPins", {}) end)
 check(ok, "loads: " .. tostring(err))
-local events, driver
+local events, driver, overlay
 for _, f in ipairs(frames) do
     if f.registered.PLAYER_LOGIN then events = f end
     if f.scripts.OnUpdate then driver = f end
+    if f.kind == "Frame" and f.parent == UIParent then overlay = f end
 end
 local function fire(ev, ...) events.scripts.OnEvent(events, ev, ...) end
 local function tick(seconds)
@@ -230,48 +229,130 @@ local function page(arg)
 end
 local function has(text) for _, t in ipairs(out) do if t:find(text, 1, true) then return true end end return false end
 local function need(text, why) check(has(text), why .. ": wanted '" .. text .. "' in\n  " .. table.concat(out, "\n  ")) end
+
+-- Our world pins: Buttons on the overlay.
+local worldPool = {}
+for _, f in ipairs(frames) do
+    if f.kind == "Button" and overlay and f.parent == overlay then worldPool[#worldPool + 1] = f end
+end
+local function shownPins()
+    local list = {}
+    if not (overlay and overlay.shown) then return list end
+    for _, pin in ipairs(worldPool) do
+        if pin.shown and pin.record then list[#list + 1] = pin end
+    end
+    return list
+end
 local function show(mapID)
-    canvasMap = mapID
-    providers[1]:OnMapChanged()
+    canvasMap, mapShown = mapID, true
+    tick(0.1)
     local by = {}
-    for _, pin in ipairs(pins) do by[pin.record.layer] = (by[pin.record.layer] or 0) + 1 end
+    for _, pin in ipairs(shownPins()) do by[pin.record.layer] = (by[pin.record.layer] or 0) + 1 end
     return by
+end
+local function pinFor(layer)
+    for _, pin in ipairs(shownPins()) do if pin.record.layer == layer then return pin end end
+end
+-- Where a map point should be, in overlay units (screen pixels / overlay effective scale).
+local function expected(x, y)
+    local sx = (canvas.left + x * canvas.w) * canvas.scale
+    local sy = (canvas.top - y * canvas.h) * canvas.scale
+    return sx / uiScale, sy / uiScale, sx, sy
+end
+local function visible(sx, sy)
+    local l, t = view.left * view.scale, view.top * view.scale
+    return sx >= l and sx <= l + view.w * view.scale and sy <= t and sy >= t - view.h * view.scale
 end
 
 check(SLASH_MAPPINS1 == "/mappins" and SlashCmdList.MAPPINS, "slash command")
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_REGEN_ENABLED" }) do
     check(events.registered[e], "registers " .. e)
 end
+check(overlay and overlay.allPoints == UIParent, "one overlay frame of our own on UIParent, covering it")
+check(#worldPool >= 100, "world pin pool made at load: " .. #worldPool)
+check(MapPinsTooltip and tooltipTemplate, "our own tooltip made at load")
+check(MapPinsPinMixin == nil and MapPinsPinTemplate == nil, "no canvas pin mixin or template left")
 page("")
 check(#out == 0, "quiet before login")
-check(#providers == 0, "no provider before login")
+tick(0.2)
+check(not overlay.shown, "nothing on the map before login")
 
 fire("PLAYER_LOGIN")
-check(#providers == 1, "provider added once with AddDataProvider")
 check(type(MapPinsDB) == "table" and MapPinsDB.minimap == true, "saved settings made")
-check(MapPinsPinMixin.SetPosition == MapCanvasPinMixin.SetPosition, "pin mixin takes MapCanvasPinMixin's methods")
-fire("ADDON_LOADED", "Blizzard_WorldMap")
-check(#providers == 1, "provider not added twice")
+
+---------------------------------------------------------------------------- the overlay
+local by = show(1429)
+check(overlay.shown, "overlay shown while the world map is")
+check(overlay.strata == "DIALOG" and overlay.level == 6, "overlay one strata above the map (HIGH -> DIALOG), level 6: "
+    .. tostring(overlay.strata) .. " " .. tostring(overlay.level))
+mapStrata = "FULLSCREEN"
+tick(0.1)
+check(overlay.strata == "FULLSCREEN_DIALOG", "maximised map (FULLSCREEN) -> FULLSCREEN_DIALOG")
+mapStrata = "HIGH"
+tick(0.1)
+mapShown = false
+tick(0.1)
+check(not overlay.shown, "overlay hidden when the map is hidden")
+by = show(1429)
+check(overlay.shown, "and back when the map opens")
 
 ---------------------------------------------------------------------------- layers on the world map
-local by = show(1429)
 check(by.guide == 1, "guide stop on Elwynn")
 check(by.places == 1, "one place on Elwynn (secret ones skipped)")
 check(by.deaths == 1, "one death on Elwynn")
 check(by.rares == 1, "rare with a spot on Elwynn; one without a spot skipped")
 check(by.farms == 1, "level-10 farm matched to Elwynn by name, not by Mainline ID 37")
 check(by.dungeons == nil, "no dungeon on Elwynn")
-for _, pin in ipairs(pins) do
+for _, pin in ipairs(shownPins()) do
+    local ex, ey = expected(pin.record.x, pin.record.y)
+    check(pin.point and pin.point[1] == "CENTER" and pin.point[2] == overlay and pin.point[3] == "BOTTOMLEFT"
+        and near(pin.point[4], ex) and near(pin.point[5], ey), "pin placed from the canvas rectangle: " .. pin.record.title)
     if pin.record.layer == "guide" then
-        check(near(pin.nx, 0.45) and near(pin.ny, 0.55), "guide pin position")
+        check(near(pin.point[4], 100 + 0.45 * 800) and near(pin.point[5], 700 - 0.55 * 500), "guide pin at canvas 0.45, 0.55")
         check(pin.Icon.atlas == "Waypoint-MapPin-Tracked", "atlas used when the client has it")
     elseif pin.record.layer == "places" then
         check(pin.Icon.file == "Interface\\Minimap\\Tracking\\Repair", "repair icon")
     elseif pin.record.layer == "rares" then
         check(pin.Icon.file == "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1", "plain texture when the atlas is missing")
     end
-    check(pin.levelType == "PIN_FRAME_LEVEL_AREA_POI", "pin frame level type")
 end
+
+-- Zoomed in 2x and panned: the canvas is bigger than the view and moved; out-of-view pins hide.
+canvas.scale, canvas.left, canvas.top = uiScale * 2, 0, 360
+tick(0.1)
+local inView, outView = 0, 0
+for index = 1, 10 do
+    local pin = worldPool[index]
+    if pin.record then
+        local ex, ey, sx, sy = expected(pin.record.x, pin.record.y)
+        if visible(sx, sy) then
+            inView = inView + 1
+            check(pin.shown and near(pin.point[4], ex) and near(pin.point[5], ey), "zoomed: in-view pin moved: " .. pin.record.title)
+        else
+            outView = outView + 1
+            check(not pin.shown, "zoomed: out-of-view pin hidden: " .. pin.record.title)
+        end
+    end
+end
+check(inView > 0 and outView > 0, "zoom case has pins both in and out of view: " .. inView .. "/" .. outView)
+check(not pinFor("farms"), "the farm (y 0.8) is below the zoomed view")
+canvas.left = -300
+tick(0.1)
+check(not pinFor("rares"), "panned right: the rare (x 0.3) is off the left edge")
+-- Panning is followed every frame, not only every 0.1 s.
+canvas.left = 0
+driver.scripts.OnUpdate(driver, 0.01)
+check(pinFor("rares") ~= nil, "pan followed between ticks")
+canvas.scale, canvas.left, canvas.top = uiScale, 100, 700
+tick(0.1)
+check(pinFor("farms") and pinFor("rares"), "zoomed out again: all back")
+-- A secret or missing rectangle hides our pins and never errors.
+canvas.w = SECRET
+local okRect = pcall(tick, 0.1)
+check(okRect and #shownPins() == 0, "secret canvas size: pins hidden, no error")
+canvas.w = 800
+tick(0.1)
+check(#shownPins() == 5, "rectangle back: pins back")
 
 by = show(1453)
 check(by.places == 1 and by.dungeons == 1, "Stormwind: mailbox and Stockade (Mainline 84 resolved by name)")
@@ -284,6 +365,8 @@ by = show(2521)
 check(by.dungeons == 1, "Forever-only zone matched by name on the world map")
 by = show(9999)
 check(next(by) == nil, "unknown map: no pins")
+by = show(SECRET)
+check(next(by) == nil, "secret map ID: no pins, no error")
 
 ---------------------------------------------------------------------------- toggles
 page("off deaths")
@@ -427,79 +510,81 @@ tick(0.2)
 
 ---------------------------------------------------------------------------- clicks and tooltip
 show(1429)
-local worldPin
-for _, pin in ipairs(pins) do if pin.record.layer == "places" then worldPin = pin end end
-worldPin:OnMouseEnter()
-check(tooltipTemplate and MapPinsTooltip and MapPinsTooltip.shown and MapPinsTooltip.lines[1] == "Smith", "hover shows our own tooltip")
-worldPin:OnMouseLeave()
+local worldPin = pinFor("places")
+check(worldPin and worldPin.kind == "Button", "world pins are our own buttons")
+worldPin.scripts.OnEnter(worldPin)
+check(MapPinsTooltip.shown and MapPinsTooltip.owner == worldPin and MapPinsTooltip.lines[1] == "Smith", "hover shows our own tooltip")
+worldPin.scripts.OnLeave(worldPin)
 check(not MapPinsTooltip.shown, "leaving hides it")
-worldPin:OnMouseUp("LeftButton", true)
-worldPin:OnMouseClickAction("LeftButton")
-check(#waypoints == 1 and waypoints[1].uiMapID == 1429 and near(waypoints[1].x, 0.55) and tracked == 1, "world pin click sets and tracks the waypoint once")
-clock = clock + 1
-worldPin:OnMouseUp("RightButton", true)
-worldPin:OnMouseUp("LeftButton", false)
-check(#waypoints == 1, "right click or a drag off the pin does nothing")
+worldPin.scripts.OnClick(worldPin, "LeftButton")
+check(#waypoints == 1 and waypoints[1].uiMapID == 1429 and near(waypoints[1].x, 0.55) and tracked == 1, "world pin click sets and tracks the waypoint")
+worldPin.scripts.OnClick(worldPin, "RightButton")
+check(#waypoints == 1, "right click does nothing")
 smith = minis()["places:Smith"]
 smith.scripts.OnClick(smith, "LeftButton")
 check(#waypoints == 2 and waypoints[2].uiMapID == 1429, "minimap pin click sets the waypoint")
 canSet = false
-clock = clock + 1
-worldPin:OnMouseUp("LeftButton", true)
+worldPin.scripts.OnClick(worldPin, "LeftButton")
 check(#waypoints == 2, "no waypoint on a map that refuses one")
 canSet = true
 show(1453)
-for _, pin in ipairs(pins) do if pin.record.layer == "dungeons" then worldPin = pin end end
-clock = clock + 1
-worldPin:OnMouseUp("LeftButton", true)
+worldPin = pinFor("dungeons")
+worldPin.scripts.OnClick(worldPin, "LeftButton")
 check(waypoints[3] and waypoints[3].uiMapID == 1453, "dungeon pin waypoint on the resolved Classic-era map")
+-- A pool pin with no record (unused) ignores hover and clicks.
+local spare = worldPool[#worldPool]
+local okSpare = pcall(function()
+    spare.scripts.OnEnter(spare)
+    spare.scripts.OnClick(spare, "LeftButton")
+end)
+check(okSpare and #waypoints == 3 and not spare.shown, "an unused pin stays hidden and quiet")
 
--- Gamepad UI: our canvas pins give the gamepad cursor no centre; a pin with no data stays quiet.
+-- Gamepad UI: our pins give the gamepad cursor no centre.
 InputUtil = { IsGamepadUIEnabled = function() return true end }
 show(1429)
-check(pins[1] and pins[1].GetCenter and pins[1].GetCenter(pins[1]) == nil, "gamepad UI: no pin centre for the cursor")
+show(1453)
+worldPin = pinFor("places")
+check(worldPin and worldPin.GetCenter and worldPin.GetCenter(worldPin) == nil, "gamepad UI: no pin centre for the cursor")
 InputUtil = nil
 show(1429)
-check(pins[1].GetCenter == nil, "mouse UI: the frame's own GetCenter is back")
-local bare = newFrame("Frame", nil, WorldMapFrame)
-for k, v in pairs(MapPinsPinMixin) do bare[k] = v end
-bare.Icon = texture()
-local okBare = pcall(function()
-    bare:OnAcquired(nil, 1429)
-    bare:OnMouseEnter()
-    bare:OnMouseUp("LeftButton", true)
-    bare:OnMouseClickAction("LeftButton")
-end)
-check(okBare and not bare.shown and #waypoints == 3, "a pin without data hides and ignores hover and clicks")
+check(pinFor("places").GetCenter == nil, "mouse UI: the frame's own GetCenter is back")
 
 ---------------------------------------------------------------------------- combat and data changes
 show(1429)
-local before = acquires
+local framesBeforeCombat = #frames
 combat = true
 local okCombat, eCombat = pcall(show, 1453)
-check(okCombat, "map change in combat doesn't touch the canvas pool: " .. tostring(eCombat))
-check(acquires == before, "no pins acquired in combat")
-local anyShown = false
-for _, pin in ipairs(pins) do if pin.shown then anyShown = true end end
-check(not anyShown, "our old pins hide in combat")
+check(okCombat, "map change in combat works: " .. tostring(eCombat))
+by = {}
+for _, pin in ipairs(shownPins()) do by[pin.record.layer] = (by[pin.record.layer] or 0) + 1 end
+check(overlay.shown and by.places == 1 and by.dungeons == 1, "our own pins stay usable in combat")
+worldPin = pinFor("places")
+worldPin.scripts.OnClick(worldPin, "LeftButton")
+check(#waypoints == 4, "click in combat still sets the waypoint")
 deaths[#deaths + 1] = { mapID = 1453, x = 0.2, y = 0.2, level = 11, killer = "Guard" }
 tick(1.1)
-check(acquires == before, "no rebuild in combat")
+check(pinFor("deaths") == nil, "data not re-read in combat")
+fire("ZONE_CHANGED")
+tick(1.1)
+mapShown = false
+tick(0.1)
+mapShown = true
+tick(0.1)
+check(#frames == framesBeforeCombat, "no frame made in combat: " .. #frames .. " vs " .. framesBeforeCombat)
 combat = false
 fire("PLAYER_REGEN_ENABLED")
-by = {}
-for _, pin in ipairs(pins) do by[pin.record.layer] = (by[pin.record.layer] or 0) + 1 end
-check(by.places == 1 and by.dungeons == 1, "pins come back after combat")
+tick(0.1)
+check(pinFor("deaths") ~= nil, "a death from combat shows right after combat")
+deaths[#deaths + 1] = { mapID = 1453, x = 0.25, y = 0.2, level = 12, killer = "Guard" }
 tick(1.1)
 by = {}
-for _, pin in ipairs(pins) do by[pin.record.layer] = (by[pin.record.layer] or 0) + 1 end
-check(by.deaths == 1, "a new death shows within a second, without reopening the map")
+for _, pin in ipairs(shownPins()) do by[pin.record.layer] = (by[pin.record.layer] or 0) + 1 end
+check(by.deaths == 2, "a new death shows within a second, without reopening the map")
 
 -- Switched off in the hub: no pins anywhere.
 hubOff.MapPins = true
-by = show(1429)
 tick(0.2)
-check(next(by) == nil and next(minis()) == nil, "hub Off: no pins")
+check(not overlay.shown and next(minis()) == nil, "hub Off: no pins")
 hubOff.MapPins = nil
 hubOff.DeathNotes = true
 tick(1.1)
@@ -507,6 +592,11 @@ by = show(1429)
 check(by.deaths == nil and by.places == 1, "a helper switched off in the hub hides its layer")
 hubOff.DeathNotes = nil
 
+---------------------------------------------------------------------------- reads only
+local readKinds = {}
+for _, t in ipairs(touched) do readKinds[t] = true end
+check(readKinds["WorldMapFrame:IsShown"] and readKinds["WorldMapFrame:GetMapID"] and readKinds["ScrollContainer.Child:GetLeft"]
+    and readKinds["WorldMapFrame.ScrollContainer:GetTop"], "the map is read for shown, map ID and rectangles")
 check(chat == 0, "nothing printed to chat")
 
 if #failures > 0 then
