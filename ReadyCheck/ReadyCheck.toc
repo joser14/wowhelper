@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: SpellReady
+## Notes: Spots old spell ranks on your action bars and reminds you out of combat about missing self-buffs and low class reagents. Never casts or changes your bars. Only gives information.
+## Version: 0.1.0
+## SavedVariablesPerCharacter: ReadyCheckDB
+
+ReadyCheck.lua
