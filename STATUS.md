@@ -2,7 +2,7 @@
 
 **INSTALLED 2026-11-09 (reinstalled 09:17)** as six addons (!ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld), now including Builds (all nine classes) and the corrected ItemAdvisor weights. First install moved the old per-helper folders to `_forever_\Interface\AddOns_ForeverBackup_20261109_083113`; a full copy of WTF is at `_forever_\WTF_Backup_20261109`. To roll back: close WoW, delete the six bundle folders, move the backup folders back. 41 current tests pass (tests\runall.ps1); 11 older tests (test, 3-7, 9-12, 15) were already failing before and check for chat output and window layouts that later work replaced. Blizzard class tuning on 2026-11-10 may change builds; re-run the builds research after it.
 
-**TAINT FIX 2026-11-09 (committed, NOT yet installed):** MapPins rewritten as overlay frames; SlashCmdList rewrite removed from three helpers; Options registration, narration CVar and QuestTracker alpha made combat-safe. Reinstall with `.\build.ps1 -Install` (WoW closed), then do the in-game checks in research/taint_audit.md.
+**TAINT FIX 2026-11-09 (committed and INSTALLED 2026-11-09):** MapPins rewritten as overlay frames; SlashCmdList rewrite removed from three helpers; Options registration, narration CVar and QuestTracker alpha made combat-safe. Reinstall with `.\build.ps1 -Install` (WoW closed), then do the in-game checks in research/taint_audit.md.
 
 Start here when resuming. Main branch = finished, tested work. Branch `wip-snapshot` = unfinished worker
 edits at the moment this file was written (may not pass tests; review before merging anything from it).
