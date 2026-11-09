@@ -15,7 +15,8 @@ local function lineOf(route, idx)
     return route._lines and route._lines[idx] or "?"
 end
 do
-    local tags = { accept = "A", ["do"] = "D", turnin = "T", go = "G" }
+    local tags = { accept = "A", ["do"] = "D", turnin = "T", go = "G",
+        home = "Home", fp = "FP", zone = "Zone", item = "Item", train = "Train", xp = "XP" }
     local zoneStart = {}
     for i, l in ipairs(src) do
         local z = l:match('^local [%w_]+ = { zone = "(.-)"')
@@ -32,7 +33,9 @@ do
                     while li and li <= #src do
                         li = li + 1
                         local l = src[li] or ""
-                        if l:match("^%s*" .. tags[s.t] .. "%(") then route._lines[idx] = li break end
+                        -- Steps may sit inside modifiers: On(...), New(...), Obj(n, ...), Path({...}, ...).
+                        local tag = tags[s.t] or "?"
+                        if l:match("^%s*" .. tag .. "%(") or l:match("^%s*%u%a*%(.-%f[%w_]" .. tag .. "%(") then route._lines[idx] = li break end
                     end
                 end
             end

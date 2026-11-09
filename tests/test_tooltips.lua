@@ -45,7 +45,8 @@ function tip:NumLines() return #self.lines end
 local tipInfo
 function tip:GetProcessingTooltipInfo() return tipInfo end
 local unitToken
-function tip:GetUnit() return "Mob", unitToken end
+local unitName = "Mob"
+function tip:GetUnit() return unitName, unitToken end
 -- Anything else the addon tries to call on the tooltip is a failure.
 setmetatable(tip, { __index = function(_, k) failures[#failures + 1] = "tooltip method used: " .. tostring(k) end })
 
@@ -294,7 +295,12 @@ needPage("Type on, off, or toggle", "unknown name")
 page("")
 needPage("Vendor price", "page lists lines")
 needPage("(npc)", "page lists npc")
+needPage("(drop)", "page lists drop")
+needPage("(questitem)", "page lists questitem")
+needPage("(giver)", "page lists giver")
+needPage("(upgrade)", "page lists upgrade")
 needPage("Type: off vendor", "page hint")
+check(f.registered.QUEST_LOG_UPDATE, "quest log updates watched")
 
 -- NPC ID.
 hoverUnit({ guid = "Creature-0-3783-0-12-299-0000A1B2C3" })
@@ -313,6 +319,261 @@ need("NPC ID = 777", "guid from the tooltip's unit when data has none")
 UnitGUID = function() return SECRET end
 hoverUnit({})
 lack("NPC ID", "secret UnitGUID skipped")
+
+----------------------------------------------------------------------------------------------------
+-- Dungeon drops.
+items[14149] = { "Subterranean Cape", 20, 500, 4, 1 }
+items[2042] = { "Staff of Westfall", 25, 900, 2, 1 }
+items[6463] = { "Deep Fathom Ring", 25, 900, 4, 1 }
+hover(14149)
+lack("Drops from", "no drop line without DungeonsData")
+DungeonsData = {
+    { name = "Ragefire Chasm", loot = { { 14149, "Subterranean Cape", "Taragaman the Hungerer", "Back" } } },
+    { name = "The Deadmines", loot = { { 2042, "Staff of Westfall", "quest: The Defias Brotherhood", "Two-Hand" } } },
+    { name = "Wailing Caverns", loot = { { 6463, "Deep Fathom Ring", "Mutanus the Devourer", "Finger" } } },
+    { name = "Blackfathom Deeps", loot = { { itemID = 6463, boss = "Aku'mai" } } },
+    "junk", { name = "No Loot" }, { loot = { { 1, "x", "y" } } }, { name = "Bad", loot = { "x", { "id", "n", "b" }, { 5, "n", SECRET } } },
+}
+hover(14149)
+need("Drops from = Taragaman the Hungerer in Ragefire Chasm", "drop line")
+hover(2042)
+need("Quest reward = The Defias Brotherhood (The Deadmines)", "dungeon quest reward line")
+lack("Drops from", "a quest reward isn't a drop")
+hover(6463)
+need("Drops from = Mutanus the Devourer in Wailing Caverns |cff999999+1 more|r", "several sources: first plus count")
+-- Indexed once: adding loot to the same table isn't seen; a new table is.
+items[6911] = { "Moss Cinch", 25, 900, 4, 1 }
+DungeonsData[1].loot[2] = { 6911, "Moss Cinch", "Aku'mai", "Waist" }
+hover(6911)
+lack("Drops from", "the drop index is built once per table")
+DungeonsData = { { name = "Blackfathom Deeps", loot = { { 6911, "Moss Cinch", "Aku'mai", "Waist" } } } }
+hover(6911)
+need("Drops from = Aku'mai in Blackfathom Deeps", "a new Dungeons table is indexed again")
+page("off drop"); hover(6911); lack("Drops from", "drop off"); page("on drop")
+DungeonsData = setmetatable({}, { __index = function() error("boom") end })
+hover(6911)
+lack("Drops from", "a throwing Dungeons table adds no drop line")
+need("Sells for", "and doesn't take the other lines with it")
+DungeonsData = nil
+
+----------------------------------------------------------------------------------------------------
+-- Quest items from your log.
+local log, logCalls = {}, 0
+local completed = {}
+local function questLogApi()
+    C_QuestLog = {
+        GetNumQuestLogEntries = function() return #log end,
+        GetInfo = function(i) logCalls = logCalls + 1 return log[i] and log[i].info end,
+        GetQuestObjectives = function(id) for _, e in ipairs(log) do if e.info.questID == id then return e.objectives end end end,
+        IsComplete = function(id) for _, e in ipairs(log) do if e.info.questID == id then return e.complete end end end,
+        IsQuestFlaggedCompleted = function(id) return completed[id] end,
+    }
+end
+local function setLog(entries) log = entries f.fn(f, "QUEST_LOG_UPDATE") end
+hover(2589)
+lack("Needed for:", "no quest log API: no quest line")
+questLogApi()
+setLog({
+    { info = { title = "Elwynn Forest", isHeader = true } },
+    { info = { title = "Linen Run", questID = 100 }, objectives = { { text = "Linen Cloth: 3/8", type = "item", numFulfilled = 3, numRequired = 8, finished = false } } },
+    { info = { title = "Kill Things", questID = 101 }, objectives = { { text = "Kobold slain: 1/10", type = "monster", numFulfilled = 1, numRequired = 10, finished = false } } },
+})
+hover(2589)
+need("Needed for: Linen Run (3/8)", "quest item line with count")
+lack("Kill Things", "other quests left out")
+hover(118)
+lack("Needed for:", "an item no quest needs")
+-- Cached until the quest log changes.
+local calls = logCalls
+hover(2589); hover(2589)
+check(logCalls == calls, "quest log read once per update")
+log[2].objectives[1] = { text = "Linen Cloth: 5/8", type = "item", numFulfilled = 5, numRequired = 8, finished = false }
+hover(2589)
+need("(3/8)", "old count until QUEST_LOG_UPDATE")
+f.fn(f, "QUEST_LOG_UPDATE")
+hover(2589)
+need("Needed for: Linen Run (5/8)", "new count after QUEST_LOG_UPDATE")
+-- The game (or ItemAdvisor) already naming the quest.
+hover(2589, nil, { "Linen Cloth", "Linen Run" })
+lack("Needed for:", "quest already on the tooltip isn't repeated")
+hover(2589, nil, { "Linen Cloth", "KEEP: Needed for Linen Run" })
+lack("Needed for:", "ItemAdvisor's quest line isn't repeated")
+-- Finished objectives, counts only in the text, secret parts.
+setLog({
+    { info = { title = "Done Gathering", questID = 102 }, objectives = { { text = "Linen Cloth: 8/8", type = "item", numFulfilled = 8, numRequired = 8, finished = true } } },
+    { info = { title = "Text Count", questID = 103 }, objectives = { { text = "linen cloth: 2/4", type = "item", numFulfilled = SECRET, numRequired = SECRET } } },
+    { info = { title = "Secret Text", questID = 104 }, objectives = { { text = SECRET, type = "item" } } },
+    { info = SECRET },
+    { info = { title = SECRET, questID = 105 } },
+})
+hover(2589)
+lack("Done Gathering", "finished objective left out")
+need("Needed for: Text Count (2/4)", "count read from the text when the numbers are secret; case ignored")
+lack("Secret Text", "secret objective text skipped")
+-- Cap at 3.
+local many = {}
+for i = 1, 5 do many[i] = { info = { title = "Cloth Quest " .. i, questID = 200 + i }, objectives = { { text = "Linen Cloth: 0/2", type = "item", numFulfilled = 0, numRequired = 2 } } } end
+setLog(many)
+hover(2589)
+need("Cloth Quest 3", "three quests shown")
+lack("Cloth Quest 4", "fourth quest capped")
+need("+2 more", "more count")
+page("off questitem"); hover(2589); lack("Needed for:", "questitem off"); page("on questitem")
+-- A throwing quest log API.
+C_QuestLog.GetInfo = function() error("boom") end
+f.fn(f, "QUEST_LOG_UPDATE")
+hover(2589)
+lack("Needed for:", "throwing quest log: no quest line")
+need("Sells for", "throwing quest log keeps the other lines")
+questLogApi()
+setLog({})
+
+----------------------------------------------------------------------------------------------------
+-- Quest givers from the leveling guide.
+local CREATURE = "Creature-0-3783-0-12-240-0000A1B2C3"
+unitName = "Marshal Dughan"
+hoverUnit({ guid = CREATURE })
+lack("Starts:", "no giver line without routes")
+local route = { zone = "Elwynn Forest", steps = {
+    { t = "accept", q = "Quest One", npc = "Marshal Dughan (in Goldshire)" },
+    { t = "turnin", q = "Quest Two", npc = "Marshal Dughan, Goldshire" },
+    { t = "accept", q = "Quest Three", npc = "<Town Crier> MARSHAL  dughan" },
+    { t = "turnin", q = "Done Quest", npc = "Marshal Dughan" },
+    { t = "accept", q = "Log Quest", npc = "Marshal Dughan at 42.1, 65.3" },
+    { t = "turnin", q = "Ready Quest", npc = "Marshal Dughan 42.1, 65.3" },
+    { t = "do", q = "Quest One", note = "kill" },
+    { t = "accept", q = "Other Quest", npc = "Someone Else" },
+    { t = "accept", npc = "Marshal Dughan" }, "junk",
+} }
+LevelGuideRoutes = { chains = { Human = { route }, Dwarf = { route, "junk" }, Bad = "x" } }
+LevelGuideQuestIDs = { ids = { ["Done Quest"] = { 500 } }, renamed = {} }
+completed[500] = true
+setLog({
+    { info = { title = "Log Quest", questID = 600 }, complete = false },
+    { info = { title = "Ready Quest", questID = 601 }, complete = true },
+    { info = { title = "Quest Two", questID = 602 }, complete = false },
+})
+hoverUnit({ guid = CREATURE })
+-- Line 1 is the NPC ID (switched on above).
+check(tip.lines[1] == "NPC ID = 240", "npc id first")
+check(tip.lines[2] == "Turn in: Ready Quest |cff33ff33(ready)|r", "ready turn-in first")
+check(tip.lines[3] == "Turn in: Quest Two", "held turn-in next")
+check(tip.lines[4] == "Starts: Quest One", "then new quests")
+check(tip.lines[5] == "+1 more", "capped at 3 with +N more")
+check(#tip.lines == 5, "no duplicates from a route used by two chains")
+lack("Done Quest", "completed quest left out")
+lack("Log Quest", "a quest in your log isn't offered again")
+lack("Other Quest", "another NPC's quest left out")
+-- Without the cap: drop the ready one and see the rest.
+completed[500] = nil
+setLog({})
+hoverUnit({ guid = CREATURE })
+need("Starts: Quest One", "start shown")
+need("Starts: Quest Three", "<title>, case and spacing ignored")
+need("Starts: Log Quest", "coordinates text stripped")
+need("+3 more", "six rows: three plus three more")
+check(tip.lines[2] == "Starts: Quest One", "new quests before turn-ins you don't hold")
+-- Not completed per the game when the flag is secret; renamed titles found under the new name.
+LevelGuideQuestIDs = { ids = { ["Quest Uno"] = { 700 }, ["Quest Two"] = { 701 }, ["Quest Three"] = { 702 }, ["Done Quest"] = { 703 }, ["Log Quest"] = { 704 } }, renamed = { ["Quest One"] = "Quest Uno" } }
+completed[700] = true; completed[701] = true; completed[702] = SECRET; completed[703] = true; completed[704] = true
+hoverUnit({ guid = CREATURE })
+lack("Quest One", "completed under its renamed title")
+need("Starts: Quest Three", "secret completion flag counts as not done")
+need("Turn in: Ready Quest", "turn-in for a quest you don't hold, without ready")
+lack("(ready)", "not ready when not in the log")
+lack("more", "no more line under the cap")
+-- Chain parts: part 2 waits for part 1 when the IDs are known.
+do
+    local savedRoutes, savedIDs = LevelGuideRoutes, LevelGuideQuestIDs
+    LevelGuideRoutes = { chains = { Human = { { steps = {
+        { t = "accept", q = "Chain", npc = "Marshal Dughan", part = 2 },
+        { t = "accept", q = "Unknown Chain", npc = "Marshal Dughan", part = 2 },
+    } } } } }
+    LevelGuideQuestIDs = { ids = { Chain = { 800, 801 } }, renamed = {} }
+    hoverUnit({ guid = CREATURE })
+    lack("Starts: Chain", "part 2 hidden while part 1 isn't done")
+    need("Starts: Unknown Chain", "part 2 shown when part 1's ID is unknown")
+    completed[800] = true
+    hoverUnit({ guid = CREATURE })
+    need("Starts: Chain", "part 2 shown once part 1 is done")
+    completed[800] = nil
+    LevelGuideRoutes, LevelGuideQuestIDs = savedRoutes, savedIDs
+end
+-- Players, instances, secrets, toggle.
+hoverUnit({ guid = "Player-1-ABC" })
+lack("Starts:", "a player with the same name gets nothing")
+IsInInstance = function() return true, "party" end
+hoverUnit({ guid = CREATURE })
+check(#tip.lines == 0, "nothing on units inside an instance (npc id included)")
+IsInInstance = function() return SECRET end
+hoverUnit({ guid = CREATURE })
+check(#tip.lines == 0, "a secret instance answer counts as inside")
+IsInInstance = function() error("boom") end
+hoverUnit({ guid = CREATURE })
+need("Starts: Quest Three", "a failing instance check doesn't hide lines")
+IsInInstance = function() return false, "none" end
+hoverUnit({ guid = CREATURE })
+need("NPC ID = 240", "npc id outside instances")
+need("Starts: Quest Three", "giver outside instances")
+unitName = SECRET
+hoverUnit({ guid = CREATURE })
+lack("Starts:", "secret unit name skipped")
+need("NPC ID = 240", "npc id still shown with a secret name")
+unitName = "Marshal Dughan"
+page("off giver"); hoverUnit({ guid = CREATURE }); lack("Starts:", "giver off"); page("on giver")
+page("off npc")
+hoverUnit({ guid = CREATURE })
+need("Starts: Quest Three", "giver works with the npc id line off")
+LevelGuideQuestIDs = nil
+completed = {}
+hoverUnit({ guid = CREATURE })
+need("Starts: Quest One", "no quest ID data: quests shown")
+LevelGuideRoutes = setmetatable({}, { __index = function() error("boom") end })
+hoverUnit({ guid = CREATURE })
+lack("Starts:", "throwing routes add nothing")
+LevelGuideRoutes = nil
+C_QuestLog = nil
+hoverUnit({ guid = CREATURE })
+check(#tip.lines == 0, "missing routes and quest API add nothing")
+unitName = "Mob"
+IsInInstance = nil
+
+----------------------------------------------------------------------------------------------------
+-- Upgrade (ItemAdvisor).
+local savedDisplayed = TooltipUtil.GetDisplayedItem
+TooltipUtil.GetDisplayedItem = function() return "Big Sword", "|Hitem:9999|h[Big Sword]|h", 9999 end
+ItemAdvisor_IsUpgrade = function(link) return link:find("item:9999", 1, true) ~= nil, "reason" end
+hover(9999)
+lack("Upgrade for you", "upgrade off by default")
+page("on upgrade")
+hover(9999)
+need("Upgrade for you", "upgrade line")
+hover(9999, nil, { "Big Sword", "EQUIP: Upgrade for main hand (+12)" })
+lack("Upgrade for you", "ItemAdvisor's own verdict isn't repeated")
+hover(9999, nil, { "Big Sword", "SELL: Not an upgrade" })
+lack("Upgrade for you", "any ItemAdvisor verdict line means it's there")
+hover(9999, nil, { "Big Sword", "NOTE: something" })
+need("Upgrade for you", "an unrelated capitalised line doesn't block it")
+ItemAdvisor_IsUpgrade = function() return false end
+hover(9999)
+lack("Upgrade for you", "not an upgrade")
+ItemAdvisor_IsUpgrade = function() error("boom") end
+hover(9999)
+lack("Upgrade for you", "throwing ItemAdvisor adds nothing")
+need("Item ID = 9999", "and keeps the other lines")
+ItemAdvisor_IsUpgrade = function() return SECRET end
+hover(9999)
+lack("Upgrade for you", "secret answer skipped")
+ItemAdvisor_IsUpgrade = function() return true end
+TooltipUtil.GetDisplayedItem = function() return nil, SECRET end
+hover(9999)
+lack("Upgrade for you", "secret link skipped")
+ItemAdvisor_IsUpgrade = nil
+TooltipUtil.GetDisplayedItem = savedDisplayed
+hover(9999)
+lack("Upgrade for you", "no ItemAdvisor: nothing")
+page("off upgrade")
+page("on npc")
 
 -- Secret values in item data.
 hover(nil, { id = SECRET })

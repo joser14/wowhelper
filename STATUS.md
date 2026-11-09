@@ -1,4 +1,4 @@
-# Forever addon suite: status (2026-11-09)
+﻿# Forever addon suite: status (2026-11-09)
 
 Start here when resuming. Main branch = finished, tested work. Branch `wip-snapshot` = unfinished worker
 edits at the moment this file was written (may not pass tests; review before merging anything from it).
@@ -28,12 +28,12 @@ edits at the moment this file was written (may not pass tests; review before mer
 | Work | Folder(s) | Notes |
 |---|---|---|
 | Profession guide, 12 professions 1-300 | ProfessionGuide | told: Classic map IDs; skill-up chance formula |
-| LevelGuide engine upgrades from RestedXP analysis | LevelGuide | stable skip keys + migration, per-objective steps, multi-point steps, hearth/flight/zone/item/train steps, XP gates, corpse arrow, missing-prereq names, route list window, `LevelGuide_UpcomingStops()` for MapPins, optional: completed-quest set, cross-zone arrow |
+| (done, on main) LevelGuide engine upgrades | LevelGuide | see commit; in-game checks: GetBindLocation names, taxi node states, Caylais/Shaussiy coords approx |
 | Item/spell upgrades | ItemAdvisor, ReadyCheck, TrainerNotes, Dungeons | auto role from talents, leveling stamina bias, macros + readable bar names, spellbook check, boss kills |
 | Tooltip extras | Tooltips | drops from boss, quest giver starts/turn-in, needed for quest |
 | Window badges (new) | WindowBadges | best quest reward, vendor upgrades, trainer new/on-bars |
 | Quest-mob markers (new) | QuestMobs | marker + progress next to quest mobs in the open world |
-| Hub extras | ForeverHub | keybindings (Bindings.xml at bundle root — build.ps1 must copy it), addon-compartment entry (toc lines in build.ps1), Settings panel, taskbar flash/sound alerts, hearthstone button |
+| Hub extras | ForeverHub | keybindings (Bindings.xml at bundle root â€” build.ps1 must copy it), addon-compartment entry (toc lines in build.ps1), Settings panel, taskbar flash/sound alerts, hearthstone button |
 
 ## Next steps after those land
 1. Merge each finished worker's folder from wip (or redo from its brief), run its tests, commit.
@@ -46,7 +46,7 @@ edits at the moment this file was written (may not pass tests; review before mer
 ## In-game checks needed
 - /reload: no Lua errors (Errors page), hub opens on Home, sidebar groups, Manage switches.
 - Map pins: open map in and out of combat, no "action blocked"; minimap pin direction with rotation on/off.
-- PriceMemory: same item on Alliance and Horde AH — if identical, drop faction from ScopeKey().
+- PriceMemory: same item on Alliance and Horde AH â€” if identical, drop faction from ScopeKey().
 - Flight points: "Flight points known" count matches the flight map.
 - Repair cost shows away from a vendor.
 - Dungeons: approximate entrances (SM, ST, Scholo, Strat, Ruins of Lordaeron, RFD, Maraudon).

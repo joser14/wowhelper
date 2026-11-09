@@ -13,6 +13,33 @@ local function G(text, x, y, lvl, note) return { t = "go", text = text, x = x, y
 -- plotting the same numbers on this route's map (LevelGuide.lua RouteDisplay).
 local function On(zone, step) step.map = zone return step end
 
+-- Utility steps: the guide marks them done by watching the game, it never clicks anything for you.
+-- Home: done when your hearthstone is bound there (GetBindLocation names the inn's area, e.g. "Auberdine").
+local function Home(place, npc, x, y, lvl, note) return { t = "home", text = place, place = place, npc = npc, x = x, y = y, lvl = lvl, note = note } end
+-- FP: done when the flight path is known (read at a flight master, or the "new flight path" message).
+-- place must be the start of the game's node name ("Auberdine" for "Auberdine, Darkshore").
+local function FP(place, npc, x, y, lvl, note) return { t = "fp", text = place, place = place, npc = npc, x = x, y = y, lvl = lvl, note = note } end
+-- Zone: done once you're in that zone or sub-zone (by map name, or the game's zone/sub-zone text).
+local function Zone(zone, x, y, lvl, note) return { t = "zone", text = zone, reach = zone, x = x, y = y, lvl = lvl, note = note } end
+-- Item: done once you have count of itemID in your bags (remembered, so using them up later is fine).
+local function Item(itemID, count, name, x, y, lvl, note) return { t = "item", text = name, item = itemID, count = count, x = x, y = y, lvl = lvl, note = note } end
+-- Train: done once you know the spell (any of a list of spell IDs, e.g. its ranks).
+local function Train(spells, name, npc, x, y, lvl, note) return { t = "train", text = name, spells = spells, npc = npc, x = x, y = y, lvl = lvl, note = note } end
+-- XP gate: grind until frac (0-1) into level `level`, with live progress; what follows waits behind it.
+local function XP(level, frac, note, x, y) return { t = "xp", text = string.format("%d%% into level %d", math.floor(frac * 100 + 0.5), level), level = level, frac = frac, note = note, x = x, y = y, lvl = level } end
+-- Modifiers, wrapped around any step:
+-- Obj: a "do" step for some objectives only (index, or list of indexes, of the quest's objective list).
+local function Obj(obj, step) step.obj = obj return step end
+-- Path: several points taken in order ({ {x, y}, ... }); x, y of the step stay the first point.
+local function Path(points, step) step.pts = points return step end
+-- Outlevel: this step counts as outleveled n levels above its lvl instead of the usual 4.
+local function Outlevel(n, step) step.outlevel = n return step end
+-- New: a step added after saved skips moved to stable keys (version 2). It tells the one-time
+-- migration which steps weren't there when old "Zone#index" keys were written, so mark every step
+-- added from now on with New(...) (a player may update from an old version). Deleting an old step
+-- shifts the old index keys after it for such a player, so prefer keeping it.
+local function New(step) step.since = 2 return step end
+
 -- Teldrassil (Night Elf 1-12) for WoW: Forever 1.60.x.
 -- Sources: wow4ever.quest (Questie Forever data, client 1.60.1.70790), wowhead.com/forever quest text,
 -- foreverchanges.pro zone list, bindonforever.com Teldrassil route (coordinates).
@@ -41,9 +68,10 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("Iverron's Antidote", "Dirania Silvershine", 60.9, 42.0, 3, 1),
     T("The Balance of Nature", "Conservator Ilthalaine", 58.7, 44.3, 3, 2),
     A("Webwood Venom", "Gilshalan Windwalker (in Aldrassil)", 57.9, 41.7, 3),
-    D("Iverron's Antidote", "4 Moonpetal Lilies at the ponds and 1 Webwood Ichor from the spiders", 58.4, 36.4, 3, 1),
+    -- Objectives (wowhead classic 3521): 1 Hyacinth Mushroom, 2 Moonpetal Lily, 3 Webwood Ichor.
+    Obj({ 2, 3 }, D("Iverron's Antidote", "4 Moonpetal Lilies at the ponds and 1 Webwood Ichor from the spiders", 58.4, 36.4, 3, 1)),
     D("Webwood Venom", "10 Webwood Venom Sacs from spiders outside Shadowthread Cave", 57.0, 27.5, 4),
-    D("Iverron's Antidote", "7 Hyacinth Mushrooms west of Aldrassil", 54.5, 43.9, 4, 1),
+    Obj(1, D("Iverron's Antidote", "7 Hyacinth Mushrooms west of Aldrassil", 54.5, 43.9, 4, 1)),
     D("The Woodland Protector", "8 Fel Moss from grells and grellkin", 54.6, 43.9, 4, 2),
     D("Nature's Call", "4 Gnarlpine Totems in the abandoned Gnarlpine camps on the west edge of the glen", 54.5, 43.8, 4),
     T("The Woodland Protector", "Tarindrella", 57.8, 45.0, 4, 2),
@@ -81,6 +109,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("Twisted Hatred", "Tallonkai Swiftroot", 55.5, 56.9, 5, 1),
     A("Soft Saber Pelts", "Aldia (trader)", 55.6, 57.1, 5),
     T("Dolanaar Delivery", "Innkeeper Keldamyr", 55.7, 59.8, 5),
+    New(Home("Dolanaar", "Innkeeper Keldamyr", 55.7, 59.8, 5, "Dolanaar is the hub for the rest of Teldrassil.")),
     A("The Lost Runner", "Sentinel Kyra Starsong", 56.0, 59.5, 5),
     T("Crown of the Earth", "Corithras Moonrage", 56.2, 61.6, 5, 2),
     A("Crown of the Earth", "Corithras Moonrage", 56.2, 61.6, 5, 3),
@@ -233,6 +262,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     T("Nessa Shadowsong", "Nessa Shadowsong, Rut'theran Village", 56.3, 92.3, 12),
     A("The Bounty of Teldrassil", "Nessa Shadowsong", 56.3, 92.3, 12),
     T("The Bounty of Teldrassil", "Vesprystus (flight master)", 58.4, 94.0, 12),
+    New(FP("Rut'theran Village", "Vesprystus", 58.4, 94.0, 12)),
     A("Flight to Auberdine", "Vesprystus", 58.4, 94.0, 12),
     G("Fly to Auberdine, Darkshore", 58.4, 93.9, 12, "Vesprystus, the flight master"),
 } }
@@ -244,6 +274,10 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
 local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     -- Auberdine arrival
     T("Flight to Auberdine", "Laird", 36.8, 44.3, 11),
+    -- Caylais Moonfeather and Innkeeper Shaussiy are Auberdine's flight master and innkeeper (wowhead
+    -- classic, warcraft.wiki.gg); no text source gave their coordinates, so these are approximate.
+    New(FP("Auberdine", "Caylais Moonfeather", 36.3, 45.6, 11, "By the docks (approx).")),
+    New(Home("Auberdine", "Innkeeper Shaussiy", 37.0, 44.1, 11, "In the inn (approx); the route hearths back here.")),
     A("Buzzbox 827", "Wizbang Cranktoggle (upstairs in the inn)", 37.0, 44.1, 11),
     A("Washed Ashore", "Gwennyth Bly'Leggonde", 36.6, 45.6, 11, 1),
     A("The Family and the Fishing Pole", "Gubber Blump, on the dock", 36.1, 44.9, 11),
@@ -289,7 +323,9 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     D("How Big a Threat?", "Kill 8 Blackwood Pathfinders and 5 Blackwood Windtalkers", 39.6, 54.4, 13, 2),
     D("Cleansing of the Infected", "Kill 20 Rabid Thistle Bears (keep going all over the hills)", 39.0, 52.0, 13),
     A("The Fall of Ameth'Aran", "Sentinel Tysha Moonblade", 40.3, 59.7, 13),
-    D("The Fall of Ameth'Aran", "Read The Lay of Ameth'Aran (43, 59) and The Fall of Ameth'Aran (42.5, 63)", 42.5, 63.0, 13),
+    -- Objectives (wowhead classic 953): 1 Read the Lay of Ameth'Aran, 2 Read the Fall of Ameth'Aran.
+    Obj(1, D("The Fall of Ameth'Aran", "Read The Lay of Ameth'Aran (tablet)", 43.0, 59.0, 13)),
+    New(Obj(2, D("The Fall of Ameth'Aran", "Read The Fall of Ameth'Aran (tablet)", 42.5, 63.0, 13))),
     D("Bashal'Aran", "Destroy the Moonstone Seal at the Ancient Flame", 42.5, 62.0, 13, 4),
     D("Tools of the Highborne", "7 Highborne Relics from the ghosts in the ruins", 42.0, 61.0, 13),
     D("For Love Eternal", "Kill Anaya Dawnrunner for her pendant", 42.0, 60.5, 13),
@@ -309,7 +345,7 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     A("The Tower of Althalaxx", "Sentinel Elissa Starbreeze", 39.0, 43.5, 14, 1),
     A("Deep Ocean, Vast Sea", "Gorbold Steelhand", 38.1, 41.2, 14),
     -- North coast, Cliffspring, the tower
-    D("Deep Ocean, Vast Sea", "Silver Dawning's Lockbox (wreck at 38, 29) and Mist Veil's Lockbox (wreck at 39.5, 27.5)", 38.2, 28.8, 14),
+    Path({ { 38.0, 29.0 }, { 39.5, 27.5 } }, D("Deep Ocean, Vast Sea", "Silver Dawning's Lockbox (wreck at 38, 29) and Mist Veil's Lockbox (wreck at 39.5, 27.5)", 38.2, 28.8, 14)),
     D("Buzzbox 411", "3 Thresher Eyes from Darkshore Threshers in the deep water", 40.0, 27.0, 14),
     T("Buzzbox 411", "Buzzbox 411, on the shore", 42.0, 28.6, 14),
     A("Buzzbox 323", "Buzzbox 411", 42.0, 28.6, 14),

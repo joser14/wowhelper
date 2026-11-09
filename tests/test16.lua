@@ -131,7 +131,14 @@ for _, chain in pairs(LevelGuideRoutes.chains) do
     for _, route in ipairs(chain) do
         for index, step in ipairs(route.steps) do
             local where = route.zone .. " #" .. index
-            assert(step.t == "accept" or step.t == "do" or step.t == "turnin" or step.t == "go", where .. " type")
+            -- Utility steps (home, fp, zone, item, train, xp) joined the quest steps in this version.
+            local TYPES = { accept = true, ["do"] = true, turnin = true, go = true,
+                home = true, fp = true, zone = true, item = true, train = true, xp = true }
+            assert(TYPES[step.t], where .. " type")
+            if step.t == "home" or step.t == "fp" then assert(step.place and step.npc, where .. " place/npc") end
+            if step.t == "item" then assert(type(step.item) == "number" and step.count, where .. " item") end
+            if step.t == "xp" then assert(step.level and step.frac and step.frac >= 0 and step.frac < 1, where .. " xp") end
+            if step.pts then for _, p in ipairs(step.pts) do assert(p[1] > 0 and p[1] < 100 and p[2] > 0 and p[2] < 100, where .. " point") end end
             assert((step.q or step.text) and step.x and step.y and step.lvl, where .. " fields")
             assert(step.x > 0 and step.x < 100 and step.y > 0 and step.y < 100, where .. " coordinates")
             if step.t == "accept" or step.t == "turnin" then assert(step.npc, where .. " npc") end
