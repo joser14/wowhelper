@@ -57,3 +57,6 @@ curseforge_forever.md, thirdparty.md, thirdparty_features.md, rxp_deep.md, aucti
 popular_quests_maps.md, popular_items_spells.md, popular_qol_routes.md, plus earlier review reports.
 
 - Tooltips extras (drop, questitem, giver, upgrade) done. Follow-up: giver 'Turn in' lines for quests you don't hold are noisy at busy NPCs; consider showing only held turn-ins.
+
+- WindowBadges done (merchant upgrades/known recipes, trainer New/On your bars, quest reward Best/Most gold). TODO: ItemAdvisor already marks quest rewards, so turn WindowBadges 'reward' and 'gold' off by default (WindowBadges.lua IsOn defaults, ~line 26) or remove ItemAdvisor's RewardMark. Hub page line was sent to the hub-extras worker.
+- Still running at usage limit: ProfessionGuide, ItemAdvisor/ReadyCheck/TrainerNotes/Dungeons upgrades, hub extras (keybinds, addon menu, Settings, alerts, hearth button, Quest mobs + Window badges pages). Their latest edits are in wip-snapshot.

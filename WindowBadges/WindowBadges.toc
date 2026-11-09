@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub, ItemAdvisor, TrainerNotes
+## Title: WindowBadges
+## Notes: Small badges on Blizzard's own windows: the best quest reward, upgrades and known recipes at a vendor, and spells worth training. Never clicks, chooses, buys, sells or trains. Only gives information.
+## Version: 0.1.0
+## SavedVariables: WindowBadgesDB
+
+WindowBadges.lua
