@@ -10,10 +10,12 @@
 -- Differences from wow-professions: 1-80 uses Enchant Bracer - Minor Deflect (known at 1, orange to 80,
 -- Lesser Magic Essence) instead of the Mote of Magic enchants; later steps use only orange ranges where possible
 -- (Cloak - Greater Defense 210-225, Shield - Greater Stamina 265-290).
--- Mote of Magic (Forever-only vendor reagent; wow-professions gives item 247786, unverified) is kept out of mats.
+-- Mote of Magic (Forever-only vendor reagent, item 247786, confirmed at https://www.wowhead.com/forever/item=247786:
+-- 10 copper, sold by enchanting vendors) is listed only for the Runed Copper Rod.
 -- Many metabot learn skills are estimates (Minor Stamina bracer, rods, Lesser Agility, Strength, 205-220 enchants).
 -- Strange Dust is sold in limited supply by Enchanting Supplies vendors in Forever (Tilli Thistlefuzz, Kania).
--- 225-300 is untested by wow-professions (beta data). Vaean / Tilli Thistlefuzz / Kania coords are approximate.
+-- 225-300 is untested by wow-professions (beta data). Vaean / Tilli Thistlefuzz / Kania coords checked Nov 2026 against
+-- https://www.wowhead.com/classic/guide/enchanting-vendor-recipes-wow-classic (Classic maps).
 ProfessionGuideData = ProfessionGuideData or {}
 ProfessionGuideData[333] = {
     name = "Enchanting",
@@ -21,9 +23,10 @@ ProfessionGuideData[333] = {
         { from = 1, to = 2, craft = "Runed Copper Rod", itemID = 6218, crafts = 1, yellow = 5, grey = 10, makes = 1,
           mats = {
               { itemID = 6217, name = "Copper Rod", count = 1, vendor = true },
+              { itemID = 247786, name = "Mote of Magic", count = 1, vendor = true },
           },
           learn = "auto",
-          note = "Also needs 1 Mote of Magic (Enchanting Supplies vendor). Keep the rod in your bags for all enchants." },
+          note = "Mote of Magic is sold by Enchanting Supplies vendors. Keep the rod in your bags for all enchants." },
         { from = 2, to = 80, craft = "Enchant Bracer - Minor Deflect", crafts = 78, yellow = 80, grey = 120,
           mats = {
               { itemID = 10938, name = "Lesser Magic Essence", count = 1 },
@@ -178,8 +181,9 @@ ProfessionGuideData[333] = {
           zone = "Darnassus", mapID = 1457, x = 0.586, y = 0.136 },
         { rank = "Apprentice", name = "Alanna Raveneye", where = "Oracle Glade, Teldrassil",
           zone = "Teldrassil", mapID = 1438, x = 0.368, y = 0.342 },
-        { rank = "Recipe vendor: Minor Mana Oil, Lesser Wizard Oil", name = "Vaean", where = "Craftsmen's Terrace, Darnassus (coords approx.)",
-          zone = "Darnassus", mapID = 1457, x = 0.585, y = 0.145 },
+        -- wowhead Classic enchanting vendor guide: /way 58.6, 14.4
+        { rank = "Recipe vendor: Minor Mana Oil, Lesser Wizard Oil", name = "Vaean", where = "Craftsmen's Terrace, Darnassus",
+          zone = "Darnassus", mapID = 1457, x = 0.586, y = 0.144 },
         { rank = "Recipe vendor: Shield - Greater Stamina", name = "Mythrin'dir", where = "Darnassus",
           zone = "Darnassus", mapID = 1457, x = 0.581, y = 0.342 },
         { rank = "Apprentice", name = "Betty Quin", where = "Mage Quarter, Stormwind",
@@ -190,16 +194,18 @@ ProfessionGuideData[333] = {
           zone = "Ironforge", mapID = 1455, x = 0.606, y = 0.448 },
         { rank = "Journeyman", name = "Gimble Thistlefuzz", where = "The Great Forge, Ironforge",
           zone = "Ironforge", mapID = 1455, x = 0.602, y = 0.456 },
-        { rank = "Recipe vendor: oils, 2H Lesser Intellect", name = "Tilli Thistlefuzz", where = "The Great Forge, Ironforge (coords approx.)",
-          zone = "Ironforge", mapID = 1455, x = 0.610, y = 0.448 },
+        -- wowhead Classic tailoring vendor guide: /way 60.8, 44.2 (its enchanting guide says 59.8, 44.0)
+        { rank = "Recipe vendor: oils, 2H Lesser Intellect", name = "Tilli Thistlefuzz", where = "The Great Forge, Ironforge",
+          zone = "Ironforge", mapID = 1455, x = 0.608, y = 0.442 },
         { rank = "Journeyman", name = "Xylinnia Starshine", where = "Feathermoon Stronghold, Feralas",
           zone = "Feralas", mapID = 1444, x = 0.316, y = 0.442 },
         { rank = "Expert", name = "Kitta Firewind", where = "Top of the Tower of Azora, Elwynn Forest",
           zone = "Elwynn Forest", mapID = 1429, x = 0.649, y = 0.707 },
         { rank = "Artisan", name = "Annora", where = "Inside Uldaman (pin = Badlands entrance); spawns after clearing her area",
           zone = "Badlands", mapID = 1418, x = 0.42, y = 0.13 },
-        { rank = "Recipe vendor: Lesser Mana Oil", name = "Kania", where = "Cenarion Hold inn upstairs, Silithus (coords approx.)",
-          zone = "Silithus", mapID = 1451, x = 0.520, y = 0.394 },
+        -- wowhead Classic enchanting vendor guide: /way 52.0, 39.7
+        { rank = "Recipe vendor: Lesser Mana Oil", name = "Kania", where = "Cenarion Hold inn upstairs, Silithus",
+          zone = "Silithus", mapID = 1451, x = 0.520, y = 0.397 },
         { rank = "Recipe vendor: Runed Arcanite Rod, Cloak - Superior Defense", name = "Lorelae Wintersong", where = "Nighthaven, Moonglade",
           zone = "Moonglade", mapID = 1450, x = 0.482, y = 0.401 },
     },

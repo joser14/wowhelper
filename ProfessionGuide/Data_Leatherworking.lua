@@ -11,7 +11,8 @@
 -- as estimates: Embossed Leather Gloves 50 (wow-professions: 45), Fine Leather Belt 65, Dark Leather Cloak 90,
 -- Hillman's Leather Gloves 125 (wow-professions uses it from 120), Cured Heavy Hide 115, Barbaric Shoulders 150,
 -- Guardian Gloves 165, Nightscape Headband 180, Nightscape Pants 205, Nightscape Boots 210.
--- Runic Leather Headband: Forever pattern needs 265 (Jase Farlane, "not checked in Forever yet"); metabot has no
+-- Runic Leather Headband: Forever pattern (item 15756) needs 265 and is sold by Jase Farlane, Eastern Plaguelands,
+-- confirmed at https://www.wowhead.com/forever/item=15756 (mats 14 Rugged Leather, 10 Runecloth, Rune Thread); metabot has no
 -- colors for it, so 265/285/295/305 (yellow 285, grey 305 in the step) is assumed (Classic colors shifted like the other Rugged recipes).
 -- 225-300 is untested by wow-professions (beta data).
 ProfessionGuideData = ProfessionGuideData or {}

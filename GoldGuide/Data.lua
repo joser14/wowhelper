@@ -243,10 +243,15 @@ F(54, 60, "Yetis and bears for Rugged Leather", "Winterspring", 67.4, 41.9, { I.
     "Ice Thistle Yetis (55-57) here; Elder Shardtooth bears (57-58) at 59, 23.", SKINNING)
 
 ----- Fishing (356).
+-- Fishing: https://www.wowhead.com/classic/guide/best-fishing-pools-farming-locations-classic-wow names Darkshore
+-- as a top Oily Blackmouth School coast (fishing 1 in pools, 75 to stop getaways; the 36, 46 point is the Auberdine
+-- shore, not a surveyed pool) and Stonescale Eel Swarms in Azshara, Feralas and Tanaris, safest around
+-- Steamwheedle Port (fishing 205, 300 to stop getaways). Steamwheedle Port is /way 67 22 (Yeh'kinya,
+-- https://www.wowhead.com/forever/guide/zulfarrak-dungeon-overview-location-rewards).
 F(15, 35, "Oily Blackmouth off Auberdine", "Darkshore", 36.0, 46.0, { I.blackmouth },
-    "Fish the coast and Oily Blackmouth schools near Auberdine. Needs fishing 55; alchemists buy it for Blackmouth Oil.", FISHING)
-F(45, 60, "Stonescale Eels on the Tanaris coast", "Tanaris", 69.0, 33.0, { I.eel },
-    "Eel schools along the Tanaris coast; best at night. Needs about fishing 180 plus a lure. Used in Stonescale Oil.", FISHING)
+    "Fish Oily Blackmouth Schools along the Darkshore coast, starting at Auberdine. Pools need no extra skill; 75 stops fish getting away. Alchemists buy it for Blackmouth Oil.", FISHING)
+F(45, 60, "Stonescale Eels off Steamwheedle Port", "Tanaris", 67.0, 22.0, { I.eel },
+    "Stonescale Eel Swarms along the Tanaris coast; the shore by Steamwheedle Port is mostly neutral turtles. Needs fishing 205 (300 to stop getaways), so bring a lure. Used in Stonescale Oil.", FISHING)
 
 -- General money tips. minLevel: the level they start to matter.
 local methods = {
@@ -259,17 +264,22 @@ local methods = {
     { minLevel = 12, title = "Check the auction before you vendor", text = "Greens and trade goods often sell for far more at auction. PriceMemory shows the last price you saw on each tooltip, and this page lists bag items worth more there." },
     { minLevel = 15, title = "Post smart", text = "A listing costs a deposit you lose if it doesn't sell, and the auction house keeps a cut of each sale. Price just under the lowest current listing." },
     { minLevel = 20, title = "Don't buy what you can loot", text = "Eat the meat you loot and cook it; buy food and water only when you must. Repair only at real breakpoints, not after every pull." },
-    { minLevel = 20, title = "Free Action Potion recipe", text = "Ulthir (Darnassus) sells Recipe: Free Action Potion, limited supply, about 18s. It often sells for more at auction." },
-    { minLevel = 20, title = "Enchant Bracer - Deflection formula", text = "Mythrin'dir (Darnassus) sells Formula: Enchant Bracer - Deflection, limited supply, about 50-60s. Enchanters often pay more at auction." },
-    { minLevel = 30, title = "Black Swashbuckler's Shirt pattern", text = "Narkk in Booty Bay sells Pattern: Black Swashbuckler's Shirt, limited supply, about 15s. Tailors buy it at auction." },
-    { minLevel = 35, title = "Shadow Oil recipe", text = "Vendor-Tron 1000 in Desolace sells Recipe: Shadow Oil, limited supply, about 15s." },
+    -- Vendor spots below are Classic-map /way values from Wowhead's Classic vendor-recipe guides (Nov 2026):
+    -- .../classic/guide/alchemy-vendor-recipes-wow-classic (Ulthir, Soolie Berryfizz),
+    -- .../classic/guide/enchanting-vendor-recipes-wow-classic (Mythrin'dir), .../classic/guide/tailoring-vendor-recipes-wow-classic
+    -- (Narkk, Qia), .../classic/guide/cooking-vendor-recipes-wow-classic (Vendor-Tron 1000); Logannas from
+    -- https://wow-forever.gg/db/npcs/8157-logannas/. Vendor-Tron's stock of Recipe: Shadow Oil: wowhead.com/classic/npc=12245.
+    { minLevel = 20, title = "Free Action Potion recipe", text = "Ulthir (Craftsmen's Terrace, Darnassus, 55.8, 24.6) sells Recipe: Free Action Potion, limited supply, about 18s. It often sells for more at auction." },
+    { minLevel = 20, title = "Enchant Bracer - Deflection formula", text = "Mythrin'dir (Craftsmen's Terrace, Darnassus, 61.0, 18.0) sells Formula: Enchant Bracer - Deflection, limited supply, about 50-60s. Enchanters often pay more at auction." },
+    { minLevel = 30, title = "Black Swashbuckler's Shirt pattern", text = "Narkk in Booty Bay (28.2, 74.4) sells Pattern: Black Swashbuckler's Shirt, limited supply, about 15s. Tailors buy it at auction." },
+    { minLevel = 35, title = "Shadow Oil recipe", text = "Vendor-Tron 1000 in Desolace sells Recipe: Shadow Oil, limited supply, about 15s. It travels with the Gizelton Caravan; it stops at the north end of the route (60.4, 38.2, near Kormek's hut)." },
     { minLevel = 40, title = "Riding at 40", text = "Apprentice riding and a mount cost about 120g. Track it on the Gold goal page." },
     { minLevel = 40, title = "Elemental motes", text = "Elemental Earth, Fire, Water and Air are wanted by blacksmiths, engineers and alchemists. See the elemental farms on this page." },
-    { minLevel = 40, title = "Elixir of Superior Defense recipe", text = "Soolie Berryfizz in Ironforge sells Recipe: Elixir of Superior Defense, limited supply, about 1g 30s." },
-    { minLevel = 45, title = "Ghost Dye recipe", text = "Logannas at Feathermoon Stronghold (Feralas) sells Recipe: Ghost Dye, limited supply, about 90s." },
+    { minLevel = 40, title = "Elixir of Superior Defense recipe", text = "Soolie Berryfizz in Tinker Town, Ironforge (66.6, 54.8) sells Recipe: Elixir of Superior Defense, limited supply, about 1g 30s." },
+    { minLevel = 45, title = "Ghost Dye recipe", text = "Logannas at Feathermoon Stronghold (Feralas, 32.7, 44.0) sells Recipe: Ghost Dye, limited supply, about 90s." },
     { minLevel = 45, title = "Sell unbound blues", text = "Blue and purple items that bind on equip sell to other players for far more than a vendor pays. Don't equip one you mean to sell." },
     { minLevel = 50, title = "Runecloth is always wanted", text = "Tailors and reputation turn-ins both use Runecloth, so it rarely sits unsold." },
-    { minLevel = 55, title = "Runecloth Bag pattern", text = "Qia in Everlook (Winterspring) sells Pattern: Runecloth Bag, limited supply, about 1g 20s." },
+    { minLevel = 55, title = "Runecloth Bag pattern", text = "Qia in Everlook (Winterspring, 61.2, 37.2) sells Pattern: Runecloth Bag, limited supply, about 1g 20s." },
     { minLevel = 58, title = "Epic riding at 60", text = "Journeyman riding and an epic mount cost about 1200g. Gold you farm at 55-60 goes furthest toward it." },
 }
 

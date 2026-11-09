@@ -274,10 +274,12 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
 local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     -- Auberdine arrival
     T("Flight to Auberdine", "Laird", 36.8, 44.3, 11),
-    -- Caylais Moonfeather and Innkeeper Shaussiy are Auberdine's flight master and innkeeper (wowhead
-    -- classic, warcraft.wiki.gg); no text source gave their coordinates, so these are approximate.
-    New(FP("Auberdine", "Caylais Moonfeather", 36.3, 45.6, 11, "By the docks (approx).")),
-    New(Home("Auberdine", "Innkeeper Shaussiy", 37.0, 44.1, 11, "In the inn (approx); the route hearths back here.")),
+    -- Caylais Moonfeather and Innkeeper Shaussiy are Auberdine's flight master and innkeeper.
+    -- Coordinates: Caylais 36.4, 45.6 (https://wow-forever.gg/db/npcs/3841-caylais-moonfeather/ and the
+    -- map pins on https://www.wowhead.com/forever/npc=3841); Shaussiy 37.1, 44.1
+    -- (https://wow-forever.gg/db/npcs/6737-innkeeper-shaussiy/, Classic spawn data).
+    New(FP("Auberdine", "Caylais Moonfeather", 36.4, 45.6, 11, "By the docks.")),
+    New(Home("Auberdine", "Innkeeper Shaussiy", 37.1, 44.1, 11, "In the inn; the route hearths back here.")),
     A("Buzzbox 827", "Wizbang Cranktoggle (upstairs in the inn)", 37.0, 44.1, 11),
     A("Washed Ashore", "Gwennyth Bly'Leggonde", 36.6, 45.6, 11, 1),
     A("The Family and the Fishing Pole", "Gubber Blump, on the dock", 36.1, 44.9, 11),

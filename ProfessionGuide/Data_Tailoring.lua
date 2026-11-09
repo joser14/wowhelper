@@ -15,8 +15,9 @@
 -- Runecloth Belt is yellow from 225 in Forever (Classic: orange). Runecloth Gloves pattern is learned at 230
 -- in Forever (Qia). Bolts of Runecloth: wow-professions says no skill; metabot/conquestcapped show a few
 -- points around 195-212 - not relied on here.
--- 250-300 is untested by wow-professions. Runecloth Cuffs (new Forever recipe, no item ID found, so no itemID)
--- comes from Pexmit in Mount Hyjal per conquestcapped; its colors are 250/265/280/295 (grey 295), so the last
+-- 250-300 is untested by wow-professions. Runecloth Cuffs (new Forever recipe, item 254123; pattern 254124 needs
+-- Tailoring 250, sold in Mount Hyjal; mats 5 Bolt of Runecloth, Ironweb Spider Silk, Rune Thread - all confirmed at
+-- https://www.wowhead.com/forever/item=254124) comes from Pexmit in Mount Hyjal per conquestcapped; its colors are 250/265/280/295 (grey 295), so the last
 -- 10 points use Mooncloth Boots (trainer per metabot, learn 270 estimated).
 ProfessionGuideData = ProfessionGuideData or {}
 ProfessionGuideData[197] = {
@@ -120,7 +121,7 @@ ProfessionGuideData[197] = {
           },
           learn = "vendor: Qia, Everlook, Winterspring",
           note = "Pattern needs 230, limited stock. Orange to 245, yellow to 260 (keep going to 260 if no Cuffs)." },
-        { from = 250, to = 280, craft = "Runecloth Cuffs", crafts = 39, yellow = 265, grey = 295, makes = 1,
+        { from = 250, to = 280, craft = "Runecloth Cuffs", itemID = 254123, crafts = 39, yellow = 265, grey = 295, makes = 1,
           mats = {
               { itemID = 14048, name = "Bolt of Runecloth", count = 5 },
               { itemID = 14227, name = "Ironweb Spider Silk", count = 1 },
@@ -128,7 +129,7 @@ ProfessionGuideData[197] = {
           },
           learn = "vendor: Pexmit, Mount Hyjal (58.8, 41.8)",
           note = "New Forever pattern (skill 250). Orange to 265, yellow to 280. Untested route." },
-        { from = 280, to = 290, craft = "Runecloth Cuffs", crafts = 43, yellow = 265, grey = 295, makes = 1,
+        { from = 280, to = 290, craft = "Runecloth Cuffs", itemID = 254123, crafts = 43, yellow = 265, grey = 295, makes = 1,
           mats = {
               { itemID = 14048, name = "Bolt of Runecloth", count = 5 },
               { itemID = 14227, name = "Ironweb Spider Silk", count = 1 },

@@ -7,7 +7,8 @@
 -- item IDs 27xxxx/28xxxx are new Forever items; the rest are Classic items still dropping on Forever).
 -- Entrances: Warcraft Tavern Classic and Forever guides (https://www.warcrafttavern.com/wow-classic/guides/<name>/,
 -- https://www.warcrafttavern.com/forever/guides/<name>/). Points marked "approx" in entrance.note could not be
--- confirmed from a text source and come from general knowledge of the Classic maps.
+-- confirmed from a text source and come from general knowledge of the Classic maps. Razorfen Downs and the
+-- Stratholme main gate were checked in Nov 2026 (sources next to each); see research\gaps_filled.md.
 --
 -- entrance.mapID is the Mainline uiMapID of the zone the point is on; x and y are fractions of that zone's
 -- map as drawn on Forever (the Classic-era map, so The Barrens and Stranglethorn Vale are single zones).
@@ -340,7 +341,9 @@ DungeonsData = {
     },
     {
         name = "Razorfen Downs", short = "rfd", minLevel = 37, maxLevel = 46, zone = "The Barrens",
-        entrance = { mapID = 10, zone = "The Barrens", x = 0.430, y = 0.950, note = "Far south of The Barrens by the Thousand Needles border (coordinates approximate)" },
+        -- 49.0, 94.9 is Myriam Moonsinger, who stands outside the entrance
+        -- (https://wow-forever.gg/db/npcs/12866-myriam-moonsinger/, Classic spawn data).
+        entrance = { mapID = 10, zone = "The Barrens", x = 0.490, y = 0.949, note = "Far south of The Barrens by the Thousand Needles border, where Myriam Moonsinger stands" },
         bosses = { "Tuten'kash", "Mordresh Fire Eye", "Glutton", "Amnennar the Coldbringer" },
         quests = {
             { title = "A Host of Evil", questIDs = { 6626 }, giver = "Myriam Moonsinger", where = "outside the entrance, The Barrens", level = 35, min = 28 },
@@ -618,7 +621,11 @@ DungeonsData = {
     },
     {
         name = "Stratholme Main Gate", short = "strat live", aliases = { "strat", "stratholme", "living", "main gate" }, minLevel = 58, maxLevel = 60, zone = "Eastern Plaguelands",
-        entrance = { mapID = 23, zone = "Eastern Plaguelands", x = 0.270, y = 0.120, note = "approx: northwest corner of the zone, across the long bridge (Forever redrew this map)" },
+        -- Derived: https://wow-forever.gg/dungeons/stratholme/ puts the door at 26.09, 10.44 on its own EPL map,
+        -- whose frame is offset from the game's. Calibrated against wowhead Forever/Classic /way values for
+        -- Light's Hope (Smokey LaRue 80 58, Miranda Breechlock 81.6 60.0) and Terrordale (Egan 14 33) versus
+        -- that site's 70.9 48.4 / 71.8 50.2 / 11.4 26.6, the door is about 30.4, 14.5 (within ~0.5).
+        entrance = { mapID = 23, zone = "Eastern Plaguelands", x = 0.304, y = 0.145, note = "Northwest corner of the zone, across the long bridge" },
         bosses = { "Skul", "Hearthsinger Forresten", "The Unforgiven", "Timmy the Cruel", "Cannon Master Willey", "Archivist Galford", "Balnazzar" },
         quests = {
             { title = "Of Love and Family", questIDs = { 5848 }, giver = "Artist Renfray", where = "Caer Darrow, Western Plaguelands", level = 60, min = 52 },

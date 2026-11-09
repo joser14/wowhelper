@@ -38,6 +38,8 @@ ProfessionGuideData[186] = {
     trainers = {
         { rank = "Apprentice (to 75)", name = "Fanorran Stilloak", where = "Shadowglen, Teldrassil",
           zone = "Teldrassil", mapID = 1438, x = 0.582, y = 0.413 },
+        -- 38.2, 41: https://www.wowhead.com/forever/guide/professions/mining/overview-leveling. He shares the forge
+        -- with Delfrum Flintbeard (38.2, 40.9, https://wow-forever.gg/db/npcs/6299-delfrum-flintbeard/), hence the same point.
         { rank = "All ranks", name = "Kurdram Stonehammer", where = "Auberdine, Darkshore",
           zone = "Darkshore", mapID = 1439, x = 0.382, y = 0.410 },
         { rank = "All ranks", name = "Gelman Stonehand", where = "Dwarven District, Stormwind",

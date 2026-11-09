@@ -8,11 +8,10 @@
 --          Item IDs checked on https://classicdb.ch/?item=<id> (wowhead blocked automated reads).
 -- Craft counts: each point at skill s succeeds with chance (grey - s) / (grey - yellow), 1 while orange (Forever yellow/grey from metabot.gg). `crafts` is the mean plus 1.28 standard deviations, rounded up: enough about 9 times in 10. Forever's Working Overtime talent (+4% chance per rank) is not counted.
 -- Healing potions moved to First Aid in Forever, so they are not used here.
--- Minor Arcane Elixir is Forever-only: itemID 247754 from warcraft.wiki.gg (wowhead/forever link), not
--- checked on wowhead itself. wow.gg lists it as a skill-10 trainer recipe while metabot/wiki say learned at 1;
+-- Minor Arcane Elixir is Forever-only: itemID 247754, confirmed at https://www.wowhead.com/forever/item=247754. wow.gg lists it as a skill-10 trainer recipe while metabot/wiki say learned at 1;
 -- the step note gives the fallback.
 -- Draught of Detect Undead is the Forever name of Elixir of Detect Undead (item 9154) per warcraft.wiki.gg.
--- 225-300 is marked untested by wow-professions (beta data). Vendor coords for Logannas and Maria Lumere are approximate.
+-- 225-300 is marked untested by wow-professions (beta data). Vendor coords for Logannas and Maria Lumere checked Nov 2026.
 ProfessionGuideData = ProfessionGuideData or {}
 ProfessionGuideData[171] = {
     name = "Alchemy",
@@ -151,8 +150,9 @@ ProfessionGuideData[171] = {
           zone = "Stormwind City", mapID = 1453, x = 0.555, y = 0.854 },
         { rank = "Journeyman", name = "Lilyssia Nightbreeze", where = "Mage Quarter, Stormwind",
           zone = "Stormwind City", mapID = 1453, x = 0.555, y = 0.854 },
-        { rank = "Recipe vendor: Elixir of Shadow Power", name = "Maria Lumere", where = "Alchemy Needs, Mage Quarter, Stormwind (approx.)",
-          zone = "Stormwind City", mapID = 1453, x = 0.556, y = 0.856 },
+        -- https://wow-forever.gg/db/npcs/1313-maria-lumere/ (55.8, 85.6)
+        { rank = "Recipe vendor: Elixir of Shadow Power", name = "Maria Lumere", where = "Alchemy Needs, Mage Quarter, Stormwind",
+          zone = "Stormwind City", mapID = 1453, x = 0.558, y = 0.856 },
         { rank = "Apprentice", name = "Alchemist Mallory", where = "Cottage north of Goldshire, Elwynn Forest",
           zone = "Elwynn Forest", mapID = 1429, x = 0.398, y = 0.484 },
         { rank = "Apprentice", name = "Vosur Brakthel", where = "Tinker Town, Ironforge",
@@ -161,8 +161,9 @@ ProfessionGuideData[171] = {
           zone = "Ironforge", mapID = 1455, x = 0.672, y = 0.542 },
         { rank = "Artisan", name = "Kylanna Windwhisper", where = "Feathermoon Stronghold, Feralas",
           zone = "Feralas", mapID = 1444, x = 0.326, y = 0.437 },
-        { rank = "Recipe vendor: Nature Protection Potion", name = "Logannas", where = "Base of the treehouse, Feathermoon Stronghold (approx.)",
-          zone = "Feralas", mapID = 1444, x = 0.330, y = 0.440 },
+        -- https://wow-forever.gg/db/npcs/8157-logannas/ (32.7, 44.0; wowhead Classic vendor guide says 32.6, 42.8)
+        { rank = "Recipe vendor: Nature Protection Potion", name = "Logannas", where = "Base of the treehouse, Feathermoon Stronghold",
+          zone = "Feralas", mapID = 1444, x = 0.327, y = 0.440 },
     },
     notes = {
         "Apprentice Alchemy has no level requirement in Forever.",

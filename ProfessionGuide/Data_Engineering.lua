@@ -12,7 +12,7 @@
 -- metabot learn skills for most recipes are estimates (yellow minus 5); the Classic learn skills
 -- (e.g. Copper Bolts 30, Spanner 50, Rough Copper Bomb 30, Explosive Sheep 150) are what the route assumes.
 -- "makes" values follow metabot (Rough Copper Bomb 2, Coarse Dynamite 2, Silver Contact 5, Hi-Explosive Bomb 4).
--- 225-300 is untested by wow-professions (beta data). Gearcutter Cogspinner coords are approximate.
+-- 225-300 is untested by wow-professions (beta data). Gearcutter Cogspinner coords checked Nov 2026 (Classic guide).
 ProfessionGuideData = ProfessionGuideData or {}
 ProfessionGuideData[202] = {
     name = "Engineering",
@@ -186,8 +186,9 @@ ProfessionGuideData[202] = {
           zone = "Duskwood", mapID = 1431, x = 0.775, y = 0.486 },
         { rank = "Artisan", name = "Buzzek Bracketswing", where = "Gadgetzan, Tanaris (outside the inn)",
           zone = "Tanaris", mapID = 1446, x = 0.522, y = 0.276 },
-        { rank = "Recipe vendor: Thorium Widget", name = "Gearcutter Cogspinner", where = "Tinker Town, Ironforge (coords approx.)",
-          zone = "Ironforge", mapID = 1455, x = 0.680, y = 0.430 },
+        -- https://www.wowhead.com/classic/guide/engineering-vendor-recipes-wow-classic (/way 68.2, 44.2)
+        { rank = "Recipe vendor: Thorium Widget", name = "Gearcutter Cogspinner", where = "Tinker Town, Ironforge",
+          zone = "Ironforge", mapID = 1455, x = 0.682, y = 0.442 },
         { rank = "Recipe vendor: Thorium Tube", name = "Xizzer Fizzbolt", where = "Everlook, Winterspring (first building on the right)",
           zone = "Winterspring", mapID = 1452, x = 0.610, y = 0.390 },
     },
