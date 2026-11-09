@@ -67,13 +67,13 @@ JavaScript) standing in for the game:
 
 ```powershell
 cd tests
-npm install fengari
-node run.js "<path to this repo>" test_builds.lua
+npm install
+.\runall.ps1
 ```
 
-Some tests take a single file or folder instead of the repo root; `tests\runall.ps1` knows which and runs everything.
-About a dozen of the oldest tests (`test.lua`, `test3`–`test7`, `test9`–`test12`, `test15`) are known failures: they
-check for chat output and window layouts that later versions replaced.
+`runall.ps1` runs every test and exits non-zero if any fails. To run one test:
+`node run.js "<path to this repo>" test_builds.lua` (a few tests take a single file or folder instead of the repo
+root; `runall.ps1` lists which). `validate.lua` and `syntaxcheck.lua` are helpers for checking a single route or Lua file.
 
 `STATUS.md` has the current state of the work: what's done, what still needs checking in game, and what's next.
 

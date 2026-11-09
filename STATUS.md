@@ -1,68 +1,51 @@
 ﻿# Forever addon suite: status (2026-11-09)
 
-**INSTALLED 2026-11-09 (reinstalled 09:17)** as six addons (!ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld), now including Builds (all nine classes) and the corrected ItemAdvisor weights. First install moved the old per-helper folders to `_forever_\Interface\AddOns_ForeverBackup_20261109_083113`; a full copy of WTF is at `_forever_\WTF_Backup_20261109`. To roll back: close WoW, delete the six bundle folders, move the backup folders back. 41 current tests pass (tests\runall.ps1); 11 older tests (test, 3-7, 9-12, 15) were already failing before and check for chat output and window layouts that later work replaced. Blizzard class tuning on 2026-11-10 may change builds; re-run the builds research after it.
+Start here when resuming.
 
-**TAINT FIX 2026-11-09 (committed and INSTALLED 2026-11-09):** MapPins rewritten as overlay frames; SlashCmdList rewrite removed from three helpers; Options registration, narration CVar and QuestTracker alpha made combat-safe. Reinstall with `.\build.ps1 -Install` (WoW closed), then do the in-game checks in research/taint_audit.md.
-
-Start here when resuming. Main branch = finished, tested work. Branch `wip-snapshot` = unfinished worker
-edits at the moment this file was written (may not pass tests; review before merging anything from it).
+## Installed
+- Installed 2026-11-09 as six addons: !ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld.
+  Latest install includes the taint fix (MapPins overlay frames, SlashCmdList rewrite removed, combat-safe Options/CVar/tracker alpha).
+- Backups from the first install: old per-helper folders in `_forever_\Interface\AddOns_ForeverBackup_20261109_083113`,
+  full WTF copy in `_forever_\WTF_Backup_20261109`. VoidSweep and VeritasUI_PriorityRotation were moved (user approved) to
+  `_forever_\Interface\AddOns_Removed_20261109`.
+- Roll back: close WoW, delete the six bundle folders, move the backup folders back.
+- Tests: all 41 pass (`tests\runall.ps1`, after `npm install` in tests). Old tests that checked for chat output and
+  replaced window layouts, and one-off data-migration scripts, were removed on 2026-11-09 (see git history).
 
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/accept/turn-in/equip/train/cast) and nothing that causes taint errors.
-- NEVER use the world-map canvas pin pool (WorldMapFrame:AddDataProvider / AcquirePin): it caused "ForeverWorld has been blocked from an action" (UNKNOWN()) in game on 2026-11-09. MapPins now draws its own overlay frames. Never assign Blizzard globals either (`SlashCmdList = SlashCmdList or {}` was removed from RareWatch, QuestMobs, Builds). See research/taint_audit.md.
-- Blizzard's official extension points are fine: tooltip lines (TooltipDataProcessor), our frames on the minimap, Settings panel, addon compartment, keybindings, our own badges anchored over Blizzard buttons, cosmetic alpha (QuestTracker makes Blizzard's tracker transparent).
-- Never replace/hook/rewrite Blizzard functions, never write Blizzard tables, never call protected functions.
+- NEVER use the world-map canvas pin pool (WorldMapFrame:AddDataProvider / AcquirePin): it caused "ForeverWorld has been blocked from an action" (UNKNOWN()) in game on 2026-11-09. MapPins draws its own overlay frames.
+- Never assign Blizzard globals or tables (e.g. `SlashCmdList = SlashCmdList or {}`); only add our own keys. See research/taint_audit.md.
+- Fine: tooltip lines (TooltipDataProcessor), our frames on the minimap, our own badges anchored over Blizzard buttons, Settings panel (registered out of combat), addon compartment, keybindings, cosmetic alpha on Blizzard's quest tracker.
+- Never replace/hook/rewrite Blizzard functions, never call protected functions.
 - UI in our own windows (ForeverHub pages, side panel, pop-ups). No chat output.
-- Third-party code: may be downloaded only into a quarantine folder after a malware check, never run or installed; reverse-engineering is described in our own words, no code copied.
+- Third-party code: download only into a quarantine folder after a malware check, never run or install it; describe reverse-engineering in our own words, copy no code.
 - Forever uses Classic-era uiMapIDs (Teldrassil 1438, Darnassus 1457, Elwynn 1429, Stormwind 1453). Resolve maps by name where possible.
 - Forever's combat log is closed to addons; many values are secret in combat/instances: Safe() everything.
 
 ## Layout
-- One folder per helper (source + .toc). `tests/` = Node + fengari harness (`node run.js "<repo root or file>" testX.lua`; needs `npm install fengari` in tests/). `research/` = all research reports.
-- `build.ps1` assembles six installed addons into `dist/`: !ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld.
-  `.\build.ps1 -Install` (WoW closed) moves the old per-helper folders out of AddOns into a dated backup, merges each old helper's SavedVariables file into its bundle's file (only if the bundle file doesn't exist yet), and installs the six bundles.
-- NOT INSTALLED YET: the game still has the older per-helper folders from before this session's work (plus Landmarks, DeathNotes installed early on). Nothing from this session has been tested in game.
+- One folder per helper (source + .toc). `tests/` = Node + fengari harness. `research/` = research reports and build data
+  (`research/builds/gen_data.js` regenerates `Builds/Data.lua` from `research/builds/<CLASS>.lua`).
+- `build.ps1` assembles the six addons into `dist/`; `.\build.ps1 -Install` (WoW closed) also installs them, moving any
+  old per-helper folders to a dated backup and carrying their saved data over once.
 
-## Done (on main, tests passing)
-- DeathNotes (deaths, killer when readable, warns near old death spots), Landmarks (+ flight points known), RareWatch (sightings, layer estimate), ReadyCheck/SpellReady (old ranks on bars, missing buffs, reagents), Tooltips (vendor/AH price, counts, profession use, IDs), PriceMemory (14-day history, item/commodity listings, merchant prices, PriceMemory_Get), GoldGuide (76 farms, tips, bag value), Dungeons (35 incl. Forever's new ones), MapPins (world map + minimap pins), DurabilityWatch (repair cost anywhere).
-- ForeverHub: Home + Manage pages, grouped foldable sidebar, per-helper and per-addon switches, XP warm-up, finished-quest XP, session survives /reload, Restart.
-- LevelGuide: moves on / says needed level instead of going blank, cross-zone steps, missing turn-in.
-- VoidSweep and VeritasUI_PriorityRotation moved out of AddOns to `_forever_\Interface\AddOns_Removed_20261109` (user approved).
-
-## In progress when this was written (see wip-snapshot)
-| Work | Folder(s) | Notes |
-|---|---|---|
-| Profession guide, 12 professions 1-300 | ProfessionGuide | told: Classic map IDs; skill-up chance formula |
-| (done, on main) LevelGuide engine upgrades | LevelGuide | see commit; in-game checks: GetBindLocation names, taxi node states, Caylais/Shaussiy coords approx |
-| Item/spell upgrades | ItemAdvisor, ReadyCheck, TrainerNotes, Dungeons | auto role from talents, leveling stamina bias, macros + readable bar names, spellbook check, boss kills |
-| Tooltip extras | Tooltips | drops from boss, quest giver starts/turn-in, needed for quest |
-| Window badges (new) | WindowBadges | best quest reward, vendor upgrades, trainer new/on-bars |
-| Quest-mob markers (new) | QuestMobs | marker + progress next to quest mobs in the open world |
-| Hub extras | ForeverHub | keybindings (Bindings.xml at bundle root â€” build.ps1 must copy it), addon-compartment entry (toc lines in build.ps1), Settings panel, taskbar flash/sound alerts, hearthstone button |
-
-## Next steps after those land
-1. Merge each finished worker's folder from wip (or redo from its brief), run its tests, commit.
-2. Wire any new hub pages (WindowBadges "Window badges"/WINDOWBADGES, QuestMobs "Quest mobs"/QUESTMOBS) into ForeverHub TABS + HELPERS.
-3. Update build.ps1 for Bindings.xml and AddonCompartment toc lines.
-4. Fix character keys: eight helpers key saved data by first name + realm (ItemAdvisor, LevelLog, GoldGoal, ItemFinder, SupplyWatch, TrainerNotes, LevelGuide, ForeverHelper; Landmarks has CharacterKey()). Forever names are first + last, so use full name or GUID with a one-time migration.
-5. Shared waypoint routine: clear our waypoint on arrival, never clear the player's own pin.
-6. Run every test in tests/, then `.\build.ps1 -Install` with WoW closed, then in-game check list below.
-
-## In-game checks needed
-- /reload: no Lua errors (Errors page), hub opens on Home, sidebar groups, Manage switches.
-- Map pins: open map in and out of combat, no "action blocked"; minimap pin direction with rotation on/off.
-- PriceMemory: same item on Alliance and Horde AH â€” if identical, drop faction from ScopeKey().
-- Flight points: "Flight points known" count matches the flight map.
-- Repair cost shows away from a vendor.
+## In-game checks still needed
+- Fight with the world map open and closed: no "blocked from an action" pop-up, no new Blocked action line on the Errors page.
+- Map pins line up when the map is zoomed, panned, windowed and maximised; hover and click work; gamepad mode has no errors.
+- /reload in combat, leave combat: Forever Hub page appears in Options.
+- QuestTracker quest-item button in combat: click, fold, drag. QuestMobs markers on nameplates in combat.
+- /reload: no Lua errors, hub opens on Home, Manage switches work.
+- Minimap pin direction with minimap rotation on and off.
+- PriceMemory: same item on Alliance and Horde AH; if identical, drop faction from ScopeKey().
+- Flight points known count matches the flight map; repair cost shows away from a vendor.
 - Dungeons: approximate entrances (SM, ST, Scholo, Strat, Ruins of Lordaeron, RFD, Maraudon).
-- LevelGuide: arrow and steps in Teldrassil/Darkshore; skips survive /reload.
+- LevelGuide: arrow and steps in Teldrassil/Darkshore; skips survive /reload; GetBindLocation names; Caylais/Shaussiy coords approx.
+
+## Follow-ups
+- Re-run the builds research after Blizzard's 2026-11-10 class tuning.
+- Tooltips: quest giver "Turn in" lines for quests you don't hold are noisy at busy NPCs; consider showing only held turn-ins.
 
 ## Research reports (research/)
-curseforge_forever.md, thirdparty.md, thirdparty_features.md, rxp_deep.md, auctionator_deep.md,
-popular_quests_maps.md, popular_items_spells.md, popular_qol_routes.md, plus earlier review reports.
-
-- Tooltips extras (drop, questitem, giver, upgrade) done. Follow-up: giver 'Turn in' lines for quests you don't hold are noisy at busy NPCs; consider showing only held turn-ins.
-
-- WindowBadges done (merchant upgrades/known recipes, trainer New/On your bars, quest reward Best/Most gold). TODO: ItemAdvisor already marks quest rewards, so turn WindowBadges 'reward' and 'gold' off by default (WindowBadges.lua IsOn defaults, ~line 26) or remove ItemAdvisor's RewardMark. Hub page line was sent to the hub-extras worker.
-- Still running at usage limit: ProfessionGuide, ItemAdvisor/ReadyCheck/TrainerNotes/Dungeons upgrades, hub extras (keybinds, addon menu, Settings, alerts, hearth button, Quest mobs + Window badges pages). Their latest edits are in wip-snapshot.
-
+taint_audit.md, builds_forever.md, builds/, gaps_filled.md, curseforge_forever.md, thirdparty.md, thirdparty_features.md,
+rxp_deep.md, auctionator_deep.md, popular_quests_maps.md, popular_items_spells.md, popular_qol_routes.md, routes.md,
+landmarks.md, levelguide_questtracker.md, itemadvisor_hub_helper.md, small_addons.md, BRIEF.md (brief for review workers).
