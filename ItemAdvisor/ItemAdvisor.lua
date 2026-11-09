@@ -465,10 +465,16 @@ local function HasRedLine(link)
         return false
     end
     local data = C_TooltipInfo.GetHyperlink(link)
+    -- "Classes: Paladin" in red is a different story from an untrained weapon skill.
+    local classPrefix = (ITEM_CLASSES_ALLOWED or "Classes: %s"):gsub("%%s.*$", "")
     for _, line in ipairs(data and data.lines or {}) do
         for _, color in ipairs({ line.leftColor or false, line.rightColor or false }) do
             local r, g, b = color and Safe(color.r), color and Safe(color.g), color and Safe(color.b)
             if r and g and b and r > 0.9 and g < 0.3 and b < 0.3 then
+                local text = Safe(line.leftText)
+                if type(text) == "string" and classPrefix ~= "" and text:find(classPrefix, 1, true) == 1 then
+                    return true, "class"
+                end
                 return true
             end
         end
@@ -688,7 +694,10 @@ local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quali
         if level and needLevel > level then
             return "KEEP", string.format("Upgrade at level %d (+%d)", needLevel, math.floor(gain))
         end
-        if HasRedLine(link) then
+        local red, why = HasRedLine(link)
+        if red and why == "class" then
+            return NotNeeded("For another class", classID, quality, sellPrice, bindType, isBound)
+        elseif red then
             return "CHECK", "Looks better, but the game says you can't use it yet; you may need to train it"
         end
         local amount

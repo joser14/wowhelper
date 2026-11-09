@@ -712,7 +712,8 @@ end
 
 local function PlaceItemButton(row, item, questID)
     local itemID = item.link:match("item:(%d+)")
-    if not itemID then
+    -- Secure buttons can't be moved or re-pointed once combat has started, even mid-layout.
+    if not itemID or (InCombatLockdown and InCombatLockdown()) then
         return
     end
     shownButtons = shownButtons + 1
@@ -755,8 +756,12 @@ local function SetBar(row, quest)
     row.bar:SetWidth(math.max((WIDTH - 20) * quest.progress, 1))
 end
 
+-- What the last Layout worked out, so Order() right after it needn't sort the log and read the map again.
+local layoutCache
+
 local function Layout(quests)
     local ready, zones = BuildSections(quests)
+    layoutCache = { quests = quests, ready = ready, zones = zones }
     local focused = FocusedQuest()
     local count, y = 0, -HEADER_HEIGHT
     shownButtons = 0
@@ -782,6 +787,7 @@ local function Layout(quests)
 
     local function AddOffers()
         local offers = ReadOffers()
+        layoutCache.offers = offers
         if #offers == 0 then
             return
         end
@@ -992,7 +998,13 @@ end
 
 local function Order(quests)
     local ids = {}
-    local ready, zones = BuildSections(quests)
+    local cached = layoutCache and layoutCache.quests == quests and layoutCache or nil
+    local ready, zones
+    if cached then
+        ready, zones = cached.ready, cached.zones
+    else
+        ready, zones = BuildSections(quests)
+    end
     for _, quest in ipairs(ready) do
         ids[#ids + 1] = quest.id
     end
@@ -1002,7 +1014,7 @@ local function Order(quests)
             ids[#ids + 1] = quest.id
         end
     end
-    for _, offer in ipairs(ReadOffers()) do
+    for _, offer in ipairs(cached and cached.offers or ReadOffers()) do
         ids[#ids + 1] = "offer" .. offer.id
     end
     return table.concat(ids, ",")
