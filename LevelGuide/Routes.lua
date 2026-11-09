@@ -148,7 +148,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("The Shimmering Frond", "Strange Fronded Plant (object)", 34.7, 29.0, 9),
     A("Mist", "Mist (ESCORT: lead the cub to Arynia at the moonwell)", 31.5, 31.6, 9),
     T("Mist", "Sentinel Arynia Cloudsbreak", 38.3, 34.4, 9),
-    A("The Moss-twined Heart", "Moss-twined Heart (drops from Blackmoss the Fetid, rare; skip if too strong)", 42.4, 37.8, 9),
+    A("The Moss-twined Heart", "Moss-twined Heart (drops from Blackmoss the Fetid, rare; skip if too strong)", 44.0, 30.2, 9),
     T("The Road to Darnassus", "Moon Priestess Amara", 55.0, 58.5, 10),
     T("Crown of the Earth", "Corithras Moonrage", 56.2, 61.7, 10, 5),
     A("Crown of the Earth", "Corithras Moonrage", 56.2, 61.7, 10, 6),
@@ -245,7 +245,6 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     A("The Family and the Fishing Pole", "Gubber Blump, on the dock", 36.1, 44.9, 11),
     A("For Love Eternal", "Cerellean Whiteclaw, on the dock", 35.7, 43.7, 11),
     A("WANTED: Jai'vhanel", "WANTED: Jai'vhanel (poster outside the inn)", 37.2, 44.2, 11),
-    A("The Red Crystal", "Sentinel Glynda Nal'Shea", 37.7, 43.4, 11),
     A("Plagued Lands", "Tharnariun Treetender", 38.8, 43.4, 11),
     A("How Big a Threat?", "Terenthis", 39.4, 43.5, 11, 1),
     A("Bashal'Aran", "Thundris Windweaver", 37.4, 40.1, 11, 1),
@@ -271,6 +270,7 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     T("Thundris Windweaver", "Thundris Windweaver", 37.4, 40.1, 12),
     A("The Cliffspring River", "Thundris Windweaver", 37.4, 40.1, 12),
     A("Cave Mushrooms", "Barithras Moonshade", 37.3, 43.6, 12),
+    A("The Red Crystal", "Sentinel Glynda Nal'Shea", 37.7, 43.4, 12),
     -- Bashal'Aran
     T("Bashal'Aran", "Asterion", 44.2, 36.3, 12, 1),
     A("Bashal'Aran", "Asterion", 44.2, 36.3, 12, 2),
@@ -342,7 +342,7 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     -- South coast, Remtravel, Grove of the Ancients, the Master's Glaive
     A("Beached Sea Turtle", "Beached Sea Turtle (click the remains)", 37.1, 62.2, 16, 3),
     A("Beached Sea Creature", "Beached Sea Creature (click the bones)", 36.0, 70.9, 16, 2),
-    D("Fruit of the Sea", "6 Fine Crab Chunks from Reef Crawlers along the coast (approx)", 35.5, 64.0, 16),
+    D("Fruit of the Sea", "6 Fine Crab Chunks from Reef Crawlers along the coast", 35.5, 73.2, 16),
     D("Buzzbox 525", "4 Grizzled Scalps from Grizzled Thistle Bears (approx)", 41.0, 70.0, 17),
     D("WANTED: Murkdeep!", "Clear the waves at the murloc camp; Murkdeep comes last (group)", 36.4, 76.5, 17),
     A("Beached Sea Creature", "Beached Sea Creature (click the bones)", 32.7, 80.8, 17, 3),
@@ -505,7 +505,7 @@ local DUN_MOROGH = { zone = "Dun Morogh", min = 6, max = 13, steps = {
 
     -- Gnomeregan, Shimmer Ridge and Frostmane Hold
     D("Operation Recombobulation", "8 Restabilization Cogs and 8 Gyromechanic Gears from the Leper Gnomes outside Gnomeregan", 27.6, 36.4, 9),
-    D("The Perfect Stout", "6 Shimmerweed from the Shimmerweed Baskets in the Frostmane camp on Shimmer Ridge", 35.5, 38.5, 9),
+    D("The Perfect Stout", "6 Shimmerweed from the Shimmerweed Baskets in the Frostmane camp on Shimmer Ridge", 41.8, 35.3, 9),
     D("Frostmane Hold", "Go deep into Frostmane Hold (explore it) and kill 5 Frostmane Headhunters", 23.0, 52.0, 10),
 
     -- Tundra MacGrann and Old Icebeard's cave
@@ -657,12 +657,12 @@ local LOCH_MODAN = { zone = "Loch Modan", min = 10, max = 20, steps = {
 
     -- South: Stonesplinter Valley (second trip: the tower's last two parts and Ylva's banner)
     A("In Defense of the King's Lands", "Mountaineer Wallbang (inside the tower)", 23.5, 74.5, 15, 3),
-    D("In Defense of the King's Lands", "Kill 10 Stonesplinter Shamans and 10 Stonesplinter Bonesnappers in the back of Stonesplinter Valley", 36.0, 80.0, 16, 3),
+    D("In Defense of the King's Lands", "Kill 10 Stonesplinter Shamans and 10 Stonesplinter Bonesnappers in the back of Stonesplinter Valley", 36.3, 89.5, 16, 3),
     T("In Defense of the King's Lands", "Mountaineer Wallbang", 23.5, 74.5, 16, 3),
     A("In Defense of the King's Lands", "Captain Rugelfuss", 23.2, 73.7, 16, 4),
     A("Banner of the Fallen", "Mountaineer Ylva (NEW; her body, deep in Stonesplinter Valley)", 31.8, 86.4, 16),
     D("Banner of the Fallen", "Raise the Banner of Ironforge next to Ylva's body, kill Headsplitter when he comes", 32.1, 87.1, 16),
-    D("In Defense of the King's Lands", "Kill Grawmug and his guards Gnasher and Brawler in the innermost trogg cave of Stonesplinter Valley", 35.5, 84.0, 16, 4),
+    D("In Defense of the King's Lands", "Kill Grawmug and his guards Gnasher and Brawler in the innermost trogg cave of Stonesplinter Valley", 34.7, 90.6, 16, 4),
     T("In Defense of the King's Lands", "Captain Rugelfuss", 23.2, 73.7, 16, 4),
     T("Banner of the Fallen", "Captain Rugelfuss", 23.2, 73.7, 16),
 
@@ -686,7 +686,7 @@ local LOCH_MODAN = { zone = "Loch Modan", min = 10, max = 20, steps = {
     D("A Hunter's Challenge", "Kill 5 Elder Mountain Boars in the hills east of the Loch (TIMED 12 min)", 65.4, 39.6, 17),
     T("A Hunter's Challenge", "Daryl the Youngling", 83.5, 65.5, 18),
     A("Vyrin's Revenge", "Vyrin Swiftwind (ELITE bear, group)", 81.7, 64.1, 18, 1),
-    D("Vyrin's Revenge", "Kill Ol' Sooty in the cave north of Farstrider Lodge (ELITE, group)", 80.0, 52.0, 18, 1),
+    D("Vyrin's Revenge", "Kill Ol' Sooty in his cave south-west of Thelsamar (ELITE, group)", 37.9, 63.4, 18, 1),
     T("Vyrin's Revenge", "Daryl the Youngling", 83.5, 65.5, 18, 1),
     A("Vyrin's Revenge", "Daryl the Youngling (bring Ol' Sooty's head to Vyrin)", 83.5, 65.5, 18, 2),
     T("Vyrin's Revenge", "Vyrin Swiftwind", 81.7, 64.1, 18, 2),
@@ -706,7 +706,7 @@ local LOCH_MODAN = { zone = "Loch Modan", min = 10, max = 20, steps = {
     A("A Dark Threat Looms", "Chief Engineer Hinderweir VII (turn-in is Ashlan Stonesmirk, Dun Modr, Wetlands)", 46.0, 13.6, 19, 3),
     D("Bingles' Missing Supplies", "Pick up Bingles' Screwdriver (48,20), Hammer (51,24), Blastencapper (54,26) and Wrench (48,30) on the north shore of the Loch", 51.0, 24.0, 19),
     D("Mercenaries", "Kill 4 Mo'grosh Ogres, 4 Mo'grosh Brutes and 4 Mo'grosh Enforcers at the Mo'grosh Stronghold (ELITE, group)", 69.3, 25.5, 19),
-    D("WANTED: Chok'sul", "Kill Chok'sul in the cave at the back of the Mo'grosh Stronghold and take his head (ELITE, group)", 73.0, 21.0, 19),
+    D("WANTED: Chok'sul", "Kill Chok'sul in the cave at the back of the Mo'grosh Stronghold and take his head (ELITE, group)", 79.6, 14.7, 19),
     T("Bingles' Missing Supplies", "Bingles Blastenheimer", 63.6, 47.9, 19),
     T("Mercenaries", "Magistrate Bluntnose", 34.6, 44.5, 20),
     T("WANTED: Chok'sul", "Magistrate Bluntnose", 34.6, 44.5, 20),
@@ -788,11 +788,11 @@ local ASHENVALE = { zone = "Ashenvale", min = 20, max = 30, steps = {
     A("Vile Satyr! Dryads in Danger!", "Illiyana", 21.7, 53.3, 26),
 
     -- Foulweald and Silverwind Refuge
-    D("An Aggressive Defense", "Kill a Foulweald Den Watcher, 2 Ursas, 10 Totemics and 12 Warriors", 50.0, 59.9, 25),
-    A("Elemental Bracers", "Sentinel Velene Starstrike", 49.8, 67.2, 25),
-    D("Elemental Bracers", "Kill Befouled Water Elementals in Mystral Lake for 5 Intact Elemental Bracers, then use the Divining Scroll", 47.5, 69.5, 25),
-    T("Elemental Bracers", "Sentinel Velene Starstrike", 49.8, 67.2, 25),
-    A("Mage Summoner", "Sentinel Velene Starstrike", 49.8, 67.2, 25),
+    D("An Aggressive Defense", "Kill a Foulweald Den Watcher, 2 Ursas, 10 Totemics and 12 Warriors", 50.0, 59.9, 26),
+    A("Elemental Bracers", "Sentinel Velene Starstrike", 49.8, 67.2, 26),
+    D("Elemental Bracers", "Kill Befouled Water Elementals in Mystral Lake for 5 Intact Elemental Bracers, then use the Divining Scroll", 47.5, 69.5, 26),
+    T("Elemental Bracers", "Sentinel Velene Starstrike", 49.8, 67.2, 26),
+    A("Mage Summoner", "Sentinel Velene Starstrike", 49.8, 67.2, 26),
     D("Mage Summoner", "Kill Sarilus Foulborne near Mystral Lake for his head", 48.5, 72.0, 26),
     T("Mage Summoner", "Sentinel Velene Starstrike", 49.8, 67.2, 26),
 
@@ -928,10 +928,7 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     T("In Search of The Excavation Team", "Merrin Rockweaver", 38.9, 52.3, 23, 1),
     A("In Search of The Excavation Team", "Merrin Rockweaver", 38.9, 52.3, 23, 2),
     A("Ormer's Revenge", "Ormer Ironbraid", 38.2, 50.9, 23, 1),
-    A("Uncovering the Past", "Prospector Whelgar", 38.8, 52.4, 23),
     D("Ormer's Revenge", "Kill 10 Mottled Screechers and 10 Mottled Raptors west and north-west of the dig site", 30.2, 44.1, 23, 1),
-    D("Uncovering the Past", "Pick up the Ados, Modr, Golm and Neru fragments lying around the dig site", 36.5, 50.0, 24),
-    T("Uncovering the Past", "Prospector Whelgar", 38.8, 52.4, 24),
     T("Ormer's Revenge", "Ormer Ironbraid", 38.2, 50.9, 24, 1),
     A("Ormer's Revenge", "Ormer Ironbraid", 38.2, 50.9, 24, 2),
     D("Ormer's Revenge", "Kill 10 Mottled Scytheclaws and 10 Mottled Razormaws around the dig site and the ridge west of it", 35.0, 49.0, 24, 2),
@@ -983,8 +980,11 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     A("The Eye of Paleth", "Intrepid's Locked Strongbox", 14.4, 24.0, 28),
 
     -- Back east: Sarltooth, catapults, Dun Modr, Raptor Ridge
+    A("Uncovering the Past", "Prospector Whelgar", 38.8, 52.4, 28),
+    D("Uncovering the Past", "Pick up the Ados, Modr, Golm and Neru fragments lying around the dig site", 36.5, 50.0, 28),
     D("Ormer's Revenge", "Kill Sarltooth (level 29, wanders west of the dig site) for Sarltooth's Talon", 33.3, 51.5, 28, 3),
     T("Ormer's Revenge", "Ormer Ironbraid", 38.2, 50.9, 28, 3),
+    T("Uncovering the Past", "Prospector Whelgar", 38.8, 52.4, 28),
     D("Nek'rosh's Gambit", "Destroy the Dragonmaw Catapults on the hill east of the Angerfang Encampment (use the quest item on them)", 47.5, 47.0, 29),
     T("Nek'rosh's Gambit", "Dragonmaw Catapult (object)", 47.5, 47.0, 29),
     T("Crimson Crate Delivery", "Howin Kindfeather", 49.4, 42.1, 29),
@@ -1098,7 +1098,7 @@ local DUSKWOOD = { zone = "Duskwood", min = 20, max = 31, steps = {
     D("Worgen in the Woods", "Kill 6 Nightbane Shadow Weavers in the woods west of Darkshire", 65.0, 45.8, 26, 1),
     T("Worgen in the Woods", "Calor", 75.8, 47.6, 26, 1),
     A("Worgen in the Woods", "Calor", 75.8, 47.6, 26, 2),
-    D("Worgen in the Woods", "Kill 12 Nightbane Dark Runners around Yorgen Farmstead and the road south-west of Darkshire", 50.7, 78.9, 26, 2),
+    D("Worgen in the Woods", "Kill 12 Nightbane Dark Runners in the woods south-west of Darkshire, toward Roland's Doom", 61.0, 75.0, 26, 2),
     T("Worgen in the Woods", "Calor", 75.8, 47.6, 27, 2),
     A("Worgen in the Woods", "Calor", 75.8, 47.6, 27, 3),
 
@@ -1165,7 +1165,7 @@ local DUSKWOOD = { zone = "Duskwood", min = 20, max = 31, steps = {
     G("Fly to Darkshire and ride to Sven's Camp", 77.6, 44.4, 31, "Bring Morbent's Bane to Sven Yorgen"),
     T("Armed and Ready", "Sven Yorgen", 7.8, 34.1, 31),
     A("Morbent Fel", "Sven Yorgen (ELITE, group)", 7.8, 34.1, 31),
-    D("Morbent Fel", "ELITE, group: use Morbent's Bane on Morbent Fel in the house on the hill (Forlorn Rowe) north of Raven Hill Cemetery, then kill him", 20.4, 29.3, 31),
+    D("Morbent Fel", "ELITE, group: use Morbent's Bane on Morbent Fel in the house on the hill (Forlorn Rowe) north of Raven Hill Cemetery, then kill him", 16.9, 33.4, 31),
     T("Morbent Fel", "Sven Yorgen", 7.8, 34.1, 31),
 } }
 
@@ -1230,7 +1230,7 @@ local HILLSBRAD = { zone = "Hillsbrad Foothills", min = 28, max = 32, steps = {
     -- North: Darrow Hill yetis, then the Alterac Mountains
     D("Bartolo's Yeti Fur Cloak", "Loot 10 Yeti Fur from the yetis in the Darrow Hill caverns", 44.5, 29.5, 30),
     G("Road north into the Alterac Mountains", 47.4, 5.4, 31, "Lions roam the southern Alterac hills; the Syndicate camps are at Corrahn's Dagger, Sofera's Naze and Gallows' Corner"),
-    D("Costly Menace", "Kill 8 Mountain Lions and 10 Hulking Mountain Lions in the southern Alterac Mountains", 47.4, 5.4, 31),
+    D("Costly Menace", "Kill 8 Mountain Lions and 10 Hulking Mountain Lions in the hills north-west of Hillsbrad Fields", 38.8, 24.6, 31),
     D("Syndicate Assassins", "Kill 12 Syndicate Footpads and 8 Syndicate Thieves at the Syndicate camps (Alterac Mountains); keep the Syndicate Documents drops: Foreboding Plans and Encrypted Letter", 47.4, 5.4, 31),
     -- Back to Southshore
     G("Return to Southshore", 49.9, 56.4, 32),
@@ -1319,7 +1319,7 @@ local ARATHI = { zone = "Arathi Highlands", min = 30, max = 40, steps = {
     D("Stones of Binding", "Burning Key: kill Burning Exiles at the Circle of West Binding", 25.6, 30.4, 36),
     D("Stromgarde Badges", "Stromgarde Keep, Syndicate quarter (first left inside the gate): 7 Stromgarde Badges from Syndicate Prowlers, Conjurors and Magi (ELITE, group)", 29.6, 63.0, 37),
     D("Wanted! Marez Cowl", "Stromgarde Keep: Marez Cowl stands behind the house at the dead end of the Syndicate quarter, near a well (also spawns at 29,62); loot Marez's Head (ELITE, group)", 27.0, 64.0, 37),
-    D("Wanted! Otto and Falconcrest", "Stromgarde Keep: straight down the main road to the inner keep at the back, upper floor; loot Otto's Head and Falconcrest's Head (ELITE, group). Location approximate", 25.0, 59.0, 38),
+    D("Wanted! Otto and Falconcrest", "Stromgarde Keep: straight down the main road to the inner keep at the back, upper floor; loot Otto's Head and Falconcrest's Head (ELITE, group)", 26.1, 65.6, 38),
     D("Trelane's Defenses", "Stromgarde Keep, ogre quarter (right before the ramp, then left): Azure Agate from Boulderfist Shamans (ELITE, group)", 20.0, 67.4, 38),
     T("Stones of Binding", "Stone of Inner Binding (opens; Thenan spawns)", 36.2, 57.4, 38),
     A("Breaking the Keystone", "Stone of Inner Binding (ELITE, group)", 36.2, 57.4, 38),
@@ -1354,7 +1354,7 @@ local ARATHI = { zone = "Arathi Highlands", min = 30, max = 40, steps = {
     A("Sunken Treasure", "Shakes O'Breen (turn in to Fleet Master Seahorn in Booty Bay later)", 32.3, 81.4, 40, 4),
 
     -- Fozruk and the Keystone on the way back
-    D("Breaking the Keystone", "Kill Fozruk for the Rod of Order; the stone giant patrols the main road between Thoradin's Wall, Refuge Pointe and Hammerfall (ELITE, group). Location approximate: road east of Refuge Pointe", 50.0, 47.0, 40),
+    D("Breaking the Keystone", "Kill Fozruk for the Rod of Order; the stone giant patrols the main road between Thoradin's Wall, Refuge Pointe and Hammerfall (ELITE, group)", 67.7, 37.6, 40),
     T("Breaking the Keystone", "Keystone (next to the Stone of Inner Binding)", 36.1, 58.1, 40),
     A("Myzrael's Allies", "Keystone (turn in to Gerrig Bonegrip, Forlorn Cavern, Ironforge)", 36.1, 58.1, 40),
 
@@ -1556,7 +1556,7 @@ local STRANGLETHORN = { zone = "Stranglethorn Vale", min = 30, max = 45, steps =
     T("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 33, 1),
     A("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 33, 2),
     A("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 33, 2),
-    D("Tiger Mastery", "Kill 10 Stranglethorn Tigers", 36.4, 13.8, 33, 2),
+    D("Tiger Mastery", "Kill 10 Stranglethorn Tigers", 30.8, 16.1, 33, 2),
     D("Panther Mastery", "Kill 10 Panthers", 30.4, 8.8, 33, 2),
     D("Raptor Mastery", "Kill 10 Stranglethorn Raptors", 27.8, 14.3, 33, 1),
     T("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 34, 2),
@@ -1968,7 +1968,7 @@ local FERALAS = { zone = "Feralas", min = 42, max = 50, steps = {
     T("Fuel for the Zapping", "Zorbin Fandazzle", 44.8, 43.4, 48),
 
     -- Rage Scar Hold, then the Twin Colossals and Shay
-    D("Improved Quality", "Kill Rage Scar Yetis in Rage Scar Hold (north-east of the dock, south of the Twin Colossals) for 10 Rage Scar Yeti Hides", 50.5, 40.5, 49),
+    D("Improved Quality", "Kill Rage Scar Yetis in Rage Scar Hold (north-east of the dock, south of the Twin Colossals) for 10 Rage Scar Yeti Hides", 53.7, 31.9, 49),
     A("The Giant Guardian", "Rockbiter", 42.4, 22.0, 49),
     T("The Giant Guardian", "Shay Leafrunner", 38.2, 10.3, 49),
     A("Wandering Shay", "Shay Leafrunner (ESCORT)", 38.2, 10.3, 49),
@@ -2022,7 +2022,7 @@ local HINTERLANDS = { zone = "The Hinterlands", min = 43, max = 51, steps = {
     D("Sprinkle's Secret Ingredient", "Loot the Violet Tragan underwater in Valorwind Lake, just south of the road", 40.0, 60.0, 45),
 
     -- North-east: the river, Skulk Rock and OOX-09/HL
-    D("Food for Baby", "Kill stealthed Silvermane Stalkers (5 Silvermane Stalker Flanks) in the woods along the road and river east of Agol'watha", 44.0, 52.0, 45),
+    D("Food for Baby", "Kill stealthed Silvermane Stalkers (5 Silvermane Stalker Flanks) in the woods along the road and river east of Agol'watha", 52.4, 56.8, 45),
     D("Skulk Rock Clean-up", "Kill 10 Green Sludges along the river west of Skulk Rock", 46.0, 42.0, 45),
     D("Skulk Rock Clean-up", "Kill 10 Jade Oozes at Skulk Rock", 56.0, 41.0, 46),
     A("Find OOX-09/HL!", "OOX-09/HL Distress Beacon (only if the beacon dropped from a Hinterlands troll; use the item at the robot)", 49.4, 37.7, 46),
@@ -2059,7 +2059,7 @@ local HINTERLANDS = { zone = "The Hinterlands", min = 43, max = 51, steps = {
     A("Saving Sharpbeak", "Gryphon Master Talonaxe (ELITE, group)", 9.8, 44.5, 50),
     T("Rhapsody's Kalimdor Kocktail", "Rhapsody Shindigger (only with the gizzards and livers from Tanaris/Feralas)", 26.9, 48.6, 50),
     A("Rhapsody's Tale", "Rhapsody Shindigger (ends at Brohann Caskbelly, Stormwind)", 26.9, 48.6, 50),
-    D("Saving Sharpbeak", "ELITE, group: fight to the top of Jintha'Alor, kill Vile Priestess Hexx for Hexx's Key, then open Sharpbeak's Cage through the north exit of the pit (not the cave behind Hexx). The Ancient Egg (Tanaris) is looted here too", 63.3, 70.3, 50),
+    D("Saving Sharpbeak", "ELITE, group: fight to the top of Jintha'Alor, kill Vile Priestess Hexx for Hexx's Key, then open Sharpbeak's Cage through the north exit of the pit (not the cave behind Hexx). The Ancient Egg (Tanaris) is looted here too", 59.5, 78.3, 50),
     T("Saving Sharpbeak", "Gryphon Master Talonaxe", 9.8, 44.5, 51),
     G("Aerie Peak flight path", 11.1, 46.1, 51, "Done here: Rhapsody's Tale to Brohann Caskbelly in Stormwind (leads to the Sunken Temple), Jammal'an the Prophet back to the Atal'ai Exile after the dungeon"),
 } }
@@ -2085,7 +2085,7 @@ local UNGORO = { zone = "Un'Goro Crater", min = 48, max = 56, steps = {
     A("It's a Secret to Everybody", "A Wrecked Raft (in the pond)", 63.0, 68.6, 48, 1),
     T("It's a Secret to Everybody", "A Small Pack", 63.1, 69.1, 48, 1),
     A("It's a Secret to Everybody", "A Small Pack", 63.1, 69.1, 48, 2),
-    D("The Fare of Lar'korwi", "Loot a Piece of Threshadon Carcass from the Fresh Threshadon Carcass south of the pond", 64.2, 74.2, 48),
+    D("The Fare of Lar'korwi", "Loot a Piece of Threshadon Carcass from the Fresh Threshadon Carcass", 68.7, 56.7, 48),
     T("The Fare of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 48),
     A("The Scent of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 48),
     D("The Scent of Lar'korwi", "Walk up to the ravasaur nests west of Torwa; kill the Lar'korwi's Mates that spawn for 2 Ravasaur Pheromone Glands", 66.5, 74.0, 48),
@@ -2135,7 +2135,7 @@ local UNGORO = { zone = "Un'Goro Crater", min = 48, max = 56, steps = {
     T("The Apes of Un'Goro", "Torwa Pathfinder", 71.6, 76.0, 52),
     A("The Mighty U'cha", "Torwa Pathfinder", 71.6, 76.0, 52),
     A("The Bait for Lar'korwi", "Torwa Pathfinder (gives Torwa's Pouch)", 71.6, 76.0, 52),
-    D("Shizzle's Flyer", "Kill Diemetradons in the Marshlands for 8 Webbed Diemetradon Scales", 50.0, 79.0, 52),
+    D("Shizzle's Flyer", "Kill Diemetradons in the Marshlands for 8 Webbed Diemetradon Scales", 57.2, 80.4, 52),
     D("Alien Ecology", "Enter the Slithering Scar (50,81) and use the Scraping Vial in the middle of a hatchery chamber with hanging larvae", 49.0, 85.0, 52),
     D("Roll the Bones", "Loot Dinosaur Bones on the ground around the threshadon corpse at the south end of Terror Run (stegodons and diemetradons drop them too) - 8 needed", 36.0, 72.0, 52),
     D("Expedition Salvation", "Loot the Research Equipment", 38.5, 66.0, 52),
@@ -2325,7 +2325,7 @@ local BURNING_STEPPES = { zone = "Burning Steppes", min = 50, max = 55, steps = 
 
     -- Terror Wing Path and the Ruins of Thaurissan
     D("Broodling Essence", "Use the Draco-Incarcinatrix 900 on Black Broodlings before killing them, loot 8 Broodling Essence (Terror Wing Path)", 72.3, 53.1, 52),
-    D("Dragonkin Menace", "Kill 15 Black Broodlings, 10 Black Dragonspawn, 4 Black Wyrmkin and 1 Black Drake in Terror Wing Path (ELITE, group; drakes patrol the valley)", 72.3, 53.1, 53),
+    D("Dragonkin Menace", "Kill 15 Black Broodlings, 10 Black Dragonspawn, 4 Black Wyrmkin and 1 Black Drake in Terror Wing Path (ELITE, group; drakes patrol the valley)", 76.9, 62.1, 53),
     D("Tablet of the Seven", "Read the Tablet of the Seven below the dwarf statue in the Ruins of Thaurissan (Dark Iron camp) for the Tablet Transcript", 53.0, 41.0, 53),
     T("Tablet of the Seven", "Maxwort Uberglint", 65.2, 23.9, 53),
     T("Broodling Essence", "Tinkee Steamboil", 65.2, 24.0, 53),
@@ -2507,7 +2507,7 @@ local EASTERN_PLAGUELANDS = { zone = "Eastern Plaguelands", min = 55, max = 60, 
     G("Darrowshire", 31.1, 78.0, 55, "Cross the Thondroril River from WPL and follow the southern road to the ruined village"),
     T("Little Pamela", "Pamela Redpath", 31.1, 78.0, 55),
     A("Pamela's Doll", "Pamela Redpath", 31.1, 78.0, 55),
-    D("Pamela's Doll", "Collect Pamela's Doll's Head, Left Side and Right Side from the ruined houses of Darrowshire (one piece per house)", 36.5, 90.5, 55),
+    D("Pamela's Doll", "Collect Pamela's Doll's Head, Left Side and Right Side from the ruined houses of Darrowshire (one piece per house)", 33.1, 79.5, 55),
     T("Pamela's Doll", "Pamela Redpath", 31.1, 78.0, 55),
     A("Uncle Carlin", "Pamela Redpath", 31.1, 78.0, 55),
     A("Auntie Marlene", "Pamela Redpath", 31.1, 78.0, 55),
@@ -2517,7 +2517,7 @@ local EASTERN_PLAGUELANDS = { zone = "Eastern Plaguelands", min = 55, max = 60, 
     A("Demon Dogs", "Tirion Fordring", 5.2, 35.6, 56),
     A("Blood Tinged Skies", "Tirion Fordring", 5.2, 35.6, 56),
     A("Carrion Grubbage", "Tirion Fordring", 5.2, 35.6, 56),
-    D("Demon Dogs", "Kill 20 Plaguehound Runts, 5 Plaguehounds and 5 Frenzied Plaguehounds along the river and the western Plaguewood edge", 15.0, 42.0, 56),
+    D("Demon Dogs", "Kill 20 Plaguehound Runts, 5 Plaguehounds and 5 Frenzied Plaguehounds along the river and the western Plaguewood edge", 6.4, 45.3, 56),
     A("Augustus' Receipt Book", "Augustus the Touched (Terrordale)", 11.4, 26.4, 56),
     D("Augustus' Receipt Book", "Loot Augustus' Receipt Book on the second floor of the Terrordale inn", 14.2, 26.5, 56),
     T("Augustus' Receipt Book", "Augustus the Touched", 11.4, 26.4, 56),
@@ -2763,7 +2763,7 @@ local SILITHUS = { zone = "Silithus", min = 55, max = 60, steps = {
     A("The Twilight Lexicon", "Hermit Ortell", 67.2, 69.8, 59),
 
     -- The three Twilight camps (chapters + 20 more Encrypted Twilight Texts)
-    D("The Twilight Lexicon", "Twilight Outpost (far south-west, north-west of the Scarab Wall): kill Twilight Keeper Exeter for Twilight Lexicon - Chapter 2", 25.0, 77.0, 59),
+    D("The Twilight Lexicon", "Twilight Outpost (far south-west, north-west of the Scarab Wall): kill Twilight Keeper Exeter for Twilight Lexicon - Chapter 2", 16.1, 86.4, 59),
     D("The Twilight Lexicon", "Twilight Post (north-west, west of the wind stones): kill Twilight Keeper Mayna for Twilight Lexicon - Chapter 1", 26.4, 36.6, 59),
     D("The Twilight Lexicon", "Twilight Base Camp: kill Twilight Keeper Havunth for Twilight Lexicon - Chapter 3", 40.9, 42.2, 59),
     G("Twilight Base Camp", 42.0, 41.0, 59, "Farm 20 Encrypted Twilight Texts from the cultists here before going back to Ortell (True Believers and Still Believing need 10 each)"),
