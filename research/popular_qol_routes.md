@@ -51,3 +51,184 @@ Verdicts (all CLEAN, no folder deleted):
 AI notes: none of the eight asks AI tools not to use it. Glowing Bars' docs say openly that an AI writes most of its
 code; the cjber repos carry `.claude/skills` release helpers. SkillUp and Tweaks locales are marked machine translated.
 
+## Shortest Path Forever (cjber, release 1.24.1)
+
+**Features.** All information/navigation; nothing plays the game for you. Journey planner (walk, flight, boat,
+zeppelin, lift, tram, portal, hearthstone/class teleports, party mage portals), live replanning as you move, route
+drawn on world map, minimap and a direction arrow, steps listed in the objective tracker, boat/zeppelin departure
+times at docks, flight-time countdown while flying, "nearby services" panel (vendors by what they sell, trainers,
+innkeepers, from QuestieDB), corpse route when dead, opt-in group/guild leaderboard and timetable sharing over addon
+messages, an API other addons use to request a destination (RestedXP, Guidelime, TomTom waypoints).
+Blizzard-frame touches we would not copy: hooks on the flight master map buttons (draws the planned hop and locks a
+button highlight), objective-tracker sections.
+
+**Route model (Routing/Planner.lua).**
+- Graph nodes: start, goal, every dock, every faction-eligible flight point, both ends of each public portal
+  (area-trigger teleports such as the Deeprun Tram), and teleport landing spots (bind point, class teleports).
+- Edges: flights from a baked list of directed taxi paths with seconds per path (93% measured durations from
+  InFlight's data, the rest distance at 32 yd/s); boat/zeppelin rides from baked routes with a period and per-stop
+  phase; portals with a fixed loading allowance (5 s); teleports from the start only, waiting until the cooldown is
+  ready; walking between any two places on the same continent and "landmass" (bounding boxes split islands).
+- Walking costs: a baked table of navmesh-searched yards between fixed places (Data/Walks.lua, two variants for water
+  walking); otherwise the straight-line gap as an admissible lower bound, later refined by a real path search over a
+  shipped collision grid (HPA* over map tiles plus an 8-yard grid, sliced across frames in coroutines). Run speed is
+  read live (default 7 yd/s) and only rescales walking edges, so the topology is cached.
+- Search: a time-dependent label-setting search with an A*-style heuristic. A reverse Dijkstra from the goal gives
+  each node a lower bound (boats counted at half their period). Labels are kept per node per arrival mode (on foot,
+  in flight, transit) so boarding costs and "no revisiting" stay correct; a binary heap pops labels by
+  time + bound. Boat waits are exact when the route's phase is known, otherwise half a period and the leg is marked
+  "estimated". A Hearthstone must save at least 20 s; a very long single walk loses to a ride within 10%.
+- Flight boarding: 3 s added when you first board a flight; connecting flights only through known nodes.
+- **Which flight paths you know:** only learned at a flight master. On TAXIMAP_OPENED the addon reads
+  `C_TaxiMap.GetAllTaxiNodes(GetTaxiMapID())` and counts a node as known when `TaxiNodeGetType(slotIndex)` is not
+  "NONE" (the same rule the stock taxi frame uses to draw a node). Forever-specific: the node's own `state` field
+  says reachable even for undiscovered nodes, so it is not trusted. Known IDs are saved per character, never
+  unlearned by absence, and the user can toggle a node by hand. Until a flight master is opened the planner walks.
+- **ETA:** sum of leg durations; flights use a per-character measured time per directed path once flown
+  (UnitOnTaxi start to end, outliers rejected), else the shipped seconds. In flight, remaining time comes from the
+  player's projected progress along the path polyline. Boats: the "anchor" (server-time epoch of the route's phase
+  0) is fitted from your own position samples while riding (boats move ~30 yd/s vs running 7) and optionally shared
+  with group/guild; stale anchors expire.
+- Bind point: `GetBindLocation()` gives only a name, so the landing position is learned the first time you hearth
+  (first position jump after the cast), kept with that name.
+
+**Secret values.** `canaccessvalue()` on facing, minimap radius, bind name, cooldown start/duration, spell cast
+time; when hidden it keeps the last readable run speed and treats a teleport cooldown as unknown.
+
+**Compared with ours.**
+- Landmarks.lua:284-285 records the flight master's position on TAXIMAP_OPENED but not which flight points the
+  character knows; Landmarks.lua:82-87 and :148-159 rank "nearest" by straight-line yards on one continent, so a
+  vendor across a river or a mountain looks closest, and nothing estimates travel time.
+- Landmarks has no flight network: "nearest inn" is never "fly to X then walk 80 yd".
+- Landmarks' page is reached through `/places` (Landmarks.lua:308-310) and printed as text lines into the hub
+  (:39-44), not a list with buttons.
+- LevelGuide.lua:89-100 measures straight-line distance to the next step only; no "fly to" hints.
+
+**Simpler version we could build (read-only).**
+1. (S) In Landmarks, on TAXIMAP_OPENED also save the known flight points per character (node ID, name, map
+   position) using the "slot type is not NONE" rule. Show a "Flight points known: n" list.
+2. (M) "Travel estimate" for Landmarks' nearest place and LevelGuide's next step: compare (a) walk = straight yards /
+   run speed x 1.3 detour factor, with (b) walk to nearest known flight point + flight + walk from the known flight
+   point nearest the target. Flight seconds: learn them ourselves per directed pair by timing UnitOnTaxi on
+   PLAYER_CONTROL_LOST/GAINED (start from straight distance / 32 yd/s until measured). A plain Dijkstra over known
+   nodes is enough; boats and portals can wait. Display "~4 min: fly Ironforge -> Menethil, then 120 yd".
+3. (S) Hearthstone option: if the hearth cooldown is ready and the bind inn (Landmarks already knows inns) is closer
+   to the target, offer "Hearth (10 s cast), then ...".
+4. (L, later) Boat timetables: only if we want them; the anchor fitting is the hard part.
+
+## Tweaks Forever (cjber, v2.4.2)
+
+**Automation (out of scope, noted only):** auto accept/turn-in, gossip skip, summons/resurrect/duel/invite
+handling, auto repair (guild funds), sell junk and marked items, one-click gear groups, train-all button, fishing
+double-click, camera zoom, Edit Mode window moving, nameplate restyle, tooltip restyle.
+
+**Information features and how they work.**
+- XP per hour on the experience bar tooltip (UI/XPRate.lua): PLAYER_XP_UPDATE gains in a 15-minute window, level-up
+  wrap handled with the previous max; no rate for the first 5 minutes. Each gain is classified: XP within 2 s of a
+  QUEST_TURNED_IN (whose payload carries the XP) is quest XP; XP in combat or within 3 s after
+  PLAYER_REGEN_ENABLED is a kill. Medians of the last 10 kills and last 10 quests give "kills to level: about N" and
+  "quests to level: about N" (median so a discovery or elite kill does not skew it).
+- Quest XP on the experience bar (UI/QuestXPBar.lua): sums `GetQuestLogRewardXP` over the log, split into ready to
+  hand in vs not yet done; draws two gold segments on an overlay frame laid over the bar (deferred while the bar is
+  protected in combat); the tooltip says which level and % all quests in the log would reach, walking a
+  built-in per-level XP table.
+- Quest levels in the log, nearest quest first in the tracker with yards (QuestDistance), quest givers on minimap
+  tooltips and quest progress on unit tooltips (both via QuestieDB), best-selling quest reward marked with a coin
+  (sell price x count, waits for GET_ITEM_INFO_RECEIVED).
+- "Future spells" in the spellbook from cached trainer rows (TRAINER_SHOW) plus baked class-spell data; pet trainer
+  hint (abilities the pet has not learned).
+- Rare alerts from nameplates and vignettes (VIGNETTES_UPDATED), chime played by file because Forever lacks the kit.
+- Unspent talent glow: Forever's talents are a trait tree, so it reads the tree currency of the active config
+  (`C_Traits` tree currency), not `GetNumUnspentTalents`.
+- Campsites (Forever-only feature): tooltip on camp objects explains each camp benefit (baked from the Camp Benefits
+  auras), announces a newly gained benefit, remembers the campfire's position for direction.
+- Map: dungeon entrance icons and level ranges, zone level ranges, coordinates, unexplored-area tint.
+- Error journal: its own SafeCall wrapper records this addon's errors, ADDON_ACTION_BLOCKED/FORBIDDEN and warnings
+  into saved variables for a "report a bug" window that pre-fills a GitHub issue URL to copy.
+
+**Forever-specific and Midnight techniques.** `ns.Readable(value)` returns nil unless `canaccessvalue(value)`; a lint
+in tools/ forces every unit name/GUID read through it. Every tooltip hook first checks `IsForbidden()`.
+`Data/ForeverQuests.lua` lists quest IDs that exist in Forever's QuestV2 table but not Classic Era's (quests new to
+Forever), generated from wago.tools.
+
+**Compared with ForeverHub.**
+- ForeverHub.lua:957-959 estimates time to level from a 15-minute window like Tweaks, but has no warm-up period:
+  `elapsed` is floored at 60 s (:942), so one quest turned in during the first minute gives a wildly short estimate.
+- ForeverHub does not tell kills from quests (TrackXP, ForeverHub.lua:1326-1343), so it cannot say "about 23 kills"
+  or "about 4 quests" to level.
+- FinishedQuestXP (ForeverHub.lua:920-937) only counts finished quests; there is no "all quests in the log" total
+  and no "this reaches level N, x%" line, and the time-to-level line (:959) ignores the XP already waiting in
+  finished quests.
+- Hub stats reset on every /reload (session.start set at :1367) because samples live only in memory.
+- Our helpers test secrets with `issecretvalue` only; no `canaccessvalue` use anywhere in the suite. Both exist on
+  this client (FrameScriptDocumentation). Keep `issecretvalue` but note `canaccessvalue` is the documented "may I
+  use it" test.
+
+## SkillUp Forever (cjber, v1.1.6)
+
+**Features.** Information, plus UI changes to the Blizzard Professions window (widened list, extra columns, sorting)
+that we would not copy. Skill-up chance, cost and colour bands per recipe row and tooltip; levelling routes per
+profession (crafts, trainer visits, skill books, rank quests, fees, tools and stations); shopping list counted against
+bags and bank; reagent tooltips saying how many your tracked routes need; trainer annotations (best recipe to learn);
+gathering node skill on node tooltips (English only); "crafted gear" tab (newest craftable item per slot, no stat
+weights); opt-in leaderboards via addon messages; Auctionator price integration.
+
+**Skill-up chance formula (Core/Model.lua).** Thresholds per recipe are four numbers: orange starts, yellow starts,
+green starts, grey starts. Chance at skill s:
+- below orange: not learnable (nil); orange band: 100%; grey or above: 0%;
+- yellow and green: (grey - s) / (grey - yellow), i.e. falls linearly from 100% at the start of yellow to 0 at grey;
+- plus a Forever-only bonus: the Legacy professions talent "Working Overtime" adds 4 percentage points per rank (up
+  to +20%), read from the Legacy trait tree with `C_Traits.GetConfigIDByTreeID` + `C_Traits.GetNodeInfo`
+  (activeRank); orange stays 100%, grey stays 0.
+- Data: bundled thresholds from the SkillLineAbility DB2 of build 1.60.1 (trivial skill values), and the live grey
+  from `C_TradeSkillUI.GetRecipeInfo(recipeID).maxTrivialLevel` replaces the bundled grey whenever the window is open
+  (the client gives no live yellow/green). `numSkillUps` (orange crafts that give 2+ points) comes live too.
+- Crafts needed: not the average 1/p. It finds the fewest crafts that reach the target with 90% confidence, using a
+  point-by-point probability table (chance changes at every skill point), and caps multi-point crafts at the grey.
+- Cost per point: first craft at the recipe's net cost (reagents minus what the product sells for, never below zero),
+  each extra craft at full reagent cost, plus a nominal 1 silver "time cost" per craft so a free recipe that is near
+  grey does not look free. Reagent prices: price seen at a vendor (includes reputation discount) > Auctionator buyout
+  (net of 5% cut) > bundled vendor prices; mats you gather are free or valued at market (option); sub-crafting
+  recursion up to three levels when crafting a reagent is cheaper than buying it.
+
+**Routes.** Built per character from known recipes plus trainer- and vendor-taught ones not yet learned (bundled
+trainer data, prices replaced by what trainers/vendors were seen to charge); at each skill point it picks the
+cheapest cost per point, ties broken by better chance, then by a product that is a buff usable at your level. Rank
+caps: trainers, else Expert books (First Aid, Cooking), else Artisan quests (per faction, titles from QuestieDB).
+Missing tools (from `C_TradeSkillUI.GetRecipeRequirements` Totem entries) join the shopping list; station names
+(Anvil, Forge, Cooking Fire) are shown per step. Craftable counts from `C_TradeSkillUI.GetCraftableCount`.
+
+**Forever-specific notes from the code.**
+- Gathering-skilled professions are levelled by gathering; their few Forever recipes cannot carry a route.
+- Skinning/gathering skill from a corpse is left as "?" because nobody has confirmed Forever kept Classic's rule.
+- Forever's SavedVariables sometimes fail to load (they cite a Forever bug tracker issue), so defaults are always the
+  base and saved values are merged over them.
+- Under the gamepad interface, opening any Blizzard context menu from addon code taints the gamepad focus manager;
+  they open no menu there.
+- Secrets: `ns.Readable` uses `issecretvalue`; every tooltip hook checks `IsForbidden()` first.
+
+**Compared with ProfessionGuide / ProfessionCap / GoldGuide.**
+- ProfessionGuide/Data_Alchemy.lua:9-10 uses fixed rules of thumb (orange 1 craft per point, yellow ~1.5, green ~3)
+  for `crafts`. The real expected crafts depend on where in yellow/green you are; for a 40-point yellow-to-grey span the
+  first yellow point needs ~1 craft, the midpoint ~2, and the last point ~40 on average (chance 1/40). Steps like 65-90 (Data_Alchemy.lua:43-50) can be off either
+  way, so the shopping list (mats x crafts) will be wrong.
+- ProfessionGuide data is static and one faction (Data_Alchemy.lua:1); it cannot react to recipes you already know,
+  a recipe you skipped, or the Legacy talent bonus.
+- ProfessionCap.lua:3-7 hard-codes rank caps and level requirements; fine, but it never says "train now so you don't
+  waste skill-ups" for books held in bags, and Artisan for secondaries is described generally (:90-91).
+- GoldGuide prices only from PriceMemory's own AH searches and vendor value; SkillUp's "vendor price seen at the
+  merchant beats bundled price" trick (it records merchant prices with reputation discount) is a cheap upgrade.
+
+**Improvements (read-only, our own UI).**
+1. (S) ProfessionGuide: compute `crafts` per step from thresholds with the linear chance formula instead of the
+   1.5/3 rule; store the four thresholds per step and derive expected crafts (and a 90% "safe" count for the
+   shopping list).
+2. (S) Read the live grey with `C_TradeSkillUI.GetRecipeInfo(id).maxTrivialLevel` while the profession window is open
+   (event TRADE_SKILL_LIST_UPDATE), and show "this recipe goes grey at N" in our panel.
+3. (S) Add the Working Overtime bonus (Legacy professions trait tree) to the chance.
+4. (M) "Next best recipe" in ProfessionGuide: among known recipes, the cheapest cost per skill point at your current
+   skill (net of what the product sells for), so the guide adapts when the user deviates.
+5. (M) Shopping list against bags + bank with "safe" counts (90% confidence) and vendor prices seen.
+6. (S) ProfessionCap: flag missing tools (Blacksmith Hammer, Mining Pick, Skinning Knife...) using
+   `C_TradeSkillUI.GetRecipeRequirements` when the window is open.
+

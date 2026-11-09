@@ -36,7 +36,7 @@ $Bundles = [ordered]@{
     'ForeverCharacter' = @{ Title = 'Forever Character'; Notes = 'Talents, trainer, weapon skills, rested XP, level log, reputation, spell ranks and buffs.'
                             Modules = @('TalentNudge', 'TrainerNotes', 'WeaponSkillWatch', 'RestGuard', 'LevelLog', 'RepWatch', 'ReadyCheck') }
     'ForeverWorld'     = @{ Title = 'Forever World'; Notes = 'Remembered places, death spots and rare alerts.'
-                            Modules = @('Landmarks', 'DeathNotes', 'RareWatch') }
+                            Modules = @('Landmarks', 'DeathNotes', 'RareWatch', 'MapPins') }
 }
 
 function Read-Toc($module) {

@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: Dungeons
+## Notes: Which dungeons suit your level, where their entrances are, their quests and what you've done of them, and the loot worth having. Only gives information.
+## Version: 0.1.0
+
+Data.lua
+Dungeons.lua
