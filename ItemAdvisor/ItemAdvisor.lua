@@ -179,21 +179,78 @@ local MAX_LEVEL, MIN_PERCENT_LEVEL = 60, 10
 
 -- Leveling estimates. Physical profiles use attack power = 1 and casters use spell damage = 1.
 -- Warrior and hunter ratios start from wowsims/forever level-60 EP, then lean toward survival per leveling guides.
+--
+-- 2026-11-09 pass against the Forever guides (research\builds_forever.md "ItemAdvisor weights vs sources" and the
+-- stat sections of research\builds\<CLASS>.md: Icy Veins, Method, Warcraft Tavern). A weight moved only where
+-- the sources agree on the order; where they disagree the old value stays and the comment says so.
+-- Per 1% the weights compare as weight x RATING_PER_PERCENT (hit/exp 10, crit 14 rating per 1%).
 local PROFILES = {
-    warrior = { str = 2.2, ap = 1, sta = 1.6, agi = 1.2, spi = 0.8, armor = 0.05, crit = 3, hit = 2, haste = 2.6, exp = 5, melee = 19 },
+    -- Fury/Arms: IV and Method both put Hit first (WARRIOR.md): hit 2 -> 5.5 (55 per 1%, above exp 50 and crit 42).
+    -- Expertise kept at 5: IV ranks it right after Hit, Method doesn't list it.
+    warrior = { str = 2.2, ap = 1, sta = 1.6, agi = 1.2, spi = 0.8, armor = 0.05, crit = 3, hit = 5.5, haste = 2.6, exp = 5, melee = 19 },
+    -- Unchanged: Expertise above Hit matches IV; Method has them equal (ROGUE.md).
     rogue = { agi = 2.4, str = 1.1, ap = 1, sta = 1.2, armor = 0.05, crit = 3, hit = 3.5, haste = 2.5, exp = 5, melee = 15 },
-    hunter = { agi = 4.5, rap = 1, ap = 0.75, sta = 1.5, int = 1, str = 0.3, armor = 0.05, crit = 3.9, hit = 1.3, haste = 2.5, exp = 1, ranged = 9 },
+    -- Careful Aim turns Intellect into attack power: int 1 -> 2 (HUNTER.md, builds_forever.md). Method says
+    -- Agility = Intellect, IV doesn't rank Intellect, so it stays below Agility. IV's Hit-before-Crit has no
+    -- second source: hit kept.
+    hunter = { agi = 4.5, rap = 1, ap = 0.75, sta = 1.5, int = 2, str = 0.3, armor = 0.05, crit = 3.9, hit = 1.3, haste = 2.5, exp = 1, ranged = 9 },
     survival = { agi = 4.5, rap = 1, ap = 1, sta = 1.5, int = 1, str = 0.8, armor = 0.05, crit = 3.9, hit = 1.3, haste = 2.5, exp = 2.8, melee = 7, ranged = 5 },
-    feral = { str = 2, feralap = 1, ap = 1, agi = 1.5, sta = 1.5, int = 0.3, spi = 0.2, armor = 0.1, crit = 2.5, hit = 2, exp = 2 },
-    enhancement = { str = 2.2, ap = 1, int = 1, agi = 0.8, sta = 1, dmg = 0.3, armor = 0.05, crit = 3, hit = 3, exp = 3, melee = 19 },
-    retribution = { str = 2.2, ap = 1, int = 0.8, agi = 0.8, sta = 1, dmg = 0.5, armor = 0.05, crit = 3, hit = 3, exp = 2.5, melee = 19 },
+    -- Cat (DRUID.md): Forever feral scales with weapon damage and IV/Method rank Weapon DPS first: melee 0 -> 14.
+    -- Hit > Expertise > Crit in IV and WT: hit 2 -> 4.5, exp 2 -> 4 (45/40 per 1%, crit 35). Str vs Agi
+    -- disagree (Method Str, IV Agi): kept.
+    feral = { str = 2, feralap = 1, ap = 1, agi = 1.5, sta = 1.5, int = 0.3, spi = 0.2, armor = 0.1, crit = 2.5, hit = 4.5, exp = 4, melee = 14 },
+    -- IV and Method both put Hit at the top and Crit below Str/Int (SHAMAN.md): hit 3 -> 4.5, crit 3 -> 2.
+    -- Int vs Str disagree (IV Int, Method Str): kept.
+    enhancement = { str = 2.2, ap = 1, int = 1, agi = 0.8, sta = 1, dmg = 0.3, armor = 0.05, crit = 2, hit = 4.5, exp = 3, melee = 19 },
+    -- IV and Method: Hit > Expertise > Str ~ Spell Power, Crit last (PALADIN.md): hit 3 -> 4.5, exp 2.5 -> 3.5,
+    -- dmg 0.5 -> 2 (just under Str: IV has Str first, Method SP first), crit 3 -> 2.
+    retribution = { str = 2.2, ap = 1, int = 0.8, agi = 0.8, sta = 1, dmg = 2, armor = 0.05, crit = 2, hit = 4.5, exp = 3.5, melee = 19 },
+    -- Shared by warrior, paladin and druid tanks; per-class changes are in CLASS_PROFILE_OVERRIDES below.
+    -- Warrior tanks: IV and Method both rank Agility above Strength and Defense low; not changed (shared profile).
     tank = { sta = 2, armor = 0.15, str = 1.5, agi = 1.2, ap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, melee = 8 },
-    mage = { dmg = 1, school = 0.6, int = 0.6, sta = 0.4, spi = 0.25, armor = 0.01, crit = 0.8, hit = 1, haste = 0.7, mp5 = 0.6, wand = 3 },
-    warlock = { dmg = 1, school = 0.6, hit = 0.9, int = 0.4, sta = 0.5, spi = 0.15, armor = 0.01, crit = 0.5, haste = 0.2, mp5 = 0.4, wand = 3 },
-    shadow = { spi = 1.1, dmg = 1, school = 0.6, int = 0.5, sta = 0.4, armor = 0.01, hit = 0.5, crit = 0.4, haste = 0.3, mp5 = 0.5, wand = 3 },
+    -- Casters: Hit (to 17%) first, then Spell Damage, then Crit (MAGE.md, WARLOCK.md: IV and Method; WT puts
+    -- Crit before Hit but its sims value them about equal). hit 1 -> 1.2 (mage), 0.9 -> 1.2 (warlock).
+    -- Spell Penetration ranks above Int for Method/IV but is still ignored (IGNORED_KEYS).
+    mage = { dmg = 1, school = 0.6, int = 0.6, sta = 0.4, spi = 0.25, armor = 0.01, crit = 0.8, hit = 1.2, haste = 0.7, mp5 = 0.6, wand = 3 },
+    warlock = { dmg = 1, school = 0.6, hit = 1.2, int = 0.4, sta = 0.5, spi = 0.15, armor = 0.01, crit = 0.5, haste = 0.2, mp5 = 0.4, wand = 3 },
+    -- Shadow (PRIEST.md, IV and Method): Hit > Spell Damage > Crit > ... > Spirit. spi 1.1 -> 0.3, hit 0.5 -> 1.2,
+    -- crit 0.4 -> 0.6. Leveling guides (Mobalytics) still rank Spirit second for Spirit Tap; not modeled.
+    shadow = { spi = 0.3, dmg = 1, school = 0.6, int = 0.5, sta = 0.4, armor = 0.01, hit = 1.2, crit = 0.6, haste = 0.3, mp5 = 0.5, wand = 3 },
+    -- Elemental shaman / Balance druid: IV puts Spell Power before Hit, Method Hit first (SHAMAN.md); no
+    -- Balance list was found. Kept.
     caster = { dmg = 1, school = 0.6, int = 0.6, spi = 0.3, sta = 0.4, armor = 0.02, crit = 0.7, hit = 0.8, haste = 0.6, mp5 = 0.4, wand = 2 },
+    -- Priest healer (PRIEST.md: IV Healing > MP5 > Spirit > Int > Crit; builds_forever.md WT Healing > Int > MP5 >
+    -- Spirit > Crit): Healing first, MP5 high, Crit last already hold. Kept; other classes override below.
     healer = { heal = 1, int = 0.7, spi = 0.7, mp5 = 1, sta = 0.3, armor = 0.02, crit = 0.5, haste = 0.6, wand = 1 },
 }
+
+-- A role's weights for one class, where that class's guides differ from the shared role. Keys are profile, then
+-- class; anything not listed uses PROFILES.
+local CLASS_PROFILE_OVERRIDES = {
+    healer = {
+        -- Holy paladin (PALADIN.md): IV and Method both rank Healing > Int > ... with MP5 4th: int 0.7 -> 0.9.
+        -- Crit vs Spirit disagree (Method Crit 3rd, IV Spirit 3rd): both kept.
+        PALADIN = { heal = 1, int = 0.9, spi = 0.7, mp5 = 1, sta = 0.3, armor = 0.02, crit = 0.5, haste = 0.6, wand = 1 },
+        -- Resto shaman (SHAMAN.md): IV Healing > Crit > Int > Spirit > MP5, WT Healing > Spirit > Int > Crit; both
+        -- leave MP5 last or out: mp5 1 -> 0.6. Crit's place disagrees: kept at 0.5.
+        SHAMAN = { heal = 1, int = 0.7, spi = 0.7, mp5 = 0.6, sta = 0.3, armor = 0.02, crit = 0.5, haste = 0.6, wand = 1 },
+        -- Resto druid (DRUID.md): IV Healing > Int > Spirit > MP5 > Crit, WT Healing > Spirit > Haste > Crit > Int.
+        -- They disagree on Int vs Spirit, so the shared healer weights are kept (no override).
+    },
+    tank = {
+        -- Protection paladin (PALADIN.md): IV and Method both put Spell Power in the top five: dmg 0 -> 1.
+        PALADIN = { sta = 2, armor = 0.15, str = 1.5, agi = 1.2, ap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, melee = 8, dmg = 1 },
+        -- Bear (DRUID.md): IV, WT and Method all rank Armor among the top three (bear form multiplies it):
+        -- armor 0.15 -> 0.3; feral attack power counts like attack power (feralap 0.7). Defense vs Dodge vs
+        -- Stamina order disagrees: kept.
+        DRUID = { sta = 2, armor = 0.3, str = 1.5, agi = 1.2, ap = 0.7, feralap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, melee = 8 },
+    },
+}
+
+local function ProfileWeights(profile, class)
+    local byClass = CLASS_PROFILE_OVERRIDES[profile]
+    return byClass and class and byClass[class] or PROFILES[profile]
+end
 local SPELL_PROFILES = { mage = true, warlock = true, shadow = true, caster = true, healer = true }
 local CAN_LEARN_DUAL_WIELD = { WARRIOR = true, ROGUE = true, HUNTER = true, SHAMAN = true }
 
@@ -534,17 +591,18 @@ end
 -- The role's stat weights, with Stamina and Armor raised while the leveling bias applies.
 local biasedWeights = {}
 local function Weights()
-    local base = PROFILES[charData.profile]
+    local base = ProfileWeights(charData.profile, playerClass)
     if not LevelingBiasActive() then
         return base
     end
-    local weights = biasedWeights[charData.profile]
+    local cacheKey = charData.profile .. "/" .. tostring(playerClass)
+    local weights = biasedWeights[cacheKey]
     if not weights then
         weights = {}
         for stat, weight in pairs(base) do
             weights[stat] = weight * (LEVELING_BONUS[stat] or 1)
         end
-        biasedWeights[charData.profile] = weights
+        biasedWeights[cacheKey] = weights
     end
     return weights
 end

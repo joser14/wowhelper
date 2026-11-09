@@ -102,10 +102,15 @@ local CLASS_ORDER = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN
 local CLASS_NAMES = { WARRIOR = "Warrior", PALADIN = "Paladin", HUNTER = "Hunter", ROGUE = "Rogue", PRIEST = "Priest",
     SHAMAN = "Shaman", MAGE = "Mage", WARLOCK = "Warlock", DRUID = "Druid" }
 -- Goals you can choose, in the order "all" lists them.
-local GOALS = { "leveling", "pvp", "pvp2", "tank", "healer", "dps" }
-local ROLES = { tank = true, healer = true, dps = true }
+-- dps2 is an optional second damage build (Druid: Balance next to Cat).
+local GOALS = { "leveling", "pvp", "pvp2", "tank", "healer", "dps", "dps2" }
+local ROLES = { tank = true, healer = true, dps = true, dps2 = true }
 local GOAL_LABELS = { leveling = "Leveling", pvp = "PvP", pvp2 = "PvP (second choice)", tank = "Dungeons and raids: tank",
-    healer = "Dungeons and raids: healer", dps = "Dungeons and raids: damage" }
+    healer = "Dungeons and raids: healer", dps = "Dungeons and raids: damage", dps2 = "Dungeons and raids: damage (second choice)" }
+-- Where a build's point order came from (the build's optional orderFrom field).
+local ORDER_LABELS = { source = "order: from guide", constructed = "order: built from final ranks" }
+-- Each order puts damage first, so a tie between two builds of the same tree goes to dps.
+local DEFAULT_ROLE_ORDER = { "dps", "dps2", "healer", "tank" }
 
 local function Safe(value)
     if issecretvalue and issecretvalue(value) then
@@ -333,7 +338,7 @@ local function DefaultRole(classFile, talents)
             perTree[entry.tree] = (perTree[entry.tree] or 0) + entry.rank
         end
         local bestRole, bestPoints
-        for _, role in ipairs({ "dps", "healer", "tank" }) do
+        for _, role in ipairs(DEFAULT_ROLE_ORDER) do
             local build = pve[role]
             local points = build and perTree[build.spec] or 0
             if build and points > 0 and points > (bestPoints or 0) then
@@ -344,7 +349,7 @@ local function DefaultRole(classFile, talents)
             return bestRole
         end
     end
-    for _, role in ipairs({ "dps", "healer", "tank" }) do
+    for _, role in ipairs(DEFAULT_ROLE_ORDER) do
         if pve[role] then
             return role
         end
@@ -497,7 +502,14 @@ local function OffBuild(build, talents)
     for _, name in ipairs(KeyTalents(build)) do
         onBuild[Lower(name)] = true
     end
-    if not (type(build.points) == "table" and #build.points > 0) then
+    if type(build.points) == "table" and #build.points > 0 then
+        -- keyTalents is only a highlight list; every talent in the points list is on the build.
+        for _, point in ipairs(build.points) do
+            if type(point.talent) == "string" then
+                onBuild[Lower(point.talent)] = true
+            end
+        end
+    else
         -- Key talents join the list so a short name never matches inside a longer one the API left out.
         local names = {}
         for _, name in ipairs(KeyTalents(build)) do
@@ -579,6 +591,12 @@ local function Confidence(build)
     return value .. " confidence"
 end
 
+-- ", order: from guide" for a points build whose orderFrom is known; "" otherwise (steps have no order).
+local function OrderNote(build)
+    local label = type(build.points) == "table" and #build.points > 0 and ORDER_LABELS[build.orderFrom]
+    return label and ", " .. label or ""
+end
+
 local function StatsLine(build)
     if type(build.stats) == "table" and #build.stats > 0 then
         return "Stats: " .. table.concat(build.stats, " > ")
@@ -622,8 +640,9 @@ local function ShowMain(prefix)
     local goal, chosen = CurrentGoal(classFile, level or FIRST_TALENT_LEVEL, talents)
     local build = BuildFor(classFile, goal)
     Print(string.format("%s%s|r, goal: %s%s", GOLD, className, GOAL_LABELS[goal] or goal, chosen and "" or GRAY .. " (default for your level)|r"))
-    Print(string.format("%s%s|r  %s(%s, from %s, checked %s)|r", GOLD, build.name or "Build", GRAY, Confidence(build), Domain(build.source), build.checked or "?"))
-    Print(GRAY .. "Forever is new (launched November 2026), so these builds are early and may change.|r")
+    Print(string.format("%s%s|r  %s(%s, from %s, checked %s%s)|r", GOLD, build.name or "Build", GRAY, Confidence(build), Domain(build.source),
+        build.checked or "?", OrderNote(build)))
+    Print(GRAY .. "Forever is new (launched November 2026) and Blizzard announced class tuning for 2026-11-10, so these builds may change.|r")
     if build.summary then
         Print(build.summary)
     end
@@ -742,6 +761,8 @@ SlashCmdList.BUILDS = function(msg)
         goal = "healer"
     elseif goal == "damage" then
         goal = "dps"
+    elseif goal == "balance" or goal == "moonkin" then
+        goal = "dps2"
     end
     if GOAL_LABELS[goal] then
         if not classFile then
@@ -758,5 +779,5 @@ SlashCmdList.BUILDS = function(msg)
     if alt and BuildsData and BuildsData[alt] then
         return ShowAll(alt, true)
     end
-    Print("Type a goal: leveling, pvp, pvp2, tank, healer, dps. Or: all, or a class name like mage.")
+    Print("Type a goal: leveling, pvp, pvp2, tank, healer, dps, dps2. Or: all, or a class name like mage.")
 end

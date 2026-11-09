@@ -342,5 +342,36 @@ fire("GET_ITEM_INFO_RECEIVED", 999)
 flush()
 bag[1] = nil
 
+-- 8. Weights from the 2026-11-09 guide pass (research\builds_forever.md): level 60, so no leveling bias.
+level = 60
+fire("PLAYER_LEVEL_UP"); flush()
+local function role(c, r)
+    class = c
+    fire("PLAYER_LOGIN")
+    db = ItemAdvisorDB["T-R"]
+    SlashCmdList.ITEMADVISOR("role " .. r)
+    flush()
+    assert(db.profile == r, c .. " role " .. r .. ": " .. tostring(db.profile))
+end
+-- Shadow priest: spell hit now beats Spirit (hit 1.2 x 10 = 12 against spirit 0.3 x 10 = 3; before 5 against 11).
+role("PRIEST", "shadow")
+equipped[2] = armor(201, "Spirit Neck", { ITEM_MOD_SPIRIT_SHORT = 10 })
+local hitNeck = armor(202, "Hit Neck", { ITEM_MOD_HIT_SPELL_RATING_SHORT = 10 })
+want(hitNeck, "EQUIP: Upgrade for shadow", "shadow values spell hit over spirit")
+-- Protection paladin values spell damage; a warrior tank still doesn't.
+role("PALADIN", "tank")
+equipped[2] = armor(203, "Small Sta Neck", { ITEM_MOD_STAMINA_SHORT = 2 })
+local sdNeck = armor(204, "Spell Neck", { ITEM_MOD_SPELL_DAMAGE_DONE_SHORT = 12 })
+want(sdNeck, "EQUIP: Upgrade for tank", "paladin tank counts spell damage")
+role("WARRIOR", "tank")
+assert(not ask(sdNeck):find("EQUIP:", 1, true), "warrior tank ignores spell damage: " .. ask(sdNeck))
+-- Fury: 10 hit rating (55) beats 10 crit rating (30) now; before 20 against 30.
+role("WARRIOR", "warrior")
+equipped[2] = armor(205, "Crit Neck", { ITEM_MOD_CRIT_RATING_SHORT = 10 })
+want(armor(206, "Melee Hit Neck", { ITEM_MOD_HIT_RATING_SHORT = 10 }), "EQUIP: Upgrade for warrior", "warrior values hit over crit")
+equipped[2] = nil
+level = 30
+fire("PLAYER_LEVEL_UP"); flush()
+
 assert(#handled == 0, "clean: " .. tostring(handled[1]))
 print("ALL TESTS PASSED")
