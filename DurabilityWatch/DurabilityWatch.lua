@@ -57,6 +57,58 @@ local function CheckGear()
     warnedTier = tier
 end
 
+-- Short form for the side panel: "1g 23s", "23s 45c" or "45c".
+local function ShortMoney(copper)
+    local gold, silver = math.floor(copper / 10000), math.floor(copper / 100) % 100
+    if gold > 0 then
+        return string.format("%dg %ds", gold, silver)
+    elseif silver > 0 then
+        return string.format("%ds %dc", silver, copper % 100)
+    end
+    return string.format("%dc", copper % 100)
+end
+
+-- One equipped item's repair cost from its tooltip data: the repairCost field, or the same value
+-- in the older list-of-arguments form. nil when the client doesn't say.
+local function SlotRepairCost(slot)
+    local ok, data = pcall(C_TooltipInfo.GetInventoryItem, "player", slot)
+    data = ok and Safe(data)
+    if type(data) ~= "table" then
+        return nil
+    end
+    local cost = Safe(data.repairCost)
+    if cost == nil and type(data.args) == "table" then
+        for _, arg in ipairs(data.args) do
+            if type(arg) == "table" and Safe(arg.field) == "repairCost" then
+                cost = Safe(arg.intVal)
+            end
+        end
+    end
+    return type(cost) == "number" and cost >= 0 and cost or nil
+end
+
+-- What repairing everything you wear costs, read anywhere. Falls back to the repair merchant's own
+-- total while one is open. nil when neither can tell.
+local function RepairCost()
+    local total, any = 0, false
+    if C_TooltipInfo and C_TooltipInfo.GetInventoryItem then
+        for slot = FIRST_SLOT, LAST_SLOT do
+            local cost = SlotRepairCost(slot)
+            if cost then
+                total, any = total + cost, true
+            end
+        end
+    end
+    if any and total > 0 then
+        return total
+    end
+    local merchantCost = GetRepairAllCost and CanMerchantRepair and Safe(CanMerchantRepair()) and Safe((GetRepairAllCost()))
+    if type(merchantCost) == "number" and merchantCost > 0 then
+        return merchantCost
+    end
+    return any and total or nil
+end
+
 local function ShowRepairCost()
     local cost = Safe((GetRepairAllCost()))
     if cost and cost > 0 then
@@ -84,6 +136,14 @@ SlashCmdList.DURABILITYWATCH = function()
     local link = SlotLink(slot)
     if lowest then
         Print(string.format("Your most damaged item is at %d%%%s.", lowest, link and ": " .. link or ""))
+        local cost = RepairCost()
+        if cost and cost > 0 then
+            Print("Repairing everything costs " .. FormatMoney(cost) .. ".")
+        elseif lowest >= 100 then
+            Print("Nothing needs repairing.")
+        else
+            Print("|cff999999The repair cost shows here once a repair merchant is open.|r")
+        end
     else
         Print("No durability data available.")
     end
@@ -94,6 +154,8 @@ ForeverHubStatus.DurabilityWatch = function()
     local lowest, slot = LowestPercent()
     if lowest and lowest <= LOW_PERCENT then
         -- The link lets the panel show which item it is on mouseover.
-        return { { text = string.format("|cffff6633Repair|r gear at %d%%", lowest), page = "Repairs", link = SlotLink(slot) } }
+        local cost = RepairCost()
+        local costText = cost and cost > 0 and string.format("  |cff999999(%s)|r", ShortMoney(cost)) or ""
+        return { { text = string.format("|cffff6633Repair|r gear at %d%%%s", lowest, costText), page = "Repairs", link = SlotLink(slot) } }
     end
 end

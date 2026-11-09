@@ -67,6 +67,8 @@ fire(dw, "UPDATE_INVENTORY_DURABILITY")
 s.dur[1] = { 10, 100 }
 fire(dw, "UPDATE_INVENTORY_DURABILITY")
 assert(#errors == n + 2, "warns again after repair")
+-- Helpers no longer write to chat; their lines go to the hub window, so capture them there.
+ForeverHub_Receive = function(_, t) chat[#chat + 1] = t end
 fire(dw, "MERCHANT_SHOW")
 need(chat, "costs 1g 23s 45c", "repair cost")
 SlashCmdList.DURABILITYWATCH("")
@@ -82,12 +84,18 @@ DEFAULT_CHAT_FRAME = { AddMessage = function(_, t) chat[#chat + 1] = t end }
 UIErrorsFrame = { AddMessage = function(_, t) errors[#errors + 1] = t end }
 local bc = load("BagCheck")
 fire(bc, "PLAYER_ENTERING_WORLD")
-assert(#errors == 0, "no warning with free slots; profession bag not counted")
+-- Warnings now go to the hub (captured into chat above), not Blizzard's error line.
+local function fullWarnings()
+    local n = 0
+    for _, t in ipairs(chat) do if t:find("Bags nearly full", 1, true) then n = n + 1 end end
+    return n
+end
+assert(fullWarnings() == 0 and #errors == 0, "no warning with free slots; profession bag not counted")
 s.bags[0].free = 2
 fire(bc, "BAG_UPDATE_DELAYED")
-need(errors, "Bags nearly full: 2 free", "profession bag slots excluded")
+need(chat, "Bags nearly full: 2 slot(s) free", "profession bag slots excluded")
 fire(bc, "BAG_UPDATE_DELAYED")
-assert(#errors == 1, "warns once")
+assert(fullWarnings() == 1, "warns once")
 s.bags[0].slots = {
     { quality = 0, stackCount = 2, itemID = 100 },
     false,

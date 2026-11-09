@@ -69,6 +69,8 @@ local HELPERS = {
     { name = "DeathNotes", section = "world", about = "Remembers where you died and warns when you walk back into that spot." },
     { name = "RareWatch", section = "world",
         about = "A pop-up and a sound when a rare appears on your minimap; remembers where and when each was last seen or killed, and estimates your layer." },
+    { name = "MapPins", section = "world",
+        about = "Draws your guide stops, remembered places, deaths, rares, gold farms and dungeon entrances on the world map and minimap. Click a pin to set a waypoint." },
     { name = "ForeverHelper", section = "hub", about = "Leveling rates, a to-do list for each character, and an overview of your characters." },
     { name = "ErrorLog", section = "hub", about = "Saves Lua errors so you can read them later." },
 }
@@ -112,6 +114,7 @@ local TABS = {
     { label = "Deaths", key = "DEATHNOTES", helper = "DeathNotes", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
     -- "Rares" exactly: RareWatch's side panel line opens this page by that name.
     { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: all   Or: forget all" },
+    { label = "Map pins", key = "MAPPINS", helper = "MapPins", hint = "Type: off deaths   Or: on farms   Or: minimap off" },
     { label = "Characters", key = "FOREVERHELPER", helper = "ForeverHelper", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
     { label = "Pop-up history", alerts = true, section = "hub", about = "Every pop-up from this session, newest first." },
     { label = "Errors", key = "ERRORLOG", helper = "ErrorLog", hint = "Type a number for details, or: clear" },
@@ -157,6 +160,10 @@ local lastShown = {}
 local rowsDirty = true
 local session = {}
 local XP_WINDOW_SECONDS = 900
+-- A rate from the first kill or two swings wildly; wait this long before guessing the time to level.
+local XP_WARMUP_SECONDS = 120
+-- XP samples kept across a /reload; the 15-minute window rarely holds more than this.
+local MAX_SAVED_SAMPLES = 200
 -- One early sale or purchase would otherwise read as a huge hourly rate.
 local GOLD_RATE_MIN_SECONDS = 600
 local xpSamples = {}
@@ -936,6 +943,85 @@ local function FinishedQuestXP(now)
     return total
 end
 
+-- The XP and gold session lives in saved data so a /reload keeps it; a real login starts a new one.
+-- Who it belongs to, so another character never picks it up.
+local function SessionOwner()
+    local name = UnitName and Safe(UnitName("player"))
+    local realm = GetRealmName and Safe(GetRealmName())
+    if type(name) == "string" and type(realm) == "string" then
+        return name .. "-" .. realm
+    end
+end
+
+local function SaveSession()
+    -- Not before the world has loaded: until then the saved session may still be needed by a /reload.
+    if not (db and session.start and session.resolved) then
+        return
+    end
+    local samples = {}
+    for index = math.max(#xpSamples - MAX_SAVED_SAMPLES + 1, 1), #xpSamples do
+        samples[#samples + 1] = { time = xpSamples[index].time, amount = xpSamples[index].amount }
+    end
+    db.session = {
+        owner = SessionOwner(), loginStamp = session.loginStamp, start = session.start,
+        money = session.money, moneySince = session.moneySince, samples = samples,
+    }
+end
+
+local function NewSession()
+    local now = GetTime()
+    session.start = now
+    -- When this login began, by the clock; the saved session is only trusted with the same stamp.
+    session.loginStamp = (time and Safe(time())) or now
+    session.money, session.moneySince = Safe(GetMoney()), now
+    session.lastXP, session.lastMax = Safe(UnitXP("player")), Safe(UnitXPMax("player"))
+    for index = #xpSamples, 1, -1 do
+        xpSamples[index] = nil
+    end
+end
+
+-- After a /reload: pick up the session saved before it. False when there's nothing usable.
+local function RestoreSession()
+    local saved = db and db.session
+    local now = GetTime()
+    local owner = SessionOwner()
+    if type(saved) ~= "table" or owner == nil or saved.owner ~= owner or saved.loginStamp == nil then
+        return false
+    end
+    local start = tonumber(saved.start)
+    -- The game clock keeps counting through a /reload; a start "in the future" means it was restarted.
+    if not start or start > now then
+        return false
+    end
+    session.start, session.loginStamp = start, saved.loginStamp
+    local money, since = tonumber(saved.money), tonumber(saved.moneySince)
+    if money and since and since <= now then
+        session.money, session.moneySince = money, since
+    end
+    for index = #xpSamples, 1, -1 do
+        xpSamples[index] = nil
+    end
+    for _, sample in ipairs(type(saved.samples) == "table" and saved.samples or {}) do
+        local at, amount = type(sample) == "table" and tonumber(sample.time), type(sample) == "table" and tonumber(sample.amount)
+        if at and amount and amount > 0 and at <= now and #xpSamples < MAX_SAVED_SAMPLES then
+            xpSamples[#xpSamples + 1] = { time = at, amount = amount }
+        end
+    end
+    return true
+end
+
+-- Decided once per login, when the world first loads: keep the session after a /reload, else a new one.
+local function ResolveSession(isInitialLogin, isReloadingUi)
+    if session.resolved or not session.start then
+        return
+    end
+    session.resolved = true
+    if not (Safe(isReloadingUi) == true and Safe(isInitialLogin) ~= true and RestoreSession()) then
+        NewSession()
+    end
+    SaveSession()
+end
+
 -- The always-on panel: your rates at the top, then only what needs doing.
 local function RefreshStats()
     local now = GetTime()
@@ -955,10 +1041,17 @@ local function RefreshStats()
             banked > 0 and string.format("  |cff33ff33+%d%% to turn in|r", math.floor(banked * 100 / maxXP)) or ""))
         -- Recent play only, so a break or a long town visit doesn't drag the estimate out.
         local rate = recentXP * 3600 / math.min(elapsed, XP_WINDOW_SECONDS)
-        if rate > 0 then
-            statLines[2]:SetText(string.format("Next level in %s", FormatDuration((maxXP - xp) * 3600 / rate)))
-        else
+        -- XP already earned in finished quests doesn't need grinding; only the rest is timed.
+        local toGo = maxXP - xp - banked
+        if banked > 0 and toGo <= 0 then
+            statLines[2]:SetText("|cff33ff33Turn in to level up|r")
+        elseif rate <= 0 then
             statLines[2]:SetText("|cff999999Next level time appears once you earn XP|r")
+        elseif now - session.start < XP_WARMUP_SECONDS then
+            statLines[2]:SetText(string.format("|cff999999Next level time: warming up (%ds)|r",
+                math.ceil(XP_WARMUP_SECONDS - (now - session.start))))
+        else
+            statLines[2]:SetText(string.format("Next level in %s", FormatDuration(toGo * 3600 / rate)))
         end
         local rested = Safe(GetXPExhaustion()) or 0
         statLines[3]:SetText(rested > 0 and string.format("Rested %d%% of this level", math.floor(rested * 100 / maxXP)) or "|cff999999Not rested|r")
@@ -1129,6 +1222,24 @@ local function BuildPanel()
         line:SetJustifyH("LEFT")
         statLines[index] = line
     end
+
+    -- Next to the gold line: start the XP and gold rates over, say after a break.
+    local restart = CreateFrame("Button", nil, panel)
+    restart:SetSize(46, 14)
+    restart:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -8, -52)
+    restart:SetNormalFontObject(GameFontDisableSmall)
+    restart:SetHighlightFontObject(GameFontHighlightSmall)
+    restart:SetText("Restart")
+    restart:SetScript("OnClick", function()
+        NewSession()
+        SaveSession()
+        RefreshStats()
+    end)
+    restart:SetScript("OnEnter", function(self)
+        ShowButtonTip(self, "Restart rates", "Start measuring XP and gold per hour from now, for example after a break.")
+    end)
+    restart:SetScript("OnLeave", HideTip)
+    panel.restart = restart
 
     panel.empty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     panel.empty:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -74)
@@ -1340,6 +1451,9 @@ local function TrackXP()
         xpSamples[#xpSamples + 1] = { time = GetTime(), amount = gained }
     end
     session.lastXP, session.lastMax = xp, maxXP
+    if gained > 0 then
+        SaveSession()
+    end
 end
 
 local function Attempt(step)
@@ -1364,9 +1478,8 @@ local function Start()
     if C_CVar and C_CVar.SetCVar then
         pcall(C_CVar.SetCVar, "accessibilityScreenNarrationEnabled", "0")
     end
-    session.start = GetTime()
-    session.money, session.moneySince = Safe(GetMoney()), session.start
-    session.lastXP, session.lastMax = Safe(UnitXP("player")), Safe(UnitXPMax("player"))
+    -- A fresh session for now; the first PLAYER_ENTERING_WORLD swaps in the saved one after a /reload.
+    NewSession()
     -- Each step runs on its own, so a problem with one still leaves the rest usable.
     Attempt(BuildWindow)
     Attempt(BuildPanel)
@@ -1402,17 +1515,26 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 for _, name in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "QUEST_LOG_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_MONEY",
     "SKILL_LINES_CHANGED", "TRAINER_UPDATE", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "UPDATE_INVENTORY_DURABILITY", "PLAYER_XP_UPDATE",
-    "TRAIT_CONFIG_UPDATED" }) do
+    "TRAIT_CONFIG_UPDATED", "PLAYER_LOGOUT" }) do
     events:RegisterEvent(name)
 end
-events:SetScript("OnEvent", function(_, event)
+events:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
         Start()
     elseif event == "PLAYER_XP_UPDATE" then
         if session.start then
             TrackXP()
         end
+    elseif event == "PLAYER_LOGOUT" then
+        -- Also fires on /reload: the gold baseline may have been read only after login.
+        Attempt(SaveSession)
     else
+        if event == "PLAYER_ENTERING_WORLD" then
+            local isInitialLogin, isReloadingUi = ...
+            Attempt(function()
+                ResolveSession(isInitialLogin, isReloadingUi)
+            end)
+        end
         rowsDirty = true
     end
 end)

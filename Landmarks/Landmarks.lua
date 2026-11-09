@@ -107,13 +107,14 @@ local function Remember(kind, name, spot)
             place.mapID, place.x, place.y = spot.mapID, spot.x, spot.y
             place.continent, place.wx, place.wy = spot.continent, spot.wx, spot.wy
             place.where = PlaceName()
-            return
+            return place
         end
     end
-    db.places[#db.places + 1] = {
+    local place = {
         kind = kind, name = name, where = PlaceName(), seen = time(),
         mapID = spot.mapID, x = spot.x, y = spot.y, continent = spot.continent, wx = spot.wx, wy = spot.wy,
     }
+    db.places[#db.places + 1] = place
     if #db.places > MAX_PLACES then
         table.sort(db.places, function(a, b)
             return (a.seen or 0) > (b.seen or 0)
@@ -122,6 +123,134 @@ local function Remember(kind, name, spot)
             db.places[index] = nil
         end
     end
+    return place
+end
+
+-- Which character this is, as the key for what that character alone knows (flight points).
+-- Kept in this one function so the key can change later in one place.
+local function CharacterKey()
+    local name = UnitName and Safe(UnitName("player"))
+    local realm = (GetNormalizedRealmName and Safe(GetNormalizedRealmName())) or (GetRealmName and Safe(GetRealmName()))
+    if type(name) == "string" and name ~= "" and type(realm) == "string" and realm ~= "" then
+        return name .. "-" .. realm
+    end
+end
+
+-- This character's known flight points by node ID, or nil when never read at a flight master.
+local function KnownFlights(create)
+    local key = CharacterKey()
+    if not (key and LandmarksDB) then
+        return nil
+    end
+    LandmarksDB.flightPoints = LandmarksDB.flightPoints or {}
+    if create and not LandmarksDB.flightPoints[key] then
+        LandmarksDB.flightPoints[key] = { nodes = {} }
+    end
+    return LandmarksDB.flightPoints[key]
+end
+
+-- The map the flight master's map shows: the client's own answer if it has one, else your continent.
+local function TaxiMapID()
+    local mapID = GetTaxiMapID and Safe(GetTaxiMapID())
+    if mapID then
+        return mapID
+    end
+    mapID = C_Map and C_Map.GetBestMapForUnit and Safe(C_Map.GetBestMapForUnit("player"))
+    local CONTINENT = (Enum and Enum.UIMapType and Enum.UIMapType.Continent) or 2
+    for _ = 1, 10 do
+        local info = mapID and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
+        local mapType, parent = info and Safe(info.mapType), info and Safe(info.parentMapID)
+        if not mapType or mapType <= CONTINENT or not parent or parent == 0 then
+            return mapType and mapType <= CONTINENT and mapID or nil
+        end
+        mapID = parent
+    end
+end
+
+-- Whether a node on the open flight map is one this character has learned, and whether it's where you stand.
+-- The slot type the stock flight map draws by ("NONE" = not learned) when the client has it; otherwise the
+-- node's documented state, which is less trustworthy on Forever.
+local function NodeStatus(node)
+    local slot = Safe(node.slotIndex)
+    if TaxiNodeGetType and slot then
+        local slotType = Safe(TaxiNodeGetType(slot))
+        if type(slotType) == "string" then
+            return slotType ~= "NONE", slotType == "CURRENT"
+        end
+    end
+    local state = Safe(node.state)
+    local states = Enum and Enum.FlightPathState
+    local current, reachable = states and states.Current or 0, states and states.Reachable or 1
+    return state == current or state == reachable, state == current
+end
+
+-- At a flight master: saves which flight points on this map the character knows. Returns the node you're at.
+local function SaveFlightPoints()
+    if not (C_TaxiMap and C_TaxiMap.GetAllTaxiNodes) then
+        return nil
+    end
+    local mapID = TaxiMapID()
+    if not mapID then
+        return nil
+    end
+    local nodes = C_TaxiMap.GetAllTaxiNodes(mapID)
+    if type(nodes) ~= "table" or #nodes == 0 then
+        return nil
+    end
+    local saved = KnownFlights(true)
+    if not saved then
+        return nil
+    end
+    local here
+    for _, node in ipairs(nodes) do
+        local nodeID = type(node) == "table" and Safe(node.nodeID)
+        if nodeID then
+            local known, current = NodeStatus(node)
+            if known then
+                local x, y
+                if node.position and node.position.GetXY then
+                    x, y = node.position:GetXY()
+                end
+                local name = Safe(node.name)
+                saved.nodes[nodeID] = { name = type(name) == "string" and name or nil, mapID = mapID, x = Safe(x), y = Safe(y) }
+            else
+                -- Listed but not learned: forget it if it was ever marked by mistake.
+                saved.nodes[nodeID] = nil
+            end
+            if current then
+                here = nodeID
+            end
+        end
+    end
+    saved.seen = time()
+    return here
+end
+
+local function FlightPointsKnown()
+    local saved = KnownFlights(false)
+    if not saved then
+        return nil
+    end
+    local count = 0
+    for _ in pairs(saved.nodes or {}) do
+        count = count + 1
+    end
+    return count
+end
+
+-- A line on whether this character knows the flight point at a remembered flight master.
+local function FlightKnownLine(place)
+    local saved = KnownFlights(false)
+    if not (place and place.nodeID) then
+        return nil
+    end
+    if not saved then
+        return "|cff999999Open any flight master's map to check which flight points this character knows.|r"
+    end
+    if saved.nodes and saved.nodes[place.nodeID] then
+        return "|cff33ff33This character knows that flight point.|r"
+    end
+    return "|cffff6633This character hasn't learned that flight point yet: talk to the flight master there.|r"
 end
 
 local function NpcName(fallback)
@@ -210,11 +339,19 @@ local function ShowPage(arg)
             else
                 Print(string.format("Nearest %s: %s (%s), %s away.", KIND_LABEL[kind]:lower(), place.name, place.where or "", YardsText(yards)))
             end
+            local known = kind == "flight" and FlightKnownLine(place)
+            if known then
+                Print(known)
+            end
         end
     end
+    local flights = FlightPointsKnown()
+    local flightLine = flights and string.format("|cff999999Flight points known: %d|r", flights)
+        or "|cff999999Flight points known: open a flight master's map to count them.|r"
     if not spot then
         Print("Where you are can't be read right now, so distances are left out.")
         Print(string.format("|cff999999%d places remembered.|r", #db.places))
+        Print(flightLine)
         return
     end
     local any = false
@@ -243,6 +380,7 @@ local function ShowPage(arg)
         Print("Nothing remembered yet. Talk to vendors, innkeepers, flight masters and trainers, open mailboxes and banks, and they're saved here.")
     end
     Print(string.format("|cff999999%d places remembered.|r", #db.places))
+    Print(flightLine)
 end
 
 local events = CreateFrame("Frame")
@@ -266,6 +404,16 @@ events:SetScript("OnEvent", function(_, event)
     if not db then
         return
     end
+    -- Known flight points don't need your position, so they're saved even when it can't be read.
+    local flightNode
+    if event == "TAXIMAP_OPENED" then
+        local ok, result = pcall(SaveFlightPoints)
+        flightNode = ok and result or nil
+        -- A problem here still lets the flight master's spot be remembered below.
+        if not ok and geterrorhandler then
+            geterrorhandler()(result)
+        end
+    end
     local spot = Here()
     if not spot then
         return
@@ -282,7 +430,11 @@ events:SetScript("OnEvent", function(_, event)
     elseif event == "MAIL_SHOW" then
         Remember("mail", "Mailbox", spot)
     elseif event == "TAXIMAP_OPENED" then
-        Remember("flight", NpcName("Flight master"), spot)
+        local place = Remember("flight", NpcName("Flight master"), spot)
+        -- Which flight point this master serves, so "flight" can say whether a character knows it.
+        if place and flightNode then
+            place.nodeID = flightNode
+        end
     elseif event == "TRAINER_SHOW" then
         local profession = IsTradeskillTrainer and Safe(IsTradeskillTrainer())
         Remember(profession and "profession" or "trainer", NpcName("Trainer"), spot)

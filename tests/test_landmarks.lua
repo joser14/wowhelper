@@ -216,6 +216,84 @@ page("repair")
 need("I can't read where you are right now.", "no pin without a position")
 positionReadable = true
 
+----- Known flight points, per character, saved at the flight master's map
+need("Flight points known: open a flight master's map", "no flight data yet")
+local me = "Me"
+UnitName = function(unit) if unit == "npc" then return npc end return me end
+local taxiAsked
+local nodes = {
+    { nodeID = 2, name = "Stormwind", slotIndex = 1, state = 2, position = vec(0.4, 0.6) },  -- state lies on Forever
+    { nodeID = 6, name = "Lakeshire", slotIndex = 2, state = 1, position = vec(0.5, 0.7) },
+    { nodeID = 7, name = "Sentinel Hill", slotIndex = 3, state = 2, position = vec(0.3, 0.8) },
+    { nodeID = 9, name = "Darkshire", slotIndex = 4, state = 1, position = vec(0.6, 0.8) },  -- not learned
+    { nodeID = SECRET, name = "Hidden", slotIndex = 5, state = 1, position = vec(0.1, 0.1) },
+}
+local slotTypes = { "CURRENT", "REACHABLE", "DISTANT", "NONE", "REACHABLE" }
+C_TaxiMap = { GetAllTaxiNodes = function(id) taxiAsked = id; return nodes end }
+GetTaxiMapID = function() return 1415 end
+TaxiNodeGetType = function(slot) return slotTypes[slot] end
+at(0.4, 0.4); npc = "Thor"
+fire(lm, "TAXIMAP_OPENED")
+local mine = LandmarksDB.flightPoints and LandmarksDB.flightPoints["Me-R"]
+check(taxiAsked == 1415, "asked for the flight map's nodes")
+check(mine and mine.nodes[2] and mine.nodes[6] and mine.nodes[7] and not mine.nodes[9], "known = slot type not NONE, state ignored")
+check(mine and mine.nodes[2].name == "Stormwind" and mine.nodes[2].mapID == 1415 and math.abs(mine.nodes[2].x - 0.4) < 1e-9, "node saved with name and position")
+local thor
+for _, p in ipairs(LandmarksDB.R.places) do if p.name == "Thor" then thor = p end end
+check(thor and thor.nodeID == 2, "flight master tied to its node")
+page("")
+need("Flight points known: 3", "count on the Places page")
+page("flight")
+need("Pinned Thor", "nearest flight master")
+need("This character knows that flight point.", "known node marked")
+
+-- An alt on the same realm shares the places but not the flight points.
+me = "Alt"
+page("flight")
+need("Open any flight master's map to check", "alt has no flight data yet")
+need("Flight points known: open a flight master's map", "alt count unknown")
+slotTypes = { "NONE", "CURRENT", "DISTANT", "NONE", "NONE" }
+at(0.4, 0.45); npc = "Lake Gryphon"
+fire(lm, "TAXIMAP_OPENED")
+at(0.4, 0.4)
+page("flight")
+need("This character hasn't learned that flight point yet", "alt doesn't know Thor's node")
+need("Flight points known: 2", "alt count")
+check(LandmarksDB.flightPoints["Me-R"].nodes[2] ~= nil, "main's list untouched")
+
+-- Without the slot type: the documented node state decides (Current or Reachable).
+me = "Me"
+TaxiNodeGetType = nil
+nodes = { { nodeID = 2, slotIndex = 1, state = 0, name = "Stormwind" }, { nodeID = 6, slotIndex = 2, state = 2, name = "Lakeshire" } }
+at(0.4, 0.4); npc = "Thor"
+fire(lm, "TAXIMAP_OPENED")
+check(LandmarksDB.flightPoints["Me-R"].nodes[2] and not LandmarksDB.flightPoints["Me-R"].nodes[6], "state fallback; unlearned node removed")
+check(LandmarksDB.flightPoints["Me-R"].nodes[7], "nodes not listed this time are kept")
+
+-- Without GetTaxiMapID: the continent above your zone map.
+GetTaxiMapID = nil
+local INFO = { [37] = { mapType = 3, parentMapID = 1415 }, [1415] = { mapType = 2, parentMapID = 947 } }
+C_Map.GetMapInfo = function(id) return INFO[id] end
+taxiAsked = nil
+fire(lm, "TAXIMAP_OPENED")
+check(taxiAsked == 1415, "continent found by walking up the map tree: " .. tostring(taxiAsked))
+
+-- Position unreadable: flight points are still saved; a broken API doesn't stop anything.
+positionReadable = false
+nodes = { { nodeID = 11, slotIndex = 1, state = 0, name = "Ironforge" } }
+fire(lm, "TAXIMAP_OPENED")
+check(LandmarksDB.flightPoints["Me-R"].nodes[11], "saved without a position")
+positionReadable = true
+C_TaxiMap.GetAllTaxiNodes = function() error("boom") end
+local caught
+geterrorhandler = function() return function(e) caught = e end end
+local placesNow = #LandmarksDB.R.places
+at(0.42, 0.4); npc = "Other"
+fire(lm, "TAXIMAP_OPENED")
+check(caught and #LandmarksDB.R.places == placesNow + 1, "API error reported, flight master still remembered")
+C_TaxiMap = nil
+geterrorhandler = nil
+
 ----- MAX_PLACES: the oldest records are pruned, the list stays at 400
 local placesBefore = #LandmarksDB.R.places
 canRepair = false; merchantItems = {}

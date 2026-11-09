@@ -118,11 +118,12 @@ assert(has("How to use the hub"), "home shown on open")
 local helpers = { "LevelGuide", "ProfessionCap", "ProfessionGuide", "GoldGoal", "GoldGuide", "Dungeons", "QuestTracker", "QuestCheck",
     "ZoneLevels", "ItemAdvisor", "BagCheck", "ItemFinder", "PriceMemory", "FoodCheck", "SupplyWatch", "DurabilityWatch", "TalentNudge",
     "TrainerNotes", "WeaponSkillWatch", "RestGuard", "RepWatch", "LevelLog", "SpellReady", "Landmarks", "DeathNotes", "RareWatch",
-    "ForeverHelper", "ErrorLog" }
+    "MapPins", "ForeverHelper", "ErrorLog" }
 for _, name in ipairs(helpers) do
     assert(has("|cffffffff" .. name .. "|r"), "home lists " .. name)
 end
 assert(has("Page: Places") and has("Page: Ready check"), "home says which page")
+assert(has("Page: Map pins") and nav("Map pins"), "MapPins has its page in World")
 for _, title in ipairs({ "Guides", "Quests", "Bags & items", "Character", "World", "Hub" }) do
     assert(nav("- " .. title), "sidebar group " .. title)
 end
