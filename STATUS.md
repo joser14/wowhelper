@@ -1,12 +1,6 @@
 ﻿# Forever addon suite: status (2026-11-09)
 
-**INSTALLED 2026-11-09 08:31** as six addons (!ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld)
-from commit 7759e03. Old per-helper folders were moved to `_forever_\Interface\AddOns_ForeverBackup_20261109_083113`;
-a full copy of WTF was taken first at `_forever_\WTF_Backup_20261109`. Saved data was carried over into the bundles' files.
-Every in-progress item below is now finished and on main, except the class builds research (research\builds_forever.md,
-Builds\Data.lua) and the Builds page. To roll back: close WoW, delete the six bundle folders, move the backup folders back.
-All 33 current tests pass (tests\runall.ps1); 11 older tests (test, 3-7, 9-12, 15) were already failing before and check
-for chat output and window layouts that later work replaced.
+**INSTALLED 2026-11-09 (reinstalled 09:17)** as six addons (!ForeverHub, ForeverGuides, ForeverQuests, ForeverBags, ForeverCharacter, ForeverWorld), now including Builds (all nine classes) and the corrected ItemAdvisor weights. First install moved the old per-helper folders to `_forever_\Interface\AddOns_ForeverBackup_20261109_083113`; a full copy of WTF is at `_forever_\WTF_Backup_20261109`. To roll back: close WoW, delete the six bundle folders, move the backup folders back. 41 current tests pass (tests\runall.ps1); 11 older tests (test, 3-7, 9-12, 15) were already failing before and check for chat output and window layouts that later work replaced. Blizzard class tuning on 2026-11-10 may change builds; re-run the builds research after it.
 
 Start here when resuming. Main branch = finished, tested work. Branch `wip-snapshot` = unfinished worker
 edits at the moment this file was written (may not pass tests; review before merging anything from it).
@@ -68,3 +62,4 @@ popular_quests_maps.md, popular_items_spells.md, popular_qol_routes.md, plus ear
 
 - WindowBadges done (merchant upgrades/known recipes, trainer New/On your bars, quest reward Best/Most gold). TODO: ItemAdvisor already marks quest rewards, so turn WindowBadges 'reward' and 'gold' off by default (WindowBadges.lua IsOn defaults, ~line 26) or remove ItemAdvisor's RewardMark. Hub page line was sent to the hub-extras worker.
 - Still running at usage limit: ProfessionGuide, ItemAdvisor/ReadyCheck/TrainerNotes/Dungeons upgrades, hub extras (keybinds, addon menu, Settings, alerts, hearth button, Quest mobs + Window badges pages). Their latest edits are in wip-snapshot.
+
