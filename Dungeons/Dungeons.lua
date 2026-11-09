@@ -165,7 +165,8 @@ local function ResolveMap(entrance)
     end
     local found
     if C_Map and C_Map.GetMapInfo and entrance.zone then
-        for _, id in ipairs({ entrance.mapID or false, CLASSIC_MAP[entrance.mapID or 0] or false }) do
+        -- Forever uses the Classic numbers (Elwynn 1429, not 37), so those are tried first.
+        for _, id in ipairs({ CLASSIC_MAP[entrance.mapID or 0] or false, entrance.mapID or false }) do
             if id and MapName(id) == entrance.zone then
                 found = id
                 break

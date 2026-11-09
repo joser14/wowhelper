@@ -232,3 +232,54 @@ Missing tools (from `C_TradeSkillUI.GetRecipeRequirements` Totem entries) join t
 6. (S) ProfessionCap: flag missing tools (Blacksmith Hammer, Mining Pick, Skinning Knife...) using
    `C_TradeSkillUI.GetRecipeRequirements` when the window is open.
 
+## ForeverPlus (Epicstrike, 1.0.7)
+
+**License note.** "All rights reserved": reading and studying are allowed, but copying any part into another addon is
+forbidden even with attribution (LICENSE section 3d). Ideas only from here; no structure, text or data.
+No AI-use note.
+
+**Automation (out of scope):** auto accept/turn-in, gossip skip, auto repair, sell greys, auto-buy reagents, poisons
+and ammo, fast loot, duel/battleground declines, error-message filter, hide UI elements, chat window replacement.
+
+**Information features and how they work.**
+- Info bar cells: clock, zone, coordinates, hearthstone cooldown, gold (this character or all characters, scoped by
+  realm, faction and Forever "ruleset" read from `C_GameRules.GetCurrentGameModeRecordID`), session gold change,
+  bag space by bag kind, ammo, Merchant's Favor (currency 3402, Forever's own currency for Waylaid Crates) and
+  Honor with "red at cap", durability with repair cost, XP/hour, time to level, latency, framerate with per-addon CPU
+  share (`C_AddOnProfiler`), profession and item cooldowns across characters.
+- XP/hour: one measurement per login stored in SavedVariables, so it survives /reload (PLAYER_ENTERING_WORLD's
+  isInitialLogin decides login vs reload); level-ups no longer reset it (the old level's remaining XP is added);
+  rate never computed over less than 60 s; a click on the cell restarts the session (after a break). Hides itself when
+  XP cannot be gained: `IsXPUserDisabled()`, `C_GameRules.IsGameRuleActive(Enum.GameRule.ExperienceBarDisabled)`, or
+  at the level cap.
+- Repair cost anywhere: sums `repairCost` from `C_TooltipInfo.GetInventoryItem("player", slot)` for slots 1-18; no
+  merchant needed and no tooltip is shown.
+- Durability warning: lowest equipped piece at or under a threshold (default 20%), said once per low condition and
+  re-armed only when every piece is above the threshold again (a partial repair does not re-arm).
+- Buff bars (missing / expiring / better rank known but not used, e.g. Frost Armor while Ice Armor is trained /
+  "handout": party members missing a buff you can give), weapon imbues and poisons, user-ticked consumables
+  (elixirs, food) with countdowns, gathering tracking reminder, ammo low warning. Aura reads only out of combat; in
+  combat it relies on UNIT_COMBAT (plain values for the player) and UNIT_AURA as a bare signal.
+- Quest reward value: sell price written on each reward button in both the accept and turn-in windows; never picks.
+- Free bag slots on the backpack; "track all quests in this zone" checkbox on quest-log headers.
+
+**Midnight/Forever techniques.** Asks `C_Secrets.Should...BeSecret` predicates (unit aura index/instance, spell aura,
+unit power, max health, casting, threat; `GetSpellAuraSecrecy`; `CanCompareUnitTokens`) before reading, instead of
+reading and testing afterwards (all exist in this client's SecretPredicateAPIDocumentation). Keeps "refused" and
+"absent" apart: an API that will not answer (nil) is not treated as "no such thing" (false). Probes (temporary
+recorder modules) measured what the client answers in combat before features were built.
+
+**Compared with ours.**
+- DurabilityWatch.lua:60-65 and :70-75 show the repair cost only when a repair merchant opens; the hub panel line
+  (DurabilityWatch.lua:93-98) has no cost. ForeverPlus reads it anywhere from tooltip data.
+- DurabilityWatch.lua:51-57 already re-arms only when the lowest piece is back above 25%, the same rule as
+  ForeverPlus; no change needed there.
+- ForeverHub's XP session lives in memory and restarts on /reload (ForeverHub.lua:1367-1369); ForeverPlus keeps it in
+  saved data and tells login from reload. ForeverHub also has no "restart measurement" button for after a break.
+- ForeverHub's gold/hr (ForeverHub.lua:970-983) counts from login only and is per character; no account-wide gold
+  total, no Merchant's Favor.
+- ReadyCheck finds old ranks on bars and missing self-buffs (ReadyCheck.lua:1-2, 340-341) but not "you know a better
+  buff line than the one you are wearing" (Frost Armor vs Ice Armor) or user-chosen consumables to keep up.
+- Our helpers decide secrecy after reading (`Safe()` with `issecretvalue`); asking `C_Secrets` first is cleaner for
+  aura reads in ReadyCheck/FoodCheck.
+

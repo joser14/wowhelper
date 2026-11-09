@@ -91,3 +91,85 @@ Scan script checked every file's extension, first bytes (MZ, PK, 7z, ELF, `#!`, 
 5. **Weapon speed term** for 2H melee profiles (slow weapons favoured while leveling). — **S**
 6. **Time-budget throttle** around bulk bag evaluation (return "pending", retry next frame). — **S**
 
+
+---
+
+## 2. What's Training? (TOC interface 20506, 16001, 11509) — vs TrainerNotes
+
+**Verdict: CLEAN.** Packaging CI (BigWigs packager workflow) noted, not run.
+
+### Features
+- A tab/panel inside the spellbook listing every class spell by level with category headers: available now, missing requirement (previous rank or talent), next 2 levels, later, known, ignored; per-group total cost.
+- Pet abilities (hunter beast training) and warlock demon tomes (with merchant highlighting), weapon skills with the trainers' zones and an optional waypoint (TomTom or a plugin provider via a small public API), class quest-reward spells (which quest, which zone, which races).
+- Reputation-aware prices: lists the cheapest capital-city trainer for you given your standing.
+- Ignore list per spell (e.g. ranks you'll never train), LibDataBroker/minimap launcher, rank comparison tooltip on Shift.
+- On Forever it ships a separate, much larger UI (`Forever\*`: own spellbook-sized panel, gamepad support, a "train all" batch purchase at the trainer). The batch-purchase part is an action we would not copy (we stay read-only).
+
+### How it knows spells, costs and levels
+- **Static per-class data**, one file per class per game flavour (`Classes\Vanilla|TBC|Camelot\<Class>.lua`; "Camelot" is the Forever game type). Each level maps to a list of `{spell ID, copper cost, required previous-rank IDs, optional race/faction restriction, optional required talent ID}`. Only IDs and costs are stored; names, ranks and icons come from the client at run time (`C_Spell.RequestLoadSpellData` + `SPELL_DATA_LOAD_RESULT`, cached in Cache.lua).
+- Data is filtered at load by race and faction (`RaceFilter`, `FactionFilter`), plus quest spells and tomes merged in.
+- **Known detection:** a spell counts as known if `C_SpellBook.IsSpellInSpellBook` *or* `C_SpellBook.IsSpellKnown` says so, *or* a later member of an "override group" is known (so lower ranks that the game replaces in the book still count). Pet abilities are read from the beast-training craft window and remembered.
+- **Categorisation** (`DataBuilder.lua`): known → known; ignored; requires talent not known → missing talent; level above you → next-level (within 2) or later; else check that all required previous ranks are known → available, otherwise missing requirements.
+- **Refresh triggers:** `LEARNED_SPELL_IN_SKILL_LINE`, `PLAYER_LEVEL_UP`, `SKILL_LINES_CHANGED`, `PLAYER_EQUIPMENT_CHANGED`, and on Forever also `SPELLS_CHANGED` (cheaply: it only re-checks the small set of currently learnable IDs).
+- **Pricing:** base cost from data; on Forever the discount is 10% at Honored+ with the city faction that trains that role (they note Forever tome vendors don't discount — a Forever quirk), plus a PvP-rank discount on Era only. Reputation via `C_Reputation.GetFactionDataByID` on Forever, the old API elsewhere.
+
+### Forever / Midnight techniques worth noting
+- **TOC game-type gating:** `[AllowLoadGameType camelot]` / `[ExcludeLoadGameType classic]` on files and even on `## SavedVariables` lines, and a `[Game]` path token to pick the data folder per flavour. Lets one package serve Era, TBC and Forever.
+- Detects Forever by `GetBuildInfo()` interface ≥ 16000.
+- Uses `C_SpellBook.*` with `Enum.SpellBookSpellBank.Player/Pet` (Midnight API) everywhere.
+- The Forever UI's comments say it never parents to, anchors to, or changes native frames for its trainer panel; it also chose events over `hooksecurefunc` because hooks misbehaved with taint logging. (Older parts still hook the spellbook and merchant frames.)
+- Stormwind coordinates on Forever are shifted because the map includes the Harbor — their weapon-trainer data accounts for it.
+
+### TrainerNotes comparison (cite: `TrainerNotes/TrainerNotes.lua`)
+| Topic | What's Training | TrainerNotes |
+|---|---|---|
+| Data source | Static class tables (IDs, cost, level, prerequisites) | Only what the trainer window showed on your last visit (`:142-194`). Before the first visit it knows nothing (`:241-243`). |
+| Known check | Spellbook APIs + override groups | Bought = disappeared from the trainer list (`:60-105`); never checks the spellbook, so a spell learned elsewhere (quest, tome) or at another trainer can linger until revisit. |
+| Prereqs | Required previous rank and talent from data | Asks the trainer (`GetTrainerServiceAbilityReq`, `:118-140`) — accurate but only while the window is open. |
+| Look-ahead | Every level to 60 | Next 4 levels of what was *listed* (`:1`, `:198-219`); trainers usually list higher ranks, so this mostly works. |
+| Cost | Rep-discounted per faction | Raw cost as shown (already discounted for the trainer you visited). |
+| Weapon skills / quest spells / tomes / pet skills | Yes, with trainer locations | Not covered. |
+| Output | Own panels | Hub page + `/trainer` slash printing lines (`:235-266`, `:308-313`) — chat-style output we want to retire. |
+
+### Ranked improvements (TrainerNotes)
+1. **Cross-check against the spellbook** on `LEARNED_SPELL_IN_SKILL_LINE`/`SPELLS_CHANGED`/login: drop stored entries whose spell is now known (needs the spell ID — store `GetTrainerServiceInfo`'s spell via `C_TooltipInfo.GetTrainerService(index)` or the service's spell link when reading the trainer). — **S**
+2. **Own window** listing Ready / Next levels / Blocked with totals and a "can afford" bar; retire the `/trainer` chat print. — **M**
+3. **Optional static per-class table for Forever** (spell ID, level, cost, previous-rank ID) so the list works before the first trainer visit and shows all 60 levels. Must be built from our own sources (in-game trainer reads, or our own data collection), not copied from WT. — **L**
+4. **Weapon-skill trainer hints** (which weapon master teaches which skill, per faction) — complements WeaponSkillWatch. — **M**
+5. **Reputation discount note:** show "10% cheaper at Honored with <city>" when the stored cost came from a trainer where you were below Honored. — **S**
+
+
+---
+
+## 3. Nova Spell Rank Checker (1.63, TOC 11509/16001/20506/40403) — vs ReadyCheck
+
+**Verdict: CLEAN.** One 340-line Lua file + LibCustomGlow + LibStub.
+
+### Features
+- A "Check Hotbar Ranks" button on the spellbook. Clicking it scans your bars, makes every button holding a lower rank than you know *glow*, and prints one chat line per offender ("Bar N Slot M: <spell link> (Rank X) Not Max Rank"). Glows clear when the spellbook closes. No automatic scanning, no saved settings.
+
+### How it works
+- **Highest known rank:** walks spellbook skill lines (Forever: `C_SpellBook.GetNumSpellBookSkillLines` / `GetSpellBookSkillLineInfo` / `GetSpellBookItemName` with the Player bank; Classic: old tab API) and keeps the max number found in each spell's subtext per spell *name*.
+- **Bars:** walks *button frames by global name* (default bars incl. MultiBar5-7; or Bartender4, ElvUI, Dominos button names), reads each button's action slot, `GetActionInfo`; for **macros** it resolves the macro's spell with `GetMacroSpell`. Each spell is loaded with `Spell:CreateFromSpellID(...):ContinueOnSpellLoad` before reading its subtext, then compares the rank number by name.
+- **Forever specifics:** waits for `ADDON_LOADED` of `Blizzard_PlayerSpells` and parents the button to `PlayerSpellsFrame` (Midnight-style spellbook); toggles its own button visibility from a `HookScript("OnHide")` on that frame.
+- Glow is drawn **on Blizzard/bar-addon buttons** via LibCustomGlow (adds textures/animations to those buttons) — not allowed under our rules.
+- Minor logic slip: the "highest rank" comparison mixes `and`/`or` without parentheses, so a first-seen rank can be overwritten oddly; harmless in practice.
+
+### ReadyCheck comparison (cite: `ReadyCheck/ReadyCheck.lua`)
+| Topic | Nova | ReadyCheck |
+|---|---|---|
+| Trigger | Manual button | Automatic, event-driven with debounce and combat deferral (`:641-686`) |
+| Spellbook read | Name + subtext | `GetSpellBookItemInfo`, skips off-spec, falls back to `C_Spell.GetSpellSubtext`, secret-value safe (`:169-198`) |
+| Bar read | Button frames by name (UI-specific) | All `NUM_ACTION_SLOTS` by slot number (`:216-238`) — UI-agnostic, better |
+| **Macros** | Resolved via `GetMacroSpell` | **Skipped** — `ActionSpell` returns nil for anything not `"spell"` (`:200-214`) |
+| Location shown | "Bar N Slot M" + glow on the button | Raw slot number 1-120 (`:551`) — hard to map for the user, especially stance/form pages (73-120) |
+| Async spell data | `ContinueOnSpellLoad` | Reads directly; a not-yet-loaded subtext gives `nil` rank and the slot is silently skipped |
+| Ignore list | None | Yes (`:598-634`) |
+| Output | Chat print + glow | Hub page / status rows; slash `/rcheck` (`:688`) |
+
+### Ranked improvements (ReadyCheck)
+1. **Check macros:** when `GetActionInfo` says `"macro"`, resolve with `GetMacroSpell(id)` and compare that spell's rank (skip macros that use explicit `(Rank N)` text if we want to respect deliberate downranks — or just list them as "macro"). — **S**
+2. **Human-readable slot labels:** map slot ranges to "Action Bar 1 button 3", "Bottom Left 5", "Right Bar 2", and stance/form pages ("Battle Stance bar", "Cat Form bar") for warriors/druids/rogues. — **S**
+3. **Request spell data before reading subtext** (`C_Spell.RequestLoadSpellData` / `Spell:ContinueOnSpellLoad`) and rescan on `SPELL_DATA_LOAD_RESULT`, so a cold login never misses an old rank. — **S**
+4. **Optional highlight in our own overlay:** a click-through frame of our own placed over the offending button (anchor only, no textures created on Blizzard's button), shown while our ReadyCheck window is open. Same "anchor only" pattern ItemAdvisor already uses for bag badges. — **M**
+
