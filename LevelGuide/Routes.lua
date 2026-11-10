@@ -81,6 +81,18 @@ local function Travel(text, zone, x, y, lvl, note) return { t = "zone", text = t
 local function XPShort(level, n, note, x, y) return { t = "xp", text = string.format("%d XP short of level %d", n, level), level = level, short = n, note = note, x = x, y = y, lvl = level - 1 } end
 local function XPInto(level, n, note, x, y) return { t = "xp", text = string.format("%d XP into level %d", n, level), level = level, into = n, note = note, x = x, y = y, lvl = level } end
 
+-- Legs (route fields, LevelGuide.lua FindRoute): a race chain can be a plan of ordered legs that revisit
+-- zones (Night Elf: Darkshore, the Loch Modan trip, Darkshore, the Redridge trip, Darkshore).
+--   leg = true   the route is a leg: once a later leg is under way (one of its pick-ups taken), earlier
+--                legs are behind you, whatever they have left.
+--   key = "..."  its own prefix for saved skips (default: the zone; legs of one zone may share it, but
+--                must not repeat a step: tests\test_lg_ne_route.lua checks).
+--   name = "..." shown as "Route: <name>" (default: the zone).
+--   zones = {}   more zones that count as "here" (a trip through Stormwind, Ironforge and Loch Modan).
+-- A leg is entered and left by Travel / Hearth steps; ways (Way(), at the end of this file) point the
+-- arrow from the zone you're in. A Travel / Reach move is also done once you stand in a zone the leg only
+-- reaches after it (you flew instead of taking the tram).
+
 -- Class groups for side steps.
 local CASTERS = { "PRIEST", "MAGE", "WARLOCK", "DRUID", "SHAMAN", "PALADIN" }   -- want water
 local WAND_USERS = { "PRIEST", "MAGE", "WARLOCK" }
@@ -368,7 +380,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
 -- Sources: wow4ever.quest (Questie Forever data, client 1.60.1.70790), wowhead.com/forever quest text,
 -- sageguide.net 11-19 Darkshore (Forever-aware route). Approximate coordinates are marked "approx" in notes.
 -- Beached Sea Creature / Beached Sea Turtle parts are numbered in the order this route turns them in.
-local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
+local DARKSHORE = { zone = "Darkshore", min = 11, max = 15, leg = true, steps = {
     -- Auberdine arrival
     T("Flight to Auberdine", "Laird", 36.8, 44.3, 11),
     -- Caylais Moonfeather and Innkeeper Shaussiy are Auberdine's flight master and innkeeper.
@@ -380,11 +392,9 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     New(Later(Bags(40, "Dalmond (general goods), Auberdine", 37.5, 40.5, 11, "Small Brown Pouch (6 slots) or Brown Leather Satchel (8) in every free bag slot."))),
     New(Class(CASTERS, Later(Buy(1179, 20, "Ice Cold Milk", "vendor", "Innkeeper Shaussiy", 37.1, 44.1, 11, "Restock water before the beach.")))),
     New(Class(CASTERS, Later(Buy(1205, 20, "Melon Juice", "vendor", "Innkeeper Shaussiy", 37.1, 44.1, 15, "Needs level 15.")))),
-    -- Priest spells at 14-20: the nearest priest trainer is in Darnassus (fly to Rut'theran, portal up).
-    New(Trainer(14, "PRIEST", { 8122, 6074, 598, 528 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Fly to Rut'theran Village and take the portal up.")),
-    New(Trainer(16, "PRIEST", { 2054, 8102 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Heal and Mind Blast rank 2.")),
-    New(Trainer(18, "PRIEST", { 527, 970, 600 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2)),
-    New(Trainer(20, "PRIEST", { 2061, 14914 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Flash Heal and Holy Fire.")),
+    -- Priest spells at 14: Brother Joshua in Stormwind on the Loch Modan trip (the next leg) is on the way;
+    -- Darnassus (fly to Rut'theran, portal up) if you train now. Levels 16-20 are trained on the later legs.
+    New(Trainer(14, "PRIEST", { 8122, 6074, 598, 528 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Or Brother Joshua in Stormwind when the boat takes you there at 14-15.")),
     A("Buzzbox 827", "Wizbang Cranktoggle (upstairs in the inn)", 37.0, 44.1, 11),
     A("Washed Ashore", "Gwennyth Bly'Leggonde", 36.6, 45.6, 11, 1),
     A("The Family and the Fishing Pole", "Gubber Blump, on the dock", 36.1, 44.9, 11),
@@ -454,6 +464,23 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     D("As Water Cascades", "Fill the Empty Water Tube at the Auberdine moonwell (approx)", 37.8, 43.8, 14),
     A("The Tower of Althalaxx", "Sentinel Elissa Starbreeze", 39.0, 43.5, 14, 1),
     A("Deep Ocean, Vast Sea", "Gorbold Steelhand", 38.1, 41.2, 14),
+    -- Before the boat (research\rxp_forever_guides.md phases G-H, our wording): Darkshore's next quests are
+    -- 15-19, so the route crosses to the Eastern Kingdoms for Loch Modan and comes back by hearthstone.
+    -- Expanding Horizons 97914 (Forever, Night Elf) is handed in in Stormwind on the trip.
+    New(A("Expanding Horizons", "Thundris Windweaver", 37.4, 40.1, 14)),
+    -- Fishin' Time 95065 (Forever) at the Stormwind harbour wants a Shiny Bauble (6529) and 3 Nightcrawlers
+    -- (6530), sold by Gorbold here; the quest is taken and handed in on the spot there.
+    New(When({ notTurnedIn = "Fishin' Time" }, Later(Buy(6529, 1, "Shiny Bauble", "vendor", "Gorbold Steelhand, Auberdine", 38.1, 41.2, 14, "For Fishin' Time at the Stormwind harbour (taken and handed in at once).")))),
+    New(When({ notTurnedIn = "Fishin' Time" }, Later(Buy(6530, 3, "Nightcrawlers", "vendor", "Gorbold Steelhand, Auberdine", 38.1, 41.2, 14, "For Fishin' Time with the Shiny Bauble.")))),
+    New(Later(Keep(6529, "Shiny Bauble", "Fishin' Time", 14))),
+    New(Later(Keep(6530, "Nightcrawlers", "Fishin' Time", 14))),
+    -- The Auberdine - Stormwind boat (Forever): dock at the end of the long pier (research\rxp_forever_guides.md 2.4).
+    New(Travel("Boat to Stormwind (Auberdine pier)", "Stormwind City", 30.7, 41.0, 14, "Your hearth stays in Auberdine: it brings you back after Loch Modan.")),
+} }
+
+-- Darkshore, second leg (15-19), after the Loch Modan trip: the north coast and Cliffspring, the south
+-- coast and the Master's Glaive, the Blackwood camps and Mathystra, then the boat to Stormwind for Redridge.
+local DARKSHORE_NORTH = { zone = "Darkshore", min = 15, max = 19, leg = true, steps = {
     -- North coast, Cliffspring, the tower
     Path({ { 38.0, 29.0 }, { 39.5, 27.5 } }, D("Deep Ocean, Vast Sea", "Silver Dawning's Lockbox (wreck at 38, 29) and Mist Veil's Lockbox (wreck at 39.5, 27.5)", 38.2, 28.8, 14)),
     D("Buzzbox 411", "3 Thresher Eyes from Darkshore Threshers in the deep water", 40.0, 27.0, 14),
@@ -514,7 +541,7 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     D("It's All Fun and Games Until...", "Peerless Eye from Twilight Disciples and Thugs at the Glaive", 38.5, 85.0, 17),
     A("Therylune's Escape", "Therylune (ESCORT, turn in at the Shrine of Aessina in Ashenvale)", 38.6, 87.3, 17),
     D("Therylune's Escape", "Escort Therylune out of the Twilight camp", 38.6, 87.3, 17),
-    D("A Lost Master", "5 Fine Moonstalker Pelts from Moonstalker Sires and Matriarchs (approx)", 40.5, 80.0, 17, 1),
+    D("A Lost Master", "5 Fine Moonstalker Pelts from Moonstalker Sires and Matriarchs: by the Glaive here, or in the far north (61.4, 9.4) later", 40.5, 80.0, 17, 1),
     T("Buzzbox 525", "Buzzbox 525", 41.4, 80.6, 18),
     T("Return to Onu", "Onu", 43.5, 76.3, 18),
     A("Mathystra Relics", "Onu", 43.5, 76.3, 18),
@@ -535,8 +562,10 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     -- Blackwood camps, Den Mother, Gelkak, Ruins of Mathystra
     D("The Blackwood Corrupted", "Grain (50.6, 35.0), nut (51.8, 33.6) and fruit (52.9, 33.4) samples, then use the bowl at the bonfire and kill Xabraxxis for the Talisman", 52.4, 33.6, 18),
     D("Tharnariun's Hope", "Kill the Den Mother in the cave (kill her cubs first)", 51.8, 37.0, 18),
+    -- The Gyromast and Mathystra quests to the north want 18; the Blackwood camp respawns fast, so level here.
+    New(XP(18, 0, "Blackwood furbolgs around the bonfire camp", 52.6, 33.6)),
     A("Gyromast's Retrieval", "Gelkak Gyromast", 56.7, 13.5, 18),
-    D("Gyromast's Retrieval", "Key pieces: bottom from Reef Crawlers, middle from Greymist murlocs, top from Giant Foreststriders (approx)", 55.0, 17.0, 18),
+    Path({ { 55.6, 17.0 }, { 54.9, 12.2 }, { 61.3, 12.0 } }, D("Gyromast's Retrieval", "Key pieces: bottom from the crabs on the shore, middle from Greymist murlocs, top from Giant Foreststriders in the far north", 55.6, 17.0, 18)),
     T("Gyromast's Retrieval", "Gelkak Gyromast", 56.7, 13.5, 19),
     A("Gyromast's Revenge", "Gelkak Gyromast (ESCORT, it turns hostile at Gelkak; group)", 56.7, 13.5, 19),
     D("Gyromast's Revenge", "Talk to the Threshwackonator 4100 to the south and lead it back, then kill it", 55.8, 18.3, 19),
@@ -549,6 +578,22 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     T("The Blackwood Corrupted", "Thundris Windweaver", 37.4, 40.1, 20),
     T("Tharnariun's Hope", "Tharnariun Treetender", 38.8, 43.4, 20),
     T("Holy Diver", "Gwennyth Bly'Leggonde", 36.6, 45.6, 20),
+    New(Class(CASTERS, Later(Buy(1205, 20, "Melon Juice", "vendor", "Innkeeper Shaussiy, Auberdine", 37.1, 44.1, 18, "Restock before the boat.")))),
+    -- Redridge at 19-20 (research\rxp_forever_guides.md phase K): the same boat, then the road east.
+    New(Travel("Boat to Stormwind for Redridge (Auberdine pier)", "Stormwind City", 30.7, 41.0, 19, "Keep your hearth in Auberdine: it brings you back at 20.")),
+} }
+
+-- Darkshore, last leg (20-21), after Redridge: hand-ins at Auberdine and the Grove, Volcor, the priest
+-- trip to Darnassus (Elune's Grace, level 20 spells), and the escorts south into Ashenvale.
+local DARKSHORE_SOUTH = { zone = "Darkshore", zones = { "Darnassus" }, min = 20, max = 21, leg = true, steps = {
+    -- The Corruption Abroad 3765 is taken from Argos Nightwhisper in Stormwind on the Redridge leg.
+    New(T("The Corruption Abroad", "Gershala Nightwhisper, Auberdine", 38.3, 43.0, 20)),
+    -- Night Elf priests: Elune's Grace 5672 and the level 20 spells with Priestess Alathea in Darnassus
+    -- (research\routes_20_60.md 3.1 and 3.5). Fly from Auberdine to Rut'theran, then the portal up.
+    New(Class("PRIEST", Travel("Fly to Rut'theran Village, then the portal up to Darnassus", "Darnassus", 36.4, 45.6, 20, "Caylais Moonfeather, by the Auberdine docks."))),
+    New(Class("PRIEST", On("Darnassus", A("Elune's Grace", "Priestess Alathea (Temple of the Moon)", 39.5, 81.2, 20)))),
+    New(Class("PRIEST", On("Darnassus", T("Elune's Grace", "Priestess Alathea (Temple of the Moon)", 39.5, 81.2, 20)))),
+    New(On("Darnassus", Trainer(20, "PRIEST", { 2061, 14914 }, "Priestess Alathea (Temple of the Moon)", 39.5, 81.2, "Flash Heal and Holy Fire, if you didn't train in Stormwind."))),
     -- Grove of the Ancients and Volcor
     T("Mathystra Relics", "Onu", 43.5, 76.3, 20),
     T("Baron Marinous", "Onu", 43.5, 76.3, 20),
@@ -865,6 +910,195 @@ local LOCH_MODAN = { zone = "Loch Modan", min = 10, max = 20, steps = {
     G("Dun Algaz tunnel to the Wetlands", 25.4, 10.4, 20, "Open quests to finish elsewhere: A Dark Threat Looms part 3 (Ashlan Stonesmirk, Dun Modr, Wetlands), Stormpike's Order (Furen Longbeard, Stormwind)"),
 } }
 
+-- The Night Elf trip to the Eastern Kingdoms at 14-16 (research\rxp_forever_guides.md phase H, facts only,
+-- our wording): boat to Stormwind, tram to Ironforge, Loch Modan's 14-16 quests, a gryphon back to
+-- Ironforge for the hand-in and training, then the hearthstone home to Auberdine.
+-- Coordinates: Loch Modan ones as the Loch Modan route above (Questie Forever data); Ironforge from
+-- research\routes_20_60.md 3.1 (Rohan 24.7, 8.2) and the Loch Modan route notes (Gnoarn, Gryth Thurden,
+-- Prospector Stormpike). Stormwind: Brother Joshua 49.5, 45.2 is Forever data (V); the harbour (Gilbert
+-- Gray), Baros Alexston and the tram entrance come from a guide written on another Stormwind map and are
+-- UNVERIFIED (U): check them in game.
+local LOCH_MODAN_TRIP = { zone = "Loch Modan", key = "Loch Modan (Night Elf)", name = "Stormwind, Ironforge and Loch Modan",
+    zones = { "Stormwind City", "Ironforge", "Dun Morogh", "Loch Modan" }, min = 14, max = 16, leg = true, steps = {
+    -- Stormwind harbour and Cathedral Square
+    New(When({ hasItem = { 6529, 1 } }, On("Stormwind City", A("Fishin' Time", "Gilbert Gray (harbour, where the boat docks; U)", 8.4, 29.2, 14)))),
+    New(On("Stormwind City", T("Fishin' Time", "Gilbert Gray (harbour; U)", 8.4, 29.2, 14))),
+    New(On("Stormwind City", Trainer(14, "PRIEST", { 8122, 6074, 598, 528 }, "Brother Joshua (Cathedral of Light)", 49.5, 45.2))),
+    New(On("Stormwind City", T("Expanding Horizons", "Baros Alexston (Cathedral Square; U)", 49.2, 30.3, 14))),
+    New(On("Stormwind City", Travel("Deeprun Tram to Ironforge (Dwarven District; U)", "Ironforge", 66.0, 34.0, 14, "Optional on the ride: Deeprun Rat Roundup from Monty on the Ironforge platform."))),
+    -- Ironforge
+    New(On("Ironforge", A("Find Bingles", "Gnoarn (Tinker Town)", 69.2, 50.6, 14))),
+    New(On("Ironforge", FP("Ironforge", "Gryth Thurden", 55.5, 47.7, 14, "The gryphon from Thelsamar brings you back here later."))),
+    New(On("Dun Morogh", Travel("East through Dun Morogh to Loch Modan", "Loch Modan", 87.5, 48.8, 14, "The road out of the Ironforge gates, then the east gate (South Gate Pass)."))),
+    -- South gate: the trogg tower
+    New(A("In Defense of the King's Lands", "Mountaineer Cobbleflint (southern guard tower)", 22.1, 73.1, 14, 1)),
+    New(A("The Trogg Threat", "Captain Rugelfuss (top of the tower)", 23.2, 73.7, 14)),
+    New(D("In Defense of the King's Lands", "10 Stonesplinter Troggs and 10 Scouts at the mouth of Stonesplinter Valley", 31.5, 72.1, 14, 1)),
+    New(D("The Trogg Threat", "8 Trogg Stone Teeth from the same troggs", 31.5, 72.1, 14)),
+    New(T("The Trogg Threat", "Captain Rugelfuss", 23.2, 73.7, 15)),
+    New(T("In Defense of the King's Lands", "Mountaineer Cobbleflint", 22.1, 73.1, 15, 1)),
+    -- Thelsamar
+    New(FP("Thelsamar", "Thorgrum Borrelson", 33.9, 51.0, 15)),
+    New(A("Rat Catching", "Mountaineer Kadrell (walks through Thelsamar)", 34.2, 47.8, 15)),
+    New(A("Mountaineer Stormpike's Task", "Mountaineer Kadrell", 34.2, 47.8, 15)),
+    New(A("Thelsamar Blood Sausages", "Vidra Hearthstove (inn)", 34.8, 49.3, 15)),
+    New(Sticky(6, D("Thelsamar Blood Sausages", "3 Bear Meat, 3 Boar Intestines, 3 Spider Ichor from the hill beasts as you pass", 29.0, 58.0, 15))),
+    -- Algaz Station and the Silver Stream Mine
+    New(T("Mountaineer Stormpike's Task", "Mountaineer Stormpike (Algaz Station)", 24.8, 18.4, 15)),
+    New(A("Filthy Paws", "Mountaineer Stormpike", 24.8, 18.4, 15)),
+    New(D("Filthy Paws", "Open 4 Miners' Gear crates in the Silver Stream Mine", 35.6, 23.5, 15)),
+    New(D("Rat Catching", "12 Tunnel Rat Ears from the kobolds in and around the mine", 35.6, 23.5, 15)),
+    New(T("Filthy Paws", "Mountaineer Stormpike", 24.8, 18.4, 15)),
+    New(A("Stormpike's Order", "Mountaineer Stormpike (hand it in to Furen Longbeard in Stormwind on the Redridge leg)", 24.8, 18.4, 15)),
+    -- Thelsamar again, the loch
+    New(T("Thelsamar Blood Sausages", "Vidra Hearthstove", 34.8, 49.3, 15)),
+    New(T("Rat Catching", "Mountaineer Kadrell", 34.2, 47.8, 15)),
+    New(A("Ironband's Excavation", "Jern Hornhelm", 37.2, 47.4, 15)),
+    New(A("Silver of the Waves", "Discarded Fishing Toolbox (on the loch floor; it can also lie at 45.6, 43.4 or 48.9, 54.2)", 48.0, 39.7, 15)),
+    New(T("Ironband's Excavation", "Magmar Fellhew (Ironband's Excavation Site)", 64.9, 66.7, 15)),
+    New(A("Excavation Progress Report", "Prospector Ironband", 65.9, 65.6, 15)),
+    -- Farstrider Lodge and the crocolisks
+    New(A("A Hunter's Boast", "Daryl the Youngling (TIMED 15 min: start when ready)", 83.5, 65.5, 15)),
+    New(D("A Hunter's Boast", "6 Mountain Buzzards in the hills south-west of the lodge (timed)", 76.8, 70.5, 15)),
+    New(T("A Hunter's Boast", "Daryl the Youngling", 83.5, 65.5, 15)),
+    New(A("Crocolisk Hunting", "Marek Ironheart", 81.8, 61.7, 15)),
+    New(A("Twisting the Knife", "Marek Ironheart (Forever)", 81.8, 61.7, 15)),
+    New(T("Find Bingles", "Bingles Blastenheimer (east shore)", 63.6, 47.9, 15)),
+    New(D("Crocolisk Hunting", "5 Crocolisk Meat and 6 Crocolisk Skins from Loch Crocolisks", 56.1, 39.3, 15)),
+    New(D("Twisting the Knife", "Daggerfang, a crocolisk on the loch's edge, for Marek's knife", 58.0, 45.0, 16)),
+    New(T("Crocolisk Hunting", "Marek Ironheart", 81.8, 61.7, 16)),
+    New(T("Twisting the Knife", "Marek Ironheart", 81.8, 61.7, 16)),
+    -- Finish the loch with 16 nearly done, so the Ironforge hand-in and training land at 16.
+    New(XPShort(16, 2360, "Troggs or crocolisks on the way back west", 56.1, 39.3)),
+    New(T("Excavation Progress Report", "Jern Hornhelm, Thelsamar", 37.2, 47.4, 16)),
+    New(A("Report to Ironforge", "Jern Hornhelm", 37.2, 47.4, 16)),
+    New(T("Silver of the Waves", "Khara Deepwater (dock below Thelsamar)", 40.4, 39.4, 16)),
+    New(Travel("Fly to Ironforge (Thorgrum Borrelson)", "Ironforge", 33.9, 51.0, 16)),
+    -- Ironforge: hand-in, training, auction house, then home
+    New(On("Ironforge", T("Report to Ironforge", "Prospector Stormpike (Hall of Explorers)", 74.6, 11.7, 16))),
+    New(On("Ironforge", Trainer(16, "PRIEST", { 2054, 8102 }, "High Priest Rohan (Mystic Ward)", 24.7, 8.2, "Heal and Mind Blast rank 2."))),
+    New(When({ lacksItem = { WANDS, 1 } }, Class(WAND_USERS, On("Ironforge", Later(Buy(WANDS, 1, "A wand (Lesser or Greater Magic Wand)", "ah", "Auctioneers, Ironforge", 25.8, 75.5, 16, "A second chance at a wand after Darnassus.")))))),
+    New(Hearth("Auberdine", 16, "Back to Darkshore for its 15-19 quests.")),
+} }
+
+-- Redridge Mountains (Alliance 17-25). Quest names, givers, coordinates and levels from research\routes_20_60.md
+-- section 2.2 (checked against Forever's quest data, V); notes are our own. Forever's Lakeshire sits about
+-- 5 points west of the Classic map numbers: these are the Forever ones (check one in game first).
+-- Spots marked U are unverified: Show of Force's Spiked Collars and Incinerator Gar'im.
+-- Prerequisites: A Baying of Gnolls needs Return to Verner (Goldshire leg); Tharil'zun and Shadow Magic
+-- need Blackrock Menace and Blackrock Blockade (Forever).
+local REDRIDGE = { zone = "Redridge Mountains", min = 17, max = 25, steps = {
+    -- Three Corners road from Elwynn
+    New(A("Encroaching Gnolls", "Guard Parker (walks the road in from Elwynn)", 10.4, 71.3, 17)),
+    New(T("Encroaching Gnolls", "Deputy Feldon (by the Lakeshire bridge)", 25.6, 60.0, 17)),
+    New(A("Assessing the Threat", "Deputy Feldon", 25.6, 60.0, 17)),
+    New(A("Show of Force", "Deputy Feldon (Forever: Spiked Collars from Redridge Thrashers; spot U)", 25.6, 60.0, 17)),
+    New(FP("Lakeshire", "Ariena Stormfeather", 25.5, 59.4, 17)),
+    New(Home("Lakeshire", "Innkeeper Brianna", 21.9, 44.8, 17, "Optional: only if Redridge is your base for a while.")),
+    -- Lakeshire
+    New(A("Selling Fish", "Dockmaster Baren", 22.6, 47.4, 17)),
+    New(A("The Lost Tools", "Foreman Oslow", 27.1, 48.6, 17)),
+    New(A("Redridge Goulash", "Chef Breanna", 17.6, 43.8, 17)),
+    New(A("A Free Lunch", "Darcy (in the inn)", 21.5, 44.3, 17)),
+    New(A("Hilary's Necklace", "Shawn", 24.2, 53.6, 17)),
+    New(A("Solomon's Law", "Bailiff Conacher (town hall)", 24.6, 44.3, 17)),
+    New(A("A Baying of Gnolls", "Verner Osgood (only after Return to Verner)", 25.9, 47.3, 17)),
+    -- The lake
+    New(D("Hilary's Necklace", "Glinting Mud in the shallows south of the bridge", 23.7, 54.2, 18)),
+    New(D("The Lost Tools", "The Sunken Chest on the bottom of Lake Everstill", 36.4, 54.7, 18)),
+    New(D("Selling Fish", "10 Spotted Sunfish from the murlocs on the east shore", 45.2, 59.3, 18)),
+    New(D("Redridge Goulash", "Condor meat (49.7, 58.2), spider meat (45.3, 47.7), Great Goretusk snouts (23.2, 60.5)", 45.3, 47.7, 19)),
+    New(D("Assessing the Threat", "10 Redridge Mongrels (24.5, 71.7) and 6 Poachers (27.2, 82.3)", 24.5, 71.7, 19)),
+    New(Obj(1, D("Show of Force", "Spiked Collars from Redridge Thrashers (spot U)", 27.2, 82.3, 19))),
+    New(T("A Free Lunch", "Guard Parker", 10.4, 71.3, 19)),
+    New(A("Visit the Herbalist", "Guard Parker", 10.4, 71.3, 19)),
+    New(T("Assessing the Threat", "Deputy Feldon", 25.6, 60.0, 19)),
+    New(T("Show of Force", "Deputy Feldon", 25.6, 60.0, 19)),
+    New(T("Visit the Herbalist", "Martie Jainrose", 16.8, 46.3, 19)),
+    New(A("Delivering Daffodils", "Martie Jainrose", 16.8, 46.3, 19)),
+    New(A("An Unwelcome Guest", "Martie Jainrose", 16.8, 46.3, 19)),
+    New(T("Delivering Daffodils", "Darcy (in the inn)", 21.5, 44.3, 19)),
+    New(T("Hilary's Necklace", "Hilary", 24.1, 53.6, 19)),
+    New(T("The Lost Tools", "Foreman Oslow", 27.1, 48.6, 19)),
+    New(A("The Everstill Bridge", "Foreman Oslow (Forever: leads on to Alther's Mill)", 27.1, 48.6, 19)),
+    New(T("Selling Fish", "Dockmaster Baren", 22.6, 47.4, 20)),
+    New(A("Murloc Poachers", "Dockmaster Baren", 22.6, 47.4, 20)),
+    New(T("Redridge Goulash", "Chef Breanna", 17.6, 43.8, 20)),
+    New(A("Blackrock Menace", "Marshal Marris", 28.4, 49.0, 20)),
+    New(A("Blackrock Blockade", "Marshal Marris (Forever)", 28.4, 49.0, 20)),
+    New(A("WANTED: Gath'Ilzogg", "Wanted poster by the town hall", 24.5, 46.2, 20)),
+    New(A("WANTED: Lieutenant Fangore", "Wanted poster", 21.7, 46.4, 20)),
+    New(A("WANTED: Incinerator Gar'im", "Wanted poster (Forever; his cave spot is U)", 24.3, 46.2, 20)),
+    New(A("Blackrock Bounty", "Guard Howe", 26.4, 57.9, 20)),
+    -- North: the gnolls and the mill
+    New(D("A Baying of Gnolls", "10 Redridge Brutes and 8 Mystics (Iron Pikes and Rivets for the bridge drop here too)", 19.0, 35.0, 20)),
+    New(D("The Everstill Bridge", "Iron Pikes and Rivets from the north gnolls", 19.0, 35.0, 20)),
+    New(D("An Unwelcome Guest", "Bellygrub the boar for his tusk", 10.6, 49.3, 21)),
+    New(D("Murloc Poachers", "8 Murloc Fins on the east shore", 45.2, 59.3, 21)),
+    New(T("The Everstill Bridge", "Foreman Oslow", 27.1, 48.6, 21)),
+    New(A("Alther's Mill", "Foreman Oslow (Forever)", 27.1, 48.6, 21)),
+    New(D("Alther's Mill", "12 Greater Tarantulas and 6 Tarantula Eggs at Alther's Mill", 48.3, 40.8, 21)),
+    -- East: the Blackrock orcs
+    New(D("Blackrock Menace", "Battleworn Axes (and the Blockade items) from the orcs around Render's Camp and Stonewatch", 59.3, 53.3, 22)),
+    New(D("Blackrock Blockade", "The Blockade items from the same orcs", 59.3, 53.3, 22)),
+    New(T("Blackrock Menace", "Marshal Marris", 28.4, 49.0, 22)),
+    New(T("Blackrock Blockade", "Marshal Marris", 28.4, 49.0, 22)),
+    New(A("Tharil'zun", "Marshal Marris", 28.4, 49.0, 22)),
+    New(A("Shadow Magic", "Marshal Marris", 28.4, 49.0, 22)),
+    New(D("Shadow Magic", "3 Midnight Orbs from Blackrock Shadowcasters", 63.1, 54.8, 23)),
+    New(D("WANTED: Gath'Ilzogg", "Gath'Ilzogg in Stonewatch Keep", 64.5, 55.8, 23)),
+    New(D("Tharil'zun", "Tharil'zun's head", 64.4, 59.4, 24)),
+    New(D("Solomon's Law", "10 Shadowhide Pendants from the gnolls east of Stonewatch", 73.7, 47.5, 24)),
+    New(D("WANTED: Lieutenant Fangore", "Fangore's Paw", 75.1, 37.1, 24)),
+    New(A("Missing In Action", "Corporal Keeshan (ESCORT, in the north cave)", 23.3, 12.6, 24)),
+    New(D("Missing In Action", "Lead Keeshan out and back to Lakeshire (ESCORT)", 23.3, 12.6, 24)),
+    New(D("Blackrock Bounty", "15 Blackrock Champions in the north", 24.5, 11.5, 24)),
+    -- Lakeshire at 25
+    New(T("Missing In Action", "Marshal Marris", 28.4, 49.0, 25)),
+    New(T("Tharil'zun", "Marshal Marris", 28.4, 49.0, 25)),
+    New(T("Shadow Magic", "Marshal Marris", 28.4, 49.0, 25)),
+    New(T("Blackrock Bounty", "Guard Howe", 26.4, 57.9, 25)),
+    New(T("Solomon's Law", "Bailiff Conacher", 24.6, 44.3, 25)),
+    New(T("WANTED: Gath'Ilzogg", "Magistrate Solomon (town hall)", 24.9, 44.5, 25)),
+    New(T("WANTED: Lieutenant Fangore", "Magistrate Solomon", 24.9, 44.5, 25)),
+    New(T("An Unwelcome Guest", "Martie Jainrose", 16.8, 46.3, 25)),
+    New(T("Murloc Poachers", "Dockmaster Baren", 22.6, 47.4, 25)),
+    New(T("Alther's Mill", "Foreman Oslow", 27.1, 48.6, 25)),
+    New(T("A Baying of Gnolls", "Verner Osgood", 25.9, 47.3, 25)),
+} }
+
+-- The Night Elf Redridge leg at 19-20 (research\rxp_forever_guides.md phase K, facts only): Stormwind errands
+-- off the boat, the road east through Elwynn, Redridge's quests up to level 20, then a flight back to
+-- Stormwind for the level 20 spells and The Corruption Abroad, and the hearthstone home to Auberdine.
+-- Stormwind coordinates other than Brother Joshua (Forever data, V) are from a guide on another Stormwind
+-- map and UNVERIFIED (U); the Elwynn road exit is approximate (U).
+local REDRIDGE_TRIP_STEPS = {
+    New(On("Stormwind City", Trainer(18, "PRIEST", { 527, 970, 600 }, "Brother Joshua (Cathedral of Light)", 49.5, 45.2))),
+    New(On("Stormwind City", T("Stormpike's Order", "Furen Longbeard (Dwarven District; U)", 58.1, 16.5, 19))),
+    New(When({ lacksItem = { { 5210, 5211, 11288 }, 1 } }, Class({ "PRIEST", "WARLOCK" }, On("Stormwind City", Later(Buy({ 5210, 5211 }, 1, "Burning Wand or Dusk Wand (level 20)", "vendor", "Ardwyn Cailen (wand vendor)", 52.9, 74.8, 19, "Only if it beats your wand; a fire wand suits mobs that resist shadow.")))))),
+    New(On("Stormwind City", FP("Stormwind", "Dungar Longdrink (U)", 66.7, 61.8, 19))),
+    New(On("Elwynn Forest", Travel("East along the Elwynn road to Redridge (Three Corners; U)", "Redridge Mountains", 90.5, 71.5, 19, "Pick up the Lakeshire flight path when you get there."))),
+}
+for _, step in ipairs(REDRIDGE.steps) do
+    -- Redridge's own quests up to 19, and its hand-ins at 20; not the hearth bind, the 20+ pick-ups or the gnoll
+    -- quest that needs the Goldshire errand first.
+    if step.t ~= "home" and step.q ~= "A Baying of Gnolls" and (step.lvl <= 19 or (step.lvl == 20 and step.t == "turnin")) then
+        REDRIDGE_TRIP_STEPS[#REDRIDGE_TRIP_STEPS + 1] = step
+    end
+end
+for _, step in ipairs({
+    -- Bank the turn-ins, then level on the murlocs: the hand-ins carry you to 20.
+    New(XPShort(20, 7687, "Murlocs on the east shore of the lake", 45.2, 59.3)),
+    New(Travel("Fly to Stormwind (Ariena Stormfeather)", "Stormwind City", 25.5, 59.4, 20)),
+    New(On("Stormwind City", Trainer(20, "PRIEST", { 2061, 14914 }, "Brother Joshua (Cathedral of Light)", 49.5, 45.2, "Flash Heal and Holy Fire."))),
+    New(On("Stormwind City", A("The Corruption Abroad", "Argos Nightwhisper (the park; U)", 21.4, 55.8, 20))),
+    New(Hearth("Auberdine", 20, "Home to Darkshore for its last quests and the road to Ashenvale.")),
+}) do
+    REDRIDGE_TRIP_STEPS[#REDRIDGE_TRIP_STEPS + 1] = step
+end
+local REDRIDGE_TRIP = { zone = "Redridge Mountains", key = "Redridge (Night Elf)", name = "Stormwind and Redridge",
+    zones = { "Stormwind City", "Elwynn Forest", "Redridge Mountains" }, min = 19, max = 20, leg = true, steps = REDRIDGE_TRIP_STEPS }
+
 -- Zones researched by worker sessions from Forever guide sites; each keeps its own source list.
 
 -- Sources: https://wowhandbook.com/zones/kalimdor/ashenvale/ ; https://games.gg/world-of-warcraft/guides/wow-forever-ashenvale-leveling-guide/ ; https://wowforever.wiki.fextralife.com/Ashenvale
@@ -1036,9 +1270,8 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     A("Claws from the Deep", "Karl Boran", 8.3, 58.6, 20),
     A("Spoils of War", "Valstag Ironjaw", 10.1, 56.9, 20),
     A("Young Crocolisk Skins", "James Halloran", 8.6, 55.7, 20),
-    A("Crocs of the Sky", "James Halloran (whelps are far east on the Green Belt, done later)", 8.6, 55.7, 20),
+    A("Crocs of the Sky", "James Halloran (unverified in Forever's quest data: skip it if he doesn't offer it; whelps are far east on the Green Belt)", 8.6, 55.7, 20),
     A("Alchemical Hazards", "Caitlin Grassman", 11.9, 58.8, 20),
-    A("Fiora Longears", "Red Jack Flint (turn-in is in Theramore: take the boat when you leave the zone)", 10.0, 58.0, 20),
 
     -- Around the harbor
     D("Spoils of War", "Loot 6 Khaz Modan Timber and 30 Khaz Modan Iron from the harbor waters (watch the crocolisks and murlocs underwater)", 11.5, 53.5, 20),
@@ -1153,6 +1386,8 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     T("The Eye of Paleth", "Glorin Steelbrow", 10.6, 60.6, 30),
     A("Cleansing the Eye", "Glorin Steelbrow (turn-in: Archbishop Benedictus, Stormwind Cathedral)", 10.6, 60.6, 30),
     A("A Friend of the Family", "Captain Stoutfist (turn-in: Highlord Bolvar Fordragon, Stormwind Keep)", 9.9, 57.5, 30),
+    -- Fiora Longears 1132 needs level 30 (research\routes_20_60.md 4.1): taken here, on the way out, not at 20.
+    A("Fiora Longears", "Red Jack Flint (needs level 30; hand it in at Theramore: the boat leaves from these docks)", 10.0, 58.0, 30),
     G("Menethil Harbor docks", 7.0, 57.0, 30, "Cleansing the Eye -> Archbishop Benedictus (Stormwind 50.3,45.5); A Friend of the Family -> Bolvar (Stormwind 80.0,38.5), then part 2 to Lord Grayson Shadowbreaker (48.5,50.1); Fiora Longears -> boat to Theramore (66.5,45.1). Next zone: Duskwood / Hillsbrad"),
 } }
 
@@ -1408,7 +1643,7 @@ local HILLSBRAD = { zone = "Hillsbrad Foothills", min = 28, max = 32, steps = {
 -- Part numbers: "Hints of a New Plague?" 1-5 = 659, 657, 658, 660, 661 (part 1 accepted in Hillsbrad, part 5 turned in at Southshore);
 -- "Malin's Request" 1-2 = 690, 697 (part 1 accepted in Stormwind, part 2 turned in at Stormwind);
 -- "Sunken Treasure" 1-5 = 665, 666, 668, 669, 670 (parts 1-4 here; part 4 is turned in and part 5 accepted/turned in via Booty Bay).
--- Elite (Forever "Elite" tag, group): Stromgarde Badges, Wanted! Marez Cowl, Wanted! Otto and Falconcrest, Trelane's Defenses,
+-- Elite (Forever "Elite" tag, group): Stromgarde Badges, WANTED: Marez Cowl, WANTED: Otto and Falconcrest, Trelane's Defenses,
 -- An Apprentice's Enchantment, Attack on the Tower, Malin's Request (part 2), Breaking the Keystone (foreverchanges.pro Elite tags).
 -- Forever "New" quests not routed (Questie/wow4ever has no giver or coordinates for them): Dutiful Steps (92872, Alliance, 38),
 -- Ground to Keep (92867, elite, 39), Anyone Can Cook (79624, 40). Left out: Crystal in the Mountains (635, starts from the world-drop
@@ -1423,8 +1658,8 @@ local ARATHI = { zone = "Arathi Highlands", min = 30, max = 40, steps = {
     T("Plea To The Alliance", "Captain Nials", 45.8, 47.6, 30),
     T("Malin's Request", "Skuerto", 46.6, 47.0, 30, 1),
     A("Northfold Manor", "Captain Nials", 45.8, 47.6, 30),
-    A("Wanted! Marez Cowl", "Wanted Board (ELITE, group)", 46.0, 47.8, 30),
-    A("Wanted! Otto and Falconcrest", "Wanted Board (ELITE, group)", 46.0, 47.8, 30),
+    A("WANTED: Marez Cowl", "Wanted Board (ELITE, group)", 46.0, 47.8, 30),
+    A("WANTED: Otto and Falconcrest", "Wanted Board (ELITE, group)", 46.0, 47.8, 30),
     A("Worth Its Weight in Gold", "Apprentice Kryten", 46.2, 47.8, 30),
 
     -- Northfold Manor (north-west)
@@ -1470,16 +1705,16 @@ local ARATHI = { zone = "Arathi Highlands", min = 30, max = 40, steps = {
     -- Circle of West Binding, then Stromgarde Keep (first trip)
     D("Stones of Binding", "Burning Key: kill Burning Exiles at the Circle of West Binding", 25.6, 30.4, 36),
     D("Stromgarde Badges", "Stromgarde Keep, Syndicate quarter (first left inside the gate): 7 Stromgarde Badges from Syndicate Prowlers, Conjurors and Magi (ELITE, group)", 29.6, 63.0, 37),
-    D("Wanted! Marez Cowl", "Stromgarde Keep: Marez Cowl stands behind the house at the dead end of the Syndicate quarter, near a well (also spawns at 29,62); loot Marez's Head (ELITE, group)", 27.0, 64.0, 37),
-    D("Wanted! Otto and Falconcrest", "Stromgarde Keep: straight down the main road to the inner keep at the back, upper floor; loot Otto's Head and Falconcrest's Head (ELITE, group)", 26.1, 65.6, 38),
+    D("WANTED: Marez Cowl", "Stromgarde Keep: Marez Cowl stands behind the house at the dead end of the Syndicate quarter, near a well (also spawns at 29,62); loot Marez's Head (ELITE, group)", 27.0, 64.0, 37),
+    D("WANTED: Otto and Falconcrest", "Stromgarde Keep: straight down the main road to the inner keep at the back, upper floor; loot Otto's Head and Falconcrest's Head (ELITE, group)", 26.1, 65.6, 38),
     D("Trelane's Defenses", "Stromgarde Keep, ogre quarter (right before the ramp, then left): Azure Agate from Boulderfist Shamans (ELITE, group)", 20.0, 67.4, 38),
     T("Stones of Binding", "Stone of Inner Binding (opens; Thenan spawns)", 36.2, 57.4, 38),
     A("Breaking the Keystone", "Stone of Inner Binding (ELITE, group)", 36.2, 57.4, 38),
 
     -- Refuge Pointe turn-ins
     T("Stromgarde Badges", "Captain Nials", 45.8, 47.6, 38),
-    T("Wanted! Marez Cowl", "Captain Nials", 45.8, 47.6, 38),
-    T("Wanted! Otto and Falconcrest", "Captain Nials", 45.8, 47.6, 38),
+    T("WANTED: Marez Cowl", "Captain Nials", 45.8, 47.6, 38),
+    T("WANTED: Otto and Falconcrest", "Captain Nials", 45.8, 47.6, 38),
     T("Trelane's Defenses", "Apprentice Kryten", 46.2, 47.8, 38),
     A("An Apprentice's Enchantment", "Apprentice Kryten (ELITE, group)", 46.2, 47.8, 38),
     T("An Apprentice's Enchantment", "Skuerto", 46.6, 47.0, 38),
@@ -1589,7 +1824,7 @@ local DESOLACE = { zone = "Desolace", min = 30, max = 40, steps = {
     A("Bone Collector", "Bibbly F'utzbuckle (Kormek's Hut)", 62.3, 39.0, 35),
     D("Centaur Bounty", "Kolkar Village: collect 15 Centaur Ears from any centaur", 69.1, 46.5, 35),
     D("Carved Centaur Totems", "Kolkar Village: loot 5 Carved Centaur Totems from centaur of any clan", 69.1, 46.5, 35),
-    A("Bodyguard for Hire", "Cork Gizelton (caravan on the road north of Kolkar Village; it also parks at Kormek's Hut 60.4,38.1) (ESCORT)", 66.8, 58.1, 36),
+    A("Bodyguard for Hire", "Cork Gizelton (caravan by Kormek's Hut; it moves along the road, U which end it waits at) (ESCORT)", 66.5, 37.5, 36),
     D("Bodyguard for Hire", "Escort the Gizelton Caravan past Kolkar Village to Scrabblescrew's Camp (ESCORT)", 60.9, 61.9, 36),
     T("Bodyguard for Hire", "Smeed Scrabblescrew", 60.9, 61.9, 36),
     A("Kodo Roundup", "Smeed Scrabblescrew", 60.9, 61.9, 36),
@@ -1598,7 +1833,7 @@ local DESOLACE = { zone = "Desolace", min = 30, max = 40, steps = {
     D("Bone Collector", "Kodo Graveyard: collect 10 Kodo Bones from the bone piles", 51.5, 59.6, 36),
     A("Ghost-o-plasm Round Up", "Hornizz Brimbuzzle (south-west of the Kodo Graveyard)", 47.8, 61.8, 36),
     T("Kodo Roundup", "Smeed Scrabblescrew", 60.9, 61.9, 36),
-    A("Gizelton Caravan", "Rigger Gizelton (caravan at Scrabblescrew's Camp / Kormek's Hut) (ESCORT)", 66.7, 58.6, 37),
+    A("Gizelton Caravan", "Rigger Gizelton (caravan in the south, U which end it waits at) (ESCORT)", 45.4, 75.3, 37),
     D("Gizelton Caravan", "Escort the Gizelton Caravan south through Mannoroc Coven and back to Scrabblescrew's Camp (ESCORT)", 60.9, 61.9, 37),
     T("Gizelton Caravan", "Smeed Scrabblescrew", 60.9, 61.9, 37),
 
@@ -1666,7 +1901,7 @@ local DESOLACE = { zone = "Desolace", min = 30, max = 40, steps = {
 local STRANGLETHORN = { zone = "Stranglethorn Vale", min = 30, max = 45, steps = {
     -- Visit 1 (30-35): Rebel Camp and the Kurzen Compound
     G("Rebel Camp, walk south from Duskwood", 38.0, 3.0, 30, "Buy 4 Lesser Bloodstone Ore at the AH beforehand for Favor for Krazek"),
-    A("Jungle Secrets", "Private Thorsen", 38.0, 3.4, 30),
+    A("Jungle Secrets", "Private Thorsen (he patrols the road; this is his spawn)", 40.3, 8.4, 30),
     T("Jungle Secrets", "Lieutenant Doren", 38.0, 3.0, 30),
     A("Bookie Herod", "Lieutenant Doren", 38.0, 3.0, 30),
     A("The Second Rebellion", "Sergeant Yohwa", 38.0, 3.3, 30),
@@ -1734,7 +1969,7 @@ local STRANGLETHORN = { zone = "Stranglethorn Vale", min = 30, max = 45, steps =
     D("Singing Blue Shards", "Collect 10 Singing Crystal Shards from Crystal Spine Basilisks", 39.1, 52.0, 34),
     D("Investigate the Camp", "Walk among the hunters' tents at Nesingwary's Expedition", 35.7, 10.8, 35),
     D("Supply and Demand", "Collect 2 Large River Crocolisk Skins in the river", 39.9, 11.5, 35),
-    T("Supplies to Private Thorsen", "Private Thorsen", 38.0, 3.4, 35),
+    T("Supplies to Private Thorsen", "Private Thorsen (he patrols the road; this is his spawn)", 40.3, 8.4, 35),
     T("Return to Corporal Kaleb", "Corporal Kaleb", 37.7, 3.3, 35),
 
     -- Visit 2 (35-40): Kurzen again, Nesingwary tier 2-3, Zul'Kunda
@@ -1748,7 +1983,7 @@ local STRANGLETHORN = { zone = "Stranglethorn Vale", min = 30, max = 45, steps =
     A("Tiger Mastery", "Ajeck Rouack", 35.6, 10.6, 36, 3),
     A("Raptor Mastery", "Hemet Nesingwary", 35.7, 10.8, 36, 2),
     A("Panther Mastery", "Sir S. J. Erlgadin", 35.5, 10.6, 36, 3),
-    A("Anything of Value", "Thoroughly Scavenged Supplies (object)", 31.5, 12.8, 36),
+    A("Anything of Value", "Thoroughly Scavenged Supplies (object; unverified in Forever's quest data: skip it if nothing is offered)", 31.5, 12.8, 36),
     D("Tiger Mastery", "Kill 10 Elder Stranglethorn Tigers", 31.3, 16.6, 36, 3),
     D("Raptor Mastery", "Kill 10 Lashtail Raptors", 32.0, 20.7, 37, 2),
     D("Kurzen's Mystery", "Tablet 'Moon Over the Vale', NW corner of the Bal'lal Ruins", 29.0, 19.0, 37),
@@ -1927,6 +2162,9 @@ local TANARIS = { zone = "Tanaris", min = 43, max = 50, steps = {
     -- Lost Rigger Cove (south-east coast)
     D("Southsea Shakedown", "Kill 10 Southsea Pirates, 10 Freebooters, 10 Dock Workers and 10 Swashbucklers in Lost Rigger Cove", 72.2, 46.0, 44),
     D("Pirate Hats Ahoy!", "Loot 20 Southsea Pirate Hats from the pirates in Lost Rigger Cove", 72.2, 46.0, 44),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(9250, 1, "Ship Schedule", 72.2, 46.0, 45, "From the Southsea pirates in Lost Rigger Cove; use it to start Ship Schedules."))),
+    New(Later(Keep(9250, "Ship Schedule", "Ship Schedules", 45))),
     A("Ship Schedules", "Ship Schedule (drops from the Southsea pirates in Lost Rigger Cove)", 72.2, 46.0, 45),
     D("Stoley's Shipment", "Loot Stoley's Shipment from the crates on the docks of Lost Rigger Cove", 72.1, 46.7, 45),
     D("WANTED: Andre Firebeard", "Kill Andre Firebeard at the pirate camp in Lost Rigger Cove and take his head", 73.4, 47.1, 45),
@@ -2069,6 +2307,9 @@ local FERALAS = { zone = "Feralas", min = 42, max = 50, steps = {
     D("The Mark of Quality", "Kill Feral Scar Yetis in Feral Scar Vale for 10 Thick Yeti Hides", 56.0, 58.5, 45),
     D("The Woodpaw Gnolls", "Work through the Woodpaw gnoll camps east of Feral Scar to the courier's backpacks in the southern camp", 73.3, 56.3, 45),
     T("The Woodpaw Gnolls", "Large Leather Backpacks", 73.3, 56.3, 45),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(11463, 1, "Undelivered Parcel", 73.3, 56.3, 45, "From the Large Leather Backpacks; use it to start Thalanaar Delivery."))),
+    New(Later(Keep(11463, "Undelivered Parcel", "Thalanaar Delivery", 45))),
     A("Thalanaar Delivery", "Large Leather Backpacks", 73.3, 56.3, 45),
     A("The Writhing Deep", "Large Leather Backpacks", 73.3, 56.3, 45),
 
@@ -2177,6 +2418,9 @@ local HINTERLANDS = { zone = "The Hinterlands", min = 43, max = 51, steps = {
     D("Food for Baby", "Kill stealthed Silvermane Stalkers (5 Silvermane Stalker Flanks) in the woods along the road and river east of Agol'watha", 52.4, 56.8, 45),
     D("Skulk Rock Clean-up", "Kill 10 Green Sludges along the river west of Skulk Rock", 46.0, 42.0, 45),
     D("Skulk Rock Clean-up", "Kill 10 Jade Oozes at Skulk Rock", 56.0, 41.0, 46),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(8704, 1, "OOX-09/HL Distress Beacon", 49.4, 37.7, 46, "A rare drop from Hinterlands mobs; use it to start Find OOX-09/HL!."))),
+    New(Later(Keep(8704, "OOX-09/HL Distress Beacon", "Find OOX-09/HL!", 46))),
     A("Find OOX-09/HL!", "OOX-09/HL Distress Beacon (only if the beacon dropped from a Hinterlands troll; use the item at the robot)", 49.4, 37.7, 46),
     T("Find OOX-09/HL!", "Homing Robot OOX-09/HL (islet in the lake at the head of the river)", 49.4, 37.7, 46),
     A("Rescue OOX-09/HL!", "Homing Robot OOX-09/HL (ESCORT)", 49.4, 37.7, 46),
@@ -2242,6 +2486,9 @@ local UNGORO = { zone = "Un'Goro Crater", min = 48, max = 56, steps = {
     A("The Scent of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 48),
     D("The Scent of Lar'korwi", "Walk up to the ravasaur nests west of Torwa; kill the Lar'korwi's Mates that spawn for 2 Ravasaur Pheromone Glands", 66.5, 74.0, 48),
     T("The Scent of Lar'korwi", "Torwa Pathfinder", 71.6, 76.0, 49),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(11116, 1, "A Mangled Journal", 65.8, 71.1, 49, "A random drop from Un'Goro beasts; use it to start Williden's Journal."))),
+    New(Later(Keep(11116, "A Mangled Journal", "Williden's Journal", 49))),
     A("Williden's Journal", "A Mangled Journal (random drop from Un'Goro beasts, keep killing on the way)", 65.8, 71.1, 49),
 
     -- North along the east side to Marshal's Refuge
@@ -2390,6 +2637,9 @@ local FELWOOD = { zone = "Felwood", min = 48, max = 56, steps = {
     D("Cleansing Felwood", "Loot 15 Blood Amber from Warpwood treants and Irontree stompers/wanderers (Felpaw area and Irontree Woods)", 55.5, 16.8, 52),
     G("Jadefire Run", 43.0, 21.0, 52, "Satyr camp in the north-west"),
     D("Further Corruption", "Kill Xavaric at the back of Jadefire Run (drops the Flute of Xavaric)", 39.0, 22.0, 52),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(11668, 1, "Flute of Xavaric", 39.0, 22.0, 52, "Drops from Xavaric; use it to start the quest."))),
+    New(Later(Keep(11668, "Flute of Xavaric", "Flute of Xavaric", 52))),
     A("Flute of Xavaric", "Flute of Xavaric (item dropped by Xavaric)", 39.0, 22.0, 52),
     D("Flute of Xavaric", "Loot 5 Jadefire Felbind samples from the Jadefire satyrs of Jadefire Run", 39.3, 21.4, 53),
     D("Further Corruption", "Kill 8 Jadefire Hellcallers, 8 Betrayers and 8 Tricksters in Jadefire Run", 39.3, 21.4, 53),
@@ -2413,6 +2663,9 @@ local FELWOOD = { zone = "Felwood", min = 48, max = 56, steps = {
 
     -- Shadow Hold (the cave under Jaedenar)
     G("Shadow Hold entrance, Jaedenar", 35.4, 58.6, 54, "Kill Jaedenar cultists and adepts until a Blood Red Key drops"),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(13140, 1, "Blood Red Key", 35.4, 58.6, 54, "Drops from the Jaedenar cultists in Shadow Hold; use it to start A Strange Red Key."))),
+    New(Later(Keep(13140, "Blood Red Key", "A Strange Red Key", 54))),
     A("A Strange Red Key", "Blood Red Key (item dropped by Jaedenar cultists in Shadow Hold)", 35.4, 58.6, 54),
     D("Dousing the Flames of Protection", "Douse the Brazier of Pain with the Purified Moon Well Water", 36.3, 56.3, 54),
     D("Dousing the Flames of Protection", "Douse the Brazier of Hatred", 36.5, 55.2, 54),
@@ -2783,6 +3036,9 @@ local WINTERSPRING = { zone = "Winterspring", min = 55, max = 60, steps = {
     -- Winterfall Village (north-east of Everlook)
     D("Winterfall Activity", "Winterfall Village: kill 8 Winterfall Shaman and 8 Winterfall Den Watchers (shamans heal, kill them first)", 67.1, 36.2, 57),
     D("Winterfall Activity", "Kill 8 Winterfall Ursa; loot Winterfall Spirit Beads (keep 5) and the Empty Firewater Flask", 66.7, 37.1, 57),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(12771, 1, "Empty Firewater Flask", 66.9, 36.6, 57, "Drops from Winterfall furbolgs; use it to start Winterfall Firewater."))),
+    New(Later(Keep(12771, "Empty Firewater Flask", "Winterfall Firewater", 57))),
     A("Winterfall Firewater", "Empty Firewater Flask (drops from any Winterfall furbolg; right-click it to accept)", 66.9, 36.6, 57),
 
     -- Back west: Donova Snowden, Timbermaw Post, Salfa
@@ -2827,6 +3083,9 @@ local WINTERSPRING = { zone = "Winterspring", min = 55, max = 60, steps = {
 
     -- High Chief Winterfall, then the final Donova turn-ins
     D("High Chief Winterfall", "Winterfall Village, cave at the back: kill High Chief Winterfall (ELITE, group) and loot the Crudely-written Log", 67.9, 38.6, 59),
+    -- Item-started (research\routes_20_60.md 4.1): collect the drop on the way and keep it until the quest is taken.
+    New(Sticky(4, Item(12842, 1, "Crudely-written Log", 67.9, 38.6, 59, "Drops from High Chief Winterfall; use it to start The Final Piece."))),
+    New(Later(Keep(12842, "Crudely-written Log", "The Final Piece", 59))),
     A("The Final Piece", "Crudely-written Log (drops from High Chief Winterfall; right-click to accept)", 67.9, 38.6, 59),
     G("Donova Snowden at the Frostfire Hot Springs", 31.3, 45.2, 59, "Fly to Everlook if needed, then ride west"),
     T("Enraged Wildkin", "Jaron Stoneshaper (Starfall Village, on the way)", 52.1, 30.4, 60, 4),
@@ -2942,18 +3201,453 @@ local SILITHUS = { zone = "Silithus", min = 55, max = 60, steps = {
     G("Cenarion Hold flight master", 50.7, 34.6, 60, "Fly to Moonglade (Nighthaven) and turn in Umber, Archivist to Umber at 44.9, 35.6. Optional at 60: Commander Mar'alith's Dearest Natalia chain, Field Duty and the Cenarion Circle rep quests (elite/group); Baristolth's What Tomorrow Brings starts the AQ gate chain (raid)"),
 } }
 
+-- ===================================================================================================
+-- Zones added 2026-11 from research\routes_20_60.md section 2. Every step is written by hand from the
+-- research's individual facts (quest, giver, coordinates, level; tagged V there = matches Forever's quest
+-- data); the notes are our own words. "U" in a giver or note marks what the research left unverified:
+-- check it in game. Zone coordinates are percent of that zone's map.
+-- ===================================================================================================
+
+-- Stonetalon Mountains (Night Elf side trip, 24-27), research 2.1. Pridewings needs The Zoram Strand.
+local STONETALON = { zone = "Stonetalon Mountains", min = 24, max = 27, steps = {
+    -- Astranaar pick-ups (Ashenvale map)
+    New(On("Ashenvale", A("Journey to Stonetalon Peak", "Faldreas Goeth'Shael, Astranaar", 35.8, 49.1, 24))),
+    New(On("Ashenvale", A("Pridewings of Stonetalon", "Shindrell Swiftfire, Astranaar", 34.7, 48.8, 24))),
+    -- Stonetalon Peak (the node name "Stonetalon Peak" is assumed, U)
+    New(FP("Stonetalon Peak", "Teloren", 36.4, 7.2, 24)),
+    New(Later(Home("Stonetalon Peak", "Innkeeper Faralia", 35.8, 5.7, 24, "Optional: only if you stay a few levels."))),
+    New(T("Journey to Stonetalon Peak", "Keeper Albagorm", 37.1, 8.1, 24)),
+    New(A("Reclaiming the Charred Vale", "Keeper Albagorm", 37.1, 8.1, 24, 1)),
+    -- The Sun Rock road: Pridewing wyverns, and Forever's supply run
+    New(A("Stonetalon Supply Run", "Night Elf Courier (hands you the supply bag; Forever)", 48.6, 39.8, 24)),
+    New(D("Pridewings of Stonetalon", "12 Pridewing Venom Sacs from the Pridewing wyverns", 52.9, 43.2, 25)),
+    New(D("Stonetalon Supply Run", "6 Stonetalon Supplies from the same wyverns", 52.9, 43.2, 25)),
+    -- Windshear Crag
+    New(T("On Guard in Stonetalon", "Kaela Shadowspear (if you carry part 1 from Ashenvale)", 59.9, 66.8, 25, 1)),
+    New(A("On Guard in Stonetalon", "Kaela Shadowspear", 59.9, 66.8, 25, 2)),
+    New(T("On Guard in Stonetalon", "Gaxim Rustfizzle", 59.5, 67.2, 25, 2)),
+    New(A("A Gnome's Respite", "Gaxim Rustfizzle", 59.5, 67.2, 25)),
+    New(A("Super Reaper 6000", "Ziz Fizziks", 59.0, 62.6, 25)),
+    New(A("Gerenzo's Orders", "Piznik (mining at the Windshear Mine mouth)", 71.9, 60.0, 25, 1)),
+    New(D("A Gnome's Respite", "10 Venture Co. Loggers and 10 Deforesters", 66.4, 52.3, 25)),
+    New(D("Super Reaper 6000", "The blueprints from Venture Co. Operators", 68.5, 51.9, 25)),
+    New(D("Gerenzo's Orders", "Guard Piznik until his ore is mined", 71.9, 60.0, 26, 1)),
+    New(T("Gerenzo's Orders", "Piznik", 71.9, 60.0, 26, 1)),
+    New(A("Gerenzo's Orders", "Piznik", 71.9, 60.0, 26, 2)),
+    New(T("Gerenzo's Orders", "Ziz Fizziks", 59.0, 62.6, 26, 2)),
+    New(T("Super Reaper 6000", "Ziz Fizziks (its follow-up goes to Ratchet: leave it)", 59.0, 62.6, 26)),
+    New(T("A Gnome's Respite", "Gaxim Rustfizzle", 59.5, 67.2, 26)),
+    -- The Charred Vale
+    New(D("Reclaiming the Charred Vale", "7 each of Bloodfury Harpies (32.8, 60.8), Ambushers (30.8, 61.6), Slayers (30.2, 69.6) and Roguefeathers (34.7, 68.9)", 32.8, 60.8, 26, 1)),
+    New(T("Reclaiming the Charred Vale", "Keeper Albagorm", 37.1, 8.1, 27, 1)),
+    New(A("Reclaiming the Charred Vale", "Keeper Albagorm (it ends with Falfindel at Thalanaar, Feralas: keep it for the 40s)", 37.1, 8.1, 27, 2)),
+    New(T("Stonetalon Supply Run", "Innkeeper Faralia", 35.8, 5.7, 27)),
+    New(Travel("Fly to Astranaar (Teloren)", "Ashenvale", 36.4, 7.2, 27)),
+    New(On("Ashenvale", T("Pridewings of Stonetalon", "Shindrell Swiftfire, Astranaar", 34.7, 48.8, 27))),
+} }
+
+-- Westfall (Human 10-18), research 2.3: Sentinel Hill and the farms. The Defias chain goes on to Stormwind
+-- and the Deadmines; Alba Fairmoon's Forever chain ends in the Deadmines too. Turn-ins marked U are given
+-- back at the giver as in Classic (not checked against Forever's data). Left out until their spots are
+local WESTFALL = { zone = "Westfall", min = 10, max = 18, steps = {
+    New(FP("Sentinel Hill", "Thor", 56.5, 52.6, 10)),
+    New(Home("Sentinel Hill", "Innkeeper Heather", 52.9, 53.7, 10)),
+    New(A("The People's Militia", "Gryan Stoutmantle", 56.3, 47.5, 10, 1)),
+    New(A("Patrolling Westfall", "Captain Danuvin", 56.4, 47.6, 10)),
+    -- The Saldean and Furlbrow farms
+    New(A("The Killing Fields", "Farmer Saldean", 56.0, 31.2, 11)),
+    New(A("Westfall Stew", "Verna Furlbrow", 59.9, 19.4, 11)),
+    New(A("The Forgotten Heirloom", "Farmer Furlbrow", 60.0, 19.4, 11)),
+    New(D("The People's Militia", "Defias Trappers (46.4, 34.6) and Smugglers (45.8, 26.4)", 46.4, 34.6, 12, 1)),
+    New(D("The Killing Fields", "20 Harvest Watchers in the fields", 45.6, 35.1, 12)),
+    New(D("The Forgotten Heirloom", "Furlbrow's Wardrobe in the Molsen farmhouse", 49.3, 19.3, 12)),
+    New(D("Westfall Stew", "Vulture meat, murloc eyes (coast 32.4, 28.2), Goretusk snouts and okra", 46.4, 42.5, 13)),
+    New(T("The Killing Fields", "Farmer Saldean (U)", 56.0, 31.2, 13)),
+    New(T("The Forgotten Heirloom", "Farmer Furlbrow (U)", 60.0, 19.4, 13)),
+    New(T("Westfall Stew", "Verna Furlbrow (U)", 59.9, 19.4, 13)),
+    New(T("The People's Militia", "Gryan Stoutmantle", 56.3, 47.5, 13, 1)),
+    New(A("The People's Militia", "Gryan Stoutmantle", 56.3, 47.5, 13, 2)),
+    New(D("Patrolling Westfall", "Gnoll paws from the Riverpaw gnolls", 48.2, 64.7, 14)),
+    New(T("Patrolling Westfall", "Captain Danuvin (U)", 56.4, 47.6, 14)),
+    New(D("The People's Militia", "Defias Pillagers (38.8, 66.4) and Looters (38.6, 58.0)", 38.8, 66.4, 15, 2)),
+    New(T("The People's Militia", "Gryan Stoutmantle", 56.3, 47.5, 15, 2)),
+    -- The lighthouse
+    New(A("The Coastal Menace", "Captain Grayson (its wand reward suits a priest)", 30.0, 86.0, 15)),
+    New(D("The Coastal Menace", "Old Murk-Eye on the south coast", 29.3, 76.0, 17)),
+    New(T("The Coastal Menace", "Captain Grayson (U)", 30.0, 86.0, 17)),
+    New(Travel("East to Redridge (Lakeshire) through Elwynn", "Redridge Mountains", 56.5, 52.6, 18, "Or fly from Sentinel Hill to Stormwind and ride east.")),
+} }
+
+-- Dustwallow Marsh (34-40, Theramore), research 2.5. Optional extras: The Missing Diplomat chain, Nat
+-- Pagle's fishing, Triage (First Aid), the Alcaz Prison dungeon (Forever). Left out: Highperch Venom (its
+local DUSTWALLOW = { zone = "Dustwallow Marsh", min = 34, max = 40, steps = {
+    New(FP("Theramore", "Baldruc", 67.5, 51.3, 34)),
+    New(Home("Theramore", "Innkeeper Janene", 66.6, 45.2, 34, "Theramore is the base for the marsh.")),
+    New(Class(CASTERS, Later(Buy(1708, 20, "Sweet Nectar", "vendor", "Innkeeper Janene, Theramore", 66.6, 45.2, 35, "The level 35 water.")))),
+    New(T("Fiora Longears", "Fiora Longears (docks)", 66.5, 45.1, 34)),
+    New(A("They Call Him Smiling Jim", "Guard Byron", 66.2, 46.1, 34)),
+    New(T("They Call Him Smiling Jim", "Captain Garran Vimes (top of Foothold Citadel)", 68.2, 48.6, 34)),
+    New(T("James Hyal", "Clerk Lendry", 67.9, 48.2, 34)),
+    New(A("Mudrock Soup and Bugs", "Morgan Stern", 66.3, 45.5, 34)),
+    -- The north road: Shady Rest Inn, Swamplight Manor
+    New(A("Suspicious Hoofprints", "Hoofprints at the Shady Rest Inn", 29.7, 47.6, 35)),
+    New(A("Lieutenant Paval Reethe", "Theramore Guard Badge (on the ground at the Shady Rest)", 29.8, 48.2, 35, 1)),
+    New(A("The Black Shield", "Black Shield (Shady Rest)", 29.6, 48.6, 35, 1)),
+    New(A("Hungry!", "Mudcrush Durtfeet (a friendly ogre)", 35.1, 38.3, 35)),
+    New(A("Soothing Spices", "\"Swamp Eye\" Jarl (Swamplight Manor; bring 3 Soothing Spices, a vendor item)", 55.4, 26.3, 35)),
+    New(A("The Orc Report", "Loose Dirt by Jarl's house", 55.4, 25.9, 35)),
+    New(A("Stinky's Escape", "\"Stinky\" Ignatz (ESCORT)", 46.9, 17.5, 36)),
+    New(D("Stinky's Escape", "Take Stinky to the Bogbean leaves", 48.9, 24.6, 36)),
+    New(D("Hungry!", "12 Mirefin Heads from the murlocs on the north coast", 58.4, 15.2, 36)),
+    New(T("Soothing Spices", "\"Swamp Eye\" Jarl", 55.4, 26.3, 36)),
+    New(A("Jarl Needs Eyes", "\"Swamp Eye\" Jarl", 55.4, 26.3, 36)),
+    New(D("Jarl Needs Eyes", "40 Unpopped Darkmist Eyes from the Darkmist spiders", 32.3, 22.3, 37)),
+    New(D("Mudrock Soup and Bugs", "8 Forked Mudrock Tongues from Mudrock tortoises", 59.4, 41.8, 37)),
+    New(T("Hungry!", "Mudcrush Durtfeet", 35.1, 38.3, 37)),
+    New(T("Jarl Needs Eyes", "\"Swamp Eye\" Jarl", 55.4, 26.3, 37)),
+    -- Back to Theramore
+    New(T("The Orc Report", "Theramore Lieutenant", 66.7, 48.7, 38)),
+    New(A("Captain Vimes", "Theramore Lieutenant", 66.7, 48.7, 38)),
+    New(T("Captain Vimes", "Captain Garran Vimes", 68.2, 48.6, 38)),
+    New(T("Suspicious Hoofprints", "Captain Garran Vimes", 68.2, 48.6, 38)),
+    New(T("Lieutenant Paval Reethe", "Captain Garran Vimes", 68.2, 48.6, 38, 1)),
+    New(A("Lieutenant Paval Reethe", "Captain Garran Vimes", 68.2, 48.6, 38, 2)),
+    New(T("The Black Shield", "Captain Garran Vimes", 68.2, 48.6, 38, 1)),
+    New(A("The Black Shield", "Captain Garran Vimes", 68.2, 48.6, 38, 2)),
+    New(T("The Black Shield", "Caz Twosprocket", 64.8, 50.4, 38, 2)),
+    New(A("The Black Shield", "Caz Twosprocket", 64.8, 50.4, 38, 3)),
+    New(T("The Black Shield", "Captain Garran Vimes", 68.2, 48.6, 38, 3)),
+    New(T("Lieutenant Paval Reethe", "Adjutant Tesoran", 68.0, 48.1, 38, 2)),
+    New(A("Daelin's Men", "Adjutant Tesoran", 68.0, 48.1, 38)),
+    New(T("Daelin's Men", "Captain Garran Vimes", 68.2, 48.6, 38)),
+    New(A("The Deserters", "Captain Garran Vimes", 68.2, 48.6, 38, 1)),
+    New(T("Stinky's Escape", "Morgan Stern", 66.3, 45.5, 38)),
+    New(T("Mudrock Soup and Bugs", "Morgan Stern", 66.3, 45.5, 38)),
+    New(T("The Deserters", "Balos Jacken (the deserters' camp, west marsh)", 36.1, 54.3, 39, 1)),
+    New(A("The Deserters", "Balos Jacken", 36.1, 54.3, 39, 2)),
+    New(T("The Deserters", "Captain Garran Vimes", 68.2, 48.6, 40, 2)),
+} }
+
+-- Badlands (38-44; the Dwarf and Gnome stop, optional for Night Elves), research 2.6. No Alliance flight
+-- master: ride in from Thelsamar (Loch Modan) through the south gate. Left out: Pearl Diving (its Blue
+-- Pearls come from clams outside the Badlands, spot U; the Flash Wand reward).
+local BADLANDS = { zone = "Badlands", min = 38, max = 44, steps = {
+    New(On("Loch Modan", A("Find Agmond", "Prospector Ironband (Ironband's Excavation Site)", 65.9, 65.6, 38))),
+    New(A("Mirages", "Sigrun Ironhew (Hammertoe's Dig Site)", 53.8, 43.3, 38)),
+    New(A("A Dwarf and His Tools", "Prospector Ryedol", 53.4, 43.4, 38)),
+    New(A("Power Stones", "Rigglefuzz", 42.4, 52.9, 38)),
+    New(A("Barbecued Buzzard Wings", "Rigglefuzz", 42.4, 52.9, 38)),
+    New(A("Study of the Elements: Rock", "Lotwil Veriatus", 25.9, 44.9, 38, 1)),
+    New(D("Study of the Elements: Rock", "10 Small Stone Shards from Lesser Rock Elementals", 19.2, 43.1, 38, 1)),
+    New(D("Barbecued Buzzard Wings", "4 Buzzard Wings", 33.4, 60.0, 39)),
+    New(T("Find Agmond", "Battered Dwarven Skeleton", 50.9, 62.4, 39)),
+    New(A("Murdaloc", "Battered Dwarven Skeleton", 50.9, 62.4, 39)),
+    New(D("Murdaloc", "Murdaloc (49.6, 66.3) and 12 Stonevault Bonesnappers", 50.9, 68.8, 40)),
+    New(D("Mirages", "The Excavation Supply Crate", 66.6, 22.0, 40)),
+    New(D("A Dwarf and His Tools", "Ryedol's Lucky Pick from Shadowforge Tunnelers", 43.2, 30.6, 40)),
+    New(A("A Sign of Hope", "Crumpled Map (Hammertoe's Dig Site)", 53.0, 33.9, 40, 1)),
+    New(D("Power Stones", "Dentrium and An'Alleum Power Stones from the Shadowforge dwarves at Angor Fortress", 48.0, 12.2, 40)),
+    New(T("Mirages", "Sigrun Ironhew", 53.8, 43.3, 41)),
+    New(A("Scrounging", "Sigrun Ironhew", 53.8, 43.3, 41)),
+    New(T("A Dwarf and His Tools", "Prospector Ryedol", 53.4, 43.4, 41)),
+    New(T("A Sign of Hope", "Prospector Ryedol", 53.4, 43.4, 41, 1)),
+    New(A("A Sign of Hope", "Prospector Ryedol (Hammertoe is inside Uldaman)", 53.4, 43.4, 41, 2)),
+    New(A("Tremors of the Earth", "Garek", 61.9, 54.3, 41)),
+    New(D("Scrounging", "7 Scrap Metal from the Dustbelcher ogres in the south-west", 9.9, 76.0, 41)),
+    New(D("Tremors of the Earth", "The Sign of the Earth from Boss Tho'grun", 12.6, 75.5, 41)),
+    New(T("Study of the Elements: Rock", "Lotwil Veriatus", 25.9, 44.9, 42, 1)),
+    New(A("Study of the Elements: Rock", "Lotwil Veriatus", 25.9, 44.9, 42, 2)),
+    New(D("Study of the Elements: Rock", "3 Large Stone Slabs", 40.7, 77.7, 42, 2)),
+    New(T("Study of the Elements: Rock", "Lotwil Veriatus", 25.9, 44.9, 42, 2)),
+    New(T("Power Stones", "Rigglefuzz", 42.4, 52.9, 42)),
+    New(T("Barbecued Buzzard Wings", "Rigglefuzz", 42.4, 52.9, 42)),
+    New(T("Scrounging", "Sigrun Ironhew", 53.8, 43.3, 42)),
+    New(T("Tremors of the Earth", "Garek", 61.9, 54.3, 42)),
+    New(On("Loch Modan", T("Murdaloc", "Prospector Ironband (Ironband's Excavation Site)", 65.9, 65.6, 42))),
+} }
+
+-- Swamp of Sorrows (36-40, optional), research 2.7. No Alliance flight master; walk in from Duskwood or
+-- through Redridge. Magtoor at the Harborage is listed for both factions: check he is friendly (U).
+local SWAMP = { zone = "Swamp of Sorrows", min = 36, max = 40, steps = {
+    New(A("This Light of Mine", "Father Tuttle (ESCORT to the Harborage; Forever)", 22.0, 50.6, 36)),
+    New(A("My Little Friends", "Amaryllis Webb (Forever)", 25.1, 54.1, 36)),
+    New(A("Encroaching Wildlife", "Watcher Biggs", 26.7, 59.8, 36)),
+    New(D("Encroaching Wildlife", "8 Young Sawtooth Crocolisks (30.4, 40.9), 10 Sorrow Spinners (28.3, 45.9), 10 Swamp Jaguars (35.3, 43.0)", 30.4, 40.9, 37)),
+    New(D("This Light of Mine", "Lead Father Tuttle to the Harborage", 26.0, 31.4, 37)),
+    New(A("Draenethyst Crystals", "Magtoor (Harborage; friendly to you? U)", 26.0, 31.4, 37)),
+    New(T("Encroaching Wildlife", "Watcher Biggs", 26.7, 59.8, 37)),
+    New(A("The Lost Caravan", "Watcher Biggs", 26.7, 59.8, 37)),
+    New(A("Galen's Escape", "Galen Goodward (ESCORT, north)", 65.5, 18.2, 38)),
+    New(D("The Lost Caravan", "The Caravan Chest in Fallow Sanctuary", 64.5, 18.3, 38)),
+    New(D("Draenethyst Crystals", "6 Draenethyst Crystals around Fallow Sanctuary", 62.1, 22.9, 38)),
+    New(D("Galen's Escape", "Lead Galen out, then open Galen's Strongbox", 47.8, 39.8, 38)),
+    New(Later(Keep(6196, "Noboru's Cudgel", "Noboru the Cudgel", 38, "Drops from Noboru; it starts a quest for Magtoor."))),
+    New(T("The Lost Caravan", "Watcher Biggs", 26.7, 59.8, 39)),
+    New(A("Driftwood", "Watcher Biggs", 26.7, 59.8, 39)),
+    New(D("Driftwood", "8 Sundried Driftwood on the east coast", 90.3, 54.6, 40)),
+    New(T("Driftwood", "Watcher Biggs", 26.7, 59.8, 40)),
+    New(A("Deliver the Shipment", "Watcher Biggs (to Nethergarde Keep, Blasted Lands)", 26.7, 59.8, 40)),
+} }
+
+-- Searing Gorge (45-50, optional), research 2.8. Thorium Point is the hub; turn-ins for the notice board
+-- quests are at Thorium Point (who takes each is U: the board's spot is used). Left out: Prayer to Elune
+local SEARING = { zone = "Searing Gorge", min = 45, max = 50, steps = {
+    New(FP("Thorium Point", "Lanie Reed", 37.9, 30.9, 45)),
+    New(A("WANTED: Overseer Maltorius", "Notice board, Thorium Point", 37.6, 26.5, 45)),
+    New(A("STOLEN: Smithing Tuyere and Lookout's Spyglass", "Notice board, Thorium Point", 37.6, 26.5, 45)),
+    New(A("JOB OPPORTUNITY: Culling the Competition", "Notice board, Thorium Point", 37.6, 26.5, 45)),
+    New(A("What the Flux?", "Master Smith Burninate", 38.8, 28.5, 45)),
+    New(A("Curse These Fat Fingers", "Hansel Heavyhands", 38.6, 27.8, 45)),
+    New(A("Fiery Menace!", "Hansel Heavyhands", 38.6, 27.8, 45)),
+    New(A("Incendosaurs? Whateverosaur is More Like It", "Hansel Heavyhands", 38.6, 27.8, 45)),
+    New(A("Caught!", "Wooden Outhouse (bring 15 Silk Cloth)", 65.6, 62.2, 46)),
+    New(Later(Keep(11818, "Grimesilt Outhouse Key", "The Key to Freedom", 46, "It starts a quest at the outhouse (quest title U)."))),
+    New(Later(Keep(10000, "Margol's Horn", "The Horn of the Beast", 46, "It starts a quest (title U)."))),
+    New(D("Curse These Fat Fingers", "20 Heavy War Golems", 40.5, 45.9, 46)),
+    New(D("JOB OPPORTUNITY: Culling the Competition", "15 Taskmasters and 15 Slavers in the Cauldron", 42.7, 39.6, 47)),
+    New(D("STOLEN: Smithing Tuyere and Lookout's Spyglass", "The Tuyere from Dark Iron Steamsmiths (40.0, 49.6), the Spyglass from Lookouts (42.7, 58.6)", 40.0, 49.6, 47)),
+    New(D("What the Flux?", "The Fiery Flux plans in the Slag Pit", 40.5, 35.7, 47)),
+    New(D("WANTED: Overseer Maltorius", "Overseer Maltorius in the Slag Pit", 40.8, 35.9, 48)),
+    New(D("Incendosaurs? Whateverosaur is More Like It", "20 Incendosaurs in the Slag Pit lava", 49.5, 26.5, 48)),
+    New(D("Fiery Menace!", "20 Greater Lava Spiders", 28.6, 61.9, 48)),
+    New(D("Caught!", "8 Dark Iron Geologists", 63.8, 59.4, 48)),
+    New(T("Caught!", "Wooden Outhouse", 65.6, 62.2, 48)),
+    New(T("WANTED: Overseer Maltorius", "Thorium Point (who takes it: U)", 37.6, 26.5, 49)),
+    New(T("STOLEN: Smithing Tuyere and Lookout's Spyglass", "Thorium Point (who takes it: U)", 37.6, 26.5, 49)),
+    New(T("JOB OPPORTUNITY: Culling the Competition", "Thorium Point (who takes it: U)", 37.6, 26.5, 49)),
+    New(T("What the Flux?", "Master Smith Burninate", 38.8, 28.5, 49)),
+    New(T("Curse These Fat Fingers", "Hansel Heavyhands", 38.6, 27.8, 49)),
+    New(T("Fiery Menace!", "Hansel Heavyhands", 38.6, 27.8, 49)),
+    New(T("Incendosaurs? Whateverosaur is More Like It", "Hansel Heavyhands", 38.6, 27.8, 49)),
+} }
+
+-- Azshara (46-52, optional; the priest class chain at 50), research 2.9. Walk east from Ashenvale.
+local AZSHARA = { zone = "Azshara", min = 46, max = 52, steps = {
+    New(FP("Talrendis Point", "Jarrodenus", 11.9, 77.6, 46)),
+    New(A("Spiritual Unrest", "Loh'atu", 11.4, 78.2, 46)),
+    New(A("A Land Filled with Hatred", "Loh'atu", 11.4, 78.2, 46)),
+    New(D("Spiritual Unrest", "6 Highborne Apparitions and 6 Lichlings", 16.6, 70.7, 46)),
+    New(D("A Land Filled with Hatred", "The Haldarr satyrs", 20.4, 61.8, 47)),
+    New(T("Spiritual Unrest", "Loh'atu", 11.4, 78.2, 47)),
+    New(T("A Land Filled with Hatred", "Loh'atu", 11.4, 78.2, 47)),
+    New(A("Kim'jael Indeed!", "Kim'jael", 53.5, 21.8, 48)),
+    New(D("Kim'jael Indeed!", "Kim'jael's equipment boxes in the Thalassian Base Camp", 58.2, 28.4, 48)),
+    New(T("Kim'jael Indeed!", "Kim'jael", 53.5, 21.8, 49)),
+    New(A("Kim'jael's \"Missing\" Equipment", "Kim'jael", 53.5, 21.8, 49)),
+    New(D("Kim'jael's \"Missing\" Equipment", "The rune from the Spitelash naga at the Ruins of Eldarath", 46.7, 55.8, 50)),
+    New(T("Kim'jael's \"Missing\" Equipment", "Kim'jael", 53.5, 21.8, 50)),
+    -- Priests: Cenarion Aid starts with High Priest Rohan in Ironforge (or Brother Joshua, Stormwind 49.5, 45.2).
+    New(Class("PRIEST", On("Ironforge", A("Cenarion Aid", "High Priest Rohan (Mystic Ward)", 24.7, 8.2, 50)))),
+    New(Class("PRIEST", T("Cenarion Aid", "Ogtinc (cliff top north-east of the Ruins of Eldarath)", 42.4, 42.6, 50))),
+    New(Class("PRIEST", A("Of Coursers We Know", "Ogtinc", 42.4, 42.6, 50))),
+    New(Class("PRIEST", D("Of Coursers We Know", "4 Healthy Courser Glands from Mosshoof Coursers", 52.8, 67.8, 50))),
+    New(Class("PRIEST", T("Of Coursers We Know", "Ogtinc", 42.4, 42.6, 51))),
+    New(Class("PRIEST", A("The Ichor of Undeath", "Ogtinc (the ichor drops from undead in the Plaguelands, U; then Blood of Morphaz in the Sunken Temple for the Woestave wand)", 42.4, 42.6, 51))),
+} }
+
+-- Thousand Needles / Shimmering Flats (30-32, optional detour), research 2.10. Out of the way for the
+-- Alliance: only when a Feralas or Tanaris trip passes by. Turn-ins at the givers.
+local NEEDLES = { zone = "Thousand Needles", min = 30, max = 35, steps = {
+    New(On("Ironforge", A("The Brassbolts Brothers", "Pilot Longbeard", 72.7, 94.0, 28))),
+    New(T("The Brassbolts Brothers", "Wizzle Brassbolts", 78.1, 77.1, 30)),
+    New(A("Hardened Shells", "Wizzle Brassbolts", 78.1, 77.1, 30)),
+    New(A("Salt Flat Venom", "Fizzle Brassbolts", 78.1, 77.1, 30)),
+    New(A("Rocket Car Parts", "Kravel Koalbeard", 77.8, 77.3, 30)),
+    New(A("A Bump in the Road", "Trackmaster Zherin", 81.6, 78.0, 30)),
+    New(A("Load Lightening", "Pozzik", 80.2, 75.9, 30)),
+    New(Class(CASTERS, Later(Buy(1708, 20, "Sweet Nectar", "vendor", "Riznek (drinks)", 80.5, 76.5, 30, "Water for the 30s.")))),
+    New(D("Rocket Car Parts", "30 Rocket Car Parts lying on the flats", 77.3, 68.7, 30)),
+    New(D("Salt Flat Venom", "The scorpids", 76.1, 67.9, 31)),
+    New(D("Hardened Shells", "The Sparkleshell tortoises", 81.5, 61.1, 31)),
+    New(D("Load Lightening", "The vultures", 80.0, 69.8, 31)),
+    New(Nearest({ { 75.4, 59.5 }, { 79.3, 76.2 }, { 77.8, 88.4 } }, D("A Bump in the Road", "Saltstone basilisks in three spots", 79.3, 76.2, 32))),
+    New(T("Rocket Car Parts", "Kravel Koalbeard", 77.8, 77.3, 32)),
+    New(T("Salt Flat Venom", "Fizzle Brassbolts", 78.1, 77.1, 32)),
+    New(T("Hardened Shells", "Wizzle Brassbolts", 78.1, 77.1, 32)),
+    New(T("Load Lightening", "Pozzik", 80.2, 75.9, 32)),
+    New(T("A Bump in the Road", "Trackmaster Zherin", 81.6, 78.0, 32)),
+} }
+
+-- Blasted Lands (47-55), research 2.12: Nethergarde Keep and the Dreadmaul buff quests. Left out: To Serve
+local BLASTED = { zone = "Blasted Lands", min = 47, max = 55, steps = {
+    New(FP("Nethergarde Keep", "Alexandra Constantine", 65.5, 24.3, 47)),
+    New(Class(CASTERS, Later(Buy(1645, 20, "Moonberry Juice", "vendor", "Bernie Heisten, Nethergarde Keep", 63.5, 17.0, 47, "The level 45 water.")))),
+    New(T("Deliver the Shipment", "Quartermaster Lungertz", 66.5, 21.4, 47)),
+    New(A("Snickerfang Jowls", "Bloodmage Drazial", 50.5, 14.2, 47)),
+    New(A("A Boar's Vitality", "Bloodmage Drazial", 50.5, 14.2, 47)),
+    New(A("The Decisive Striker", "Bloodmage Drazial", 50.5, 14.2, 47)),
+    New(A("The Basilisk's Bite", "Bloodmage Lynnore (its Intellect buff suits a priest)", 50.6, 14.3, 47)),
+    New(A("Vulture's Vigor", "Bloodmage Lynnore (Spirit and Stamina buff)", 50.6, 14.3, 47)),
+    New(A("Everything Counts In Large Amounts", "Kum'isha the Collector (fragments from any Dreadmaul)", 52.0, 35.6, 47)),
+    New(D("Snickerfang Jowls", "Snickerfang Jowls from the hyenas", 48.6, 35.6, 48)),
+    New(D("A Boar's Vitality", "Boar Lungs", 51.4, 38.4, 48)),
+    New(D("The Decisive Striker", "Scorpok Pincers", 48.6, 23.8, 48)),
+    New(D("The Basilisk's Bite", "Basilisk Brains", 48.5, 29.1, 48)),
+    New(D("Vulture's Vigor", "Vulture Gizzards", 56.2, 36.1, 48)),
+    New(T("Snickerfang Jowls", "Bloodmage Drazial", 50.5, 14.2, 49)),
+    New(T("A Boar's Vitality", "Bloodmage Drazial", 50.5, 14.2, 49)),
+    New(T("The Decisive Striker", "Bloodmage Drazial", 50.5, 14.2, 49)),
+    New(T("The Basilisk's Bite", "Bloodmage Lynnore", 50.6, 14.3, 49)),
+    New(T("Vulture's Vigor", "Bloodmage Lynnore", 50.6, 14.3, 49)),
+    New(T("Everything Counts In Large Amounts", "Kum'isha the Collector", 52.0, 35.6, 49)),
+} }
+
+-- Additions to the existing 20-60 routes (research\routes_20_60.md 2.4, 2.11, 2.13, 2.15, 3.1-3.5, 4.3).
+-- They're put in by position so the routes above stay as they were written; every one is New().
+do
+    -- Insert steps after the first step whose test passes (or after `at` when it's a number).
+    local function After(route, at, list)
+        local index = at
+        if type(at) == "function" then
+            for i, step in ipairs(route.steps) do
+                if at(step) then index = i break end
+            end
+        end
+        assert(type(index) == "number", route.zone .. ": no anchor for added steps")
+        for offset, step in ipairs(list) do
+            table.insert(route.steps, index + offset, step)
+        end
+    end
+    local function Is(t, q) return function(step) return step.t == t and step.q == q end end
+    local function Last(route) return #route.steps - 1 end
+    local IRONFORGE_PRIEST, STORMWIND_PRIEST = "High Priest Rohan (Mystic Ward)", "Brother Joshua (Cathedral of Light)"
+    local DARNASSUS_PRIEST = "Priestess Alathea, Darnassus (Temple of the Moon)"
+    -- Priest training at every even level (spell IDs from the Classic table, U for Forever's changes: the
+    -- visit is also done when a class trainer's window opens at that level). Night Elves train in Darnassus
+    -- while in Kalimdor, Stormwind or Ironforge in the Eastern Kingdoms.
+    local function IF(level, spells, note) return New(On("Ironforge", Trainer(level, "PRIEST", spells, IRONFORGE_PRIEST, 24.7, 8.2, note))) end
+    local function SW(level, spells, note) return New(On("Stormwind City", Trainer(level, "PRIEST", spells, STORMWIND_PRIEST, 49.5, 45.2, note))) end
+    local function DN(level, spells, note) return New(Trainer(level, "PRIEST", spells, DARNASSUS_PRIEST, 39.5, 81.2, note)) end
+    -- Wands for later (a big part of a priest's damage): any of these counts as having one.
+    local GOOD_WANDS = { 5236, 5347, 11290, 5238, 5239, 5210, 5211 }
+
+    -- Ashenvale: the Astranaar flight path, training, bag space, the Excavation Site breadcrumb and the
+    -- Night Elf Moonbeam Wand chain (Velinde Starsong follows The Howling Vale; its giver is U).
+    After(ASHENVALE, 1, {
+        New(FP("Astranaar", "Daelyshia", 34.4, 48.0, 20)),
+        DN(22, nil), DN(24, { 8129, 1245 }, "Mana Burn and Power Word: Fortitude rank 3."),
+        New(Later(Bags(52, "Yldan, Darnassus (bags), or the auction house", 65.3, 53.0, 22, "Four 9-10 slot bags."))),
+        New(A("Seeking Caitlin", "Llana, Astranaar (optional: leads to the Excavation Site: Wetlands dungeon, 26-33)", 35.0, 48.5, 24)),
+    })
+    After(ASHENVALE, Is("turnin", "The Howling Vale"), {
+        New(Class(WAND_USERS, A("Velinde Starsong", "Sentinel Melyria Frostshadow (giver U; the chain runs via Darnassus, Ratchet, Booty Bay and Duskwood to the Moonbeam Wand from Thyn'tel Bladeweaver, Darnassus 61.8, 39.2)", 22.2, 53.0, 30))),
+    })
+    -- Wetlands: Menethil flight path, training in Ironforge, the Excavation Site breadcrumb.
+    After(WETLANDS, 1, {
+        New(FP("Menethil Harbor", "Shellei Brondir", 9.5, 59.7, 20)),
+        IF(24, { 8129, 1245 }), IF(26, nil), IF(28, nil),
+        New(T("Seeking Caitlin", "Caitlin Grassman, Menethil (her quests are for the Excavation Site: Wetlands dungeon, optional)", 11.9, 58.8, 24)),
+    })
+    -- Duskwood: Darkshire flight path, training in Stormwind, a vendor wand, items that start quests,
+    -- and the Moonbeam Wand chain's Duskwood hand-in.
+    After(DUSKWOOD, 1, {
+        New(FP("Darkshire", "Felicia Maline", 77.5, 44.3, 20)),
+        SW(26, nil), SW(28, nil), SW(30, { 596, 605, 976 }, "Prayer of Healing, Mind Control, Shadow Protection."),
+        New(When({ lacksItem = { GOOD_WANDS, 1 } }, Class(WAND_USERS, On("Stormwind City", Later(Buy({ 5236, 5347 }, 1, "Combustible or Pestilent Wand (level 29-30)", "vendor", "Ardwyn Cailen (wand vendor)", 52.9, 74.8, 29)))))),
+        New(Later(Keep(2794, "An Old History Book", "An Old History Book", 25, "From Duskwood's undead; it ends in the Stormwind library."))),
+        New(Later(Keep(281143, "Ira's Dagger", "Ira's Dagger", 20, "Forever: it starts a quest."))),
+        New(Later(Keep(281142, "Merrick's Bow", "Merrick's Bow", 20, "Forever: it starts a quest."))),
+    })
+    After(DUSKWOOD, Last(DUSKWOOD), {
+        New(Class(WAND_USERS, T("The Carevin Family", "Jonathan Carevin, Darkshire (Moonbeam Wand chain; U)", 75.3, 49.0, 30))),
+    })
+    -- Hillsbrad: the Southshore flight path and inn, training, Alterac Mountains from Southshore (2.11) and
+    -- the City of Dalaran (Forever, 2.4). Turn-ins research left unnamed go back to the giver (U).
+    HILLSBRAD.max = 34
+    After(HILLSBRAD, 1, {
+        New(FP("Southshore", "Darla Harris", 49.3, 52.3, 28)),
+        New(Home("Southshore", "Innkeeper Anderson", 51.0, 58.8, 28)),
+        IF(30, { 596, 605, 976 }, "Fly from Southshore."),
+        New(Later(Keep(4433, "Waterlogged Envelope", "Sully Balloo's Letter", 28, "It starts a quest."))),
+    })
+    After(HILLSBRAD, Last(HILLSBRAD), {
+        New(On("Silverpine Forest", A("Friend of the Kirin Tor", "Image of Archmage Modera (Lordamere Lake shore)", 68.5, 45.3, 30))),
+        New(On("Alterac Mountains", T("Friend of the Kirin Tor", "Archmage Celindra (City of Dalaran)", 14.2, 60.0, 30))),
+        New(A("Crushridge Bounty", "Marshal Redpath, Southshore", 49.5, 58.7, 31)),
+        New(A("Syndicate Assassins", "Magistrate Henry Maleb, Southshore", 48.1, 59.1, 31)),
+        New(On("Alterac Mountains", D("Syndicate Assassins", "12 Syndicate Footpads and 8 Thieves at Strahnbrad", 57.7, 68.0, 31))),
+        New(On("Alterac Mountains", A("Foreboding Plans", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 32))),
+        New(On("Alterac Mountains", A("Encrypted Letter", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 32))),
+        New(Later(Keep(3668, "Assassin's Contract", "Assassin's Contract", 32, "From a Shadowy Assassin; it leads to Baron Vardus."))),
+        New(On("Alterac Mountains", D("Crushridge Bounty", "9 Dirty Knucklebones from the Crushridge ogres", 45.6, 48.0, 33))),
+        New(T("Syndicate Assassins", "Magistrate Henry Maleb (U)", 48.1, 59.1, 33)),
+        New(T("Crushridge Bounty", "Marshal Redpath", 49.5, 58.7, 33)),
+        New(A("Crushridge Warmongers", "Marshal Redpath (its wand reward suits a priest)", 49.5, 58.7, 33)),
+        New(T("Foreboding Plans", "Magistrate Henry Maleb", 48.1, 59.1, 33)),
+        New(A("Noble Deaths", "Magistrate Henry Maleb", 48.1, 59.1, 33)),
+        New(T("Encrypted Letter", "Loremaster Dibbs", 50.6, 57.1, 33)),
+        New(On("Alterac Mountains", D("Noble Deaths", "7 Alterac Signet Rings from the Syndicate at the Lordamere internment camp and the Ruins of Alterac", 55.7, 27.8, 34))),
+        New(On("Alterac Mountains", D("Crushridge Warmongers", "15 Crushridge Warmongers", 36.3, 53.8, 34))),
+        New(T("Noble Deaths", "Magistrate Henry Maleb (U)", 48.1, 59.1, 34)),
+        New(T("Crushridge Warmongers", "Marshal Redpath (U)", 49.5, 58.7, 34)),
+    })
+    -- Arathi: the Refuge Pointe flight path, training, the greater wand from the auction house.
+    After(ARATHI, 1, {
+        New(FP("Refuge Pointe", "Cedrik Prose", 45.7, 46.1, 30)),
+        IF(32, { 552 }, "Abolish Disease."), IF(34, { 1706, 8105 }, "Levitate and Mind Blast rank 5."),
+        New(When({ lacksItem = { GOOD_WANDS, 1 } }, Class(WAND_USERS, On("Ironforge", Later(Buy(11290, 1, "Greater Mystic Wand (level 30)", "ah", "Auctioneers, Ironforge", 25.8, 75.5, 30, "Enchanter-made, cheap and good")))))),
+        New(Later(Keep(4614, "Pendant of Myzrael", "Crystal in the Mountains", 30, "A rare drop: it starts a quest."))),
+    })
+    -- Desolace: Nijel's Point, training, and Forever's Valley of Bones (Shen'dralas, 38-45, needs Gelkis
+    -- standing; the route already does the Gelkis line).
+    After(DESOLACE, 1, {
+        New(FP("Nijel's Point", "Baritanas Skyriver", 64.7, 10.5, 30)),
+        DN(32, { 552 }), DN(34, { 1706, 8105 }),
+    })
+    After(DESOLACE, Last(DESOLACE), {
+        New(A("Valley of Bones", "Uthek the Wise (Gelkis; optional Shen'dralas line, needs Gelkis standing)", 36.2, 79.2, 38)),
+        New(On("Shen'dralas", T("Valley of Bones", "Nerlokh (Valley of Bones, Shen'dralas)", 21.2, 23.2, 38))),
+    })
+    -- Stranglethorn: Booty Bay, training, 12-slot bags, Cortello's Riddle.
+    After(STRANGLETHORN, 1, {
+        New(FP("Booty Bay", "Gyll", 27.5, 77.8, 30)),
+        SW(36, nil), SW(38, nil), SW(40, { 2060 }, "Greater Heal: the biggest upgrade of these levels."),
+        New(Later(Bags(64, "Mageweave bags from the auction house", 27.5, 77.8, 35, "Four 12-slot bags."))),
+        New(Later(Keep(4056, "Cortello's Riddle", "Cortello's Riddle", 35, "It starts a riddle chain through the Swamp of Sorrows, Dustwallow and the Hinterlands: a bag at the end."))),
+        New(When({ lacksItem = { { 5238, 5239, 11290 }, 1 } }, Class(WAND_USERS, On("Stormwind City", Later(Buy({ 5238, 5239 }, 1, "Pitchwood or Blackbone Wand (level 40-41)", "vendor", "Ardwyn Cailen (wand vendor)", 52.9, 74.8, 40)))))),
+    })
+    -- Kalimdor 40s: flight paths, Darnassus training, the OOX beacons.
+    After(FERALAS, 1, {
+        New(FP("Feathermoon", "Fyldren Moonfeather", 30.2, 43.2, 42)),
+        New(FP("Thalanaar", "Thyssiana", 89.5, 45.9, 42)),
+        DN(42, nil), DN(44, nil),
+        New(Later(Keep(8705, "OOX-22/FE Distress Beacon", "Find OOX-22/FE!", 42, "A rare drop: it starts the robot chicken chain."))),
+    })
+    After(TANARIS, 1, {
+        New(FP("Gadgetzan", "Bera Stonehammer", 51.0, 29.3, 43)),
+        DN(44, nil), DN(46, nil),
+        New(Later(Keep(8623, "OOX-17/TN Distress Beacon", "Find OOX-17/TN!", 43, "A rare drop: it starts the robot chicken chain."))),
+    })
+    After(HINTERLANDS, 1, {
+        New(FP("Aerie Peak", "Guthrum Thunderfist", 11.1, 46.1, 43)),
+        IF(46, nil), IF(48, { 10937 }, "Power Word: Fortitude rank 5."),
+    })
+    -- 48-60: flight paths and training.
+    After(UNGORO, 1, { New(FP("Marshal's Refuge", "Gryfe", 45.2, 5.8, 48)), DN(50, nil) })
+    After(FELWOOD, 1, { New(FP("Talonbranch Glade", "Mishellena", 62.5, 24.2, 48)), DN(50, nil), DN(52, nil) })
+    After(BURNING_STEPPES, 1, { New(FP("Morgan's Vigil", "Borgus Stoutarm", 84.3, 68.3, 50)), SW(52, nil), SW(54, nil) })
+    After(WESTERN_PLAGUELANDS, 1, { New(FP("Chillwind Camp", "Bibilfaz", 42.9, 85.1, 51)), IF(54, nil), IF(56, nil) })
+    After(EASTERN_PLAGUELANDS, 1, { New(FP("Light's Hope Chapel", "Khaelyn", 71.8, 49.6, 55)), IF(58, nil) })
+    After(WINTERSPRING, 1, {
+        New(FP("Everlook", "Maethrya", 62.3, 36.6, 55)),
+        DN(56, nil), DN(58, nil),
+        New(Class(CASTERS, Later(Buy(8766, 20, "Morning Glory Dew", "vendor", "Everlook's innkeeper (spot U)", 61.3, 38.9, 55, "The level 55 water.")))),
+    })
+    After(SILITHUS, 1, { New(FP("Cenarion Hold", "Cloud Skydancer", 50.6, 34.5, 55)), DN(58, nil), DN(60, { 10938 }, "Power Word: Fortitude rank 6.") })
+end
+
 -- Where to level at every stage, for when no detailed route covers you yet.
 local PLAN = {
     { min = 1, max = 11, zones = { "Teldrassil", "Dun Morogh", "Elwynn Forest" }, hub = "Your starting zone" },
     { min = 11, max = 16, zones = { "Darkshore", "Loch Modan", "Westfall" }, hub = "Auberdine, Thelsamar or Sentinel Hill", note = "Hall of Thanes (13-18) is under Ironforge" },
     { min = 16, max = 21, zones = { "Darkshore", "Westfall", "Redridge Mountains", "Loch Modan" }, hub = "Auberdine, Sentinel Hill or Lakeshire", note = "Wailing Caverns and The Deadmines suit 17-24" },
-    { min = 21, max = 26, zones = { "Ashenvale", "Wetlands", "Duskwood" }, hub = "Astranaar, Menethil Harbor or Darkshire", note = "Shadowfang Keep suits 22-30" },
+    { min = 21, max = 26, zones = { "Ashenvale", "Wetlands", "Duskwood", "Stonetalon Mountains", "Redridge Mountains" }, hub = "Astranaar, Menethil Harbor, Darkshire or Stonetalon Peak", note = "Shadowfang Keep suits 22-30" },
     { min = 26, max = 31, zones = { "Duskwood", "Hillsbrad Foothills", "Wetlands" }, hub = "Darkshire, Southshore or Menethil Harbor", note = "Blackfathom Deeps and The Stockade suit 24-32" },
-    { min = 31, max = 36, zones = { "Stranglethorn Vale", "Arathi Highlands", "Desolace" }, hub = "Booty Bay, Refuge Pointe or Nijel's Point", note = "Riverglades, new in Forever, opens at 33" },
-    { min = 36, max = 41, zones = { "Riverglades", "Stranglethorn Vale", "Dustwallow Marsh" }, hub = "Powderfuse Port, Farholde Keep or Theramore", note = "Scarlet Monastery suits 34-45" },
-    { min = 41, max = 46, zones = { "Riverglades", "Tanaris", "Feralas" }, hub = "Gadgetzan, Thalanaar or Feathermoon", note = "Uldaman suits 41-51" },
-    { min = 46, max = 51, zones = { "Tanaris", "Feralas", "The Hinterlands" }, hub = "Gadgetzan or Aerie Peak", note = "Zul'Farrak and Maraudon suit 44-55" },
-    { min = 51, max = 56, zones = { "Un'Goro Crater", "Felwood", "Burning Steppes" }, hub = "Marshal's Refuge, Talonbranch Glade or Morgan's Vigil", note = "Blackrock Depths suits 52-60" },
+    { min = 31, max = 36, zones = { "Stranglethorn Vale", "Arathi Highlands", "Desolace", "Alterac Mountains", "Thousand Needles" }, hub = "Booty Bay, Refuge Pointe, Nijel's Point or Southshore", note = "Riverglades, new in Forever, opens at 36" },
+    { min = 36, max = 41, zones = { "Riverglades", "Stranglethorn Vale", "Dustwallow Marsh", "Swamp of Sorrows", "Badlands" }, hub = "Farholde Keep or Theramore", note = "Scarlet Monastery suits 34-45" },
+    { min = 41, max = 46, zones = { "Riverglades", "Tanaris", "Feralas", "Badlands" }, hub = "Farholde Keep, Gadgetzan, Thalanaar or Feathermoon", note = "Uldaman suits 41-51" },
+    { min = 46, max = 51, zones = { "Tanaris", "Feralas", "The Hinterlands", "Searing Gorge", "Azshara", "Blasted Lands" }, hub = "Gadgetzan, Aerie Peak, Thorium Point or Nethergarde Keep", note = "Zul'Farrak and Maraudon suit 44-55" },
+    { min = 51, max = 56, zones = { "Un'Goro Crater", "Felwood", "Burning Steppes", "Blasted Lands", "Azshara" }, hub = "Marshal's Refuge, Talonbranch Glade or Morgan's Vigil", note = "Blackrock Depths suits 52-60" },
     { min = 56, max = 61, zones = { "Western Plaguelands", "Eastern Plaguelands", "Winterspring", "Silithus" }, hub = "Chillwind Camp, Light's Hope Chapel, Everlook or Cenarion Hold",
       -- The XP-flow audit leaves the last level or two short of quests; the guide's "Reach level" line quotes this.
       note = "Blackrock Depths, Lower Blackrock Spire, Scholomance and Stratholme suit 55-60" },
@@ -2973,14 +3667,35 @@ DARKSHORE.ways = {
 TELDRASSIL.ways = {
     Way("Darkshore", "Fly from Auberdine to Rut'theran Village", 36.4, 45.6, "Caylais Moonfeather, by the Auberdine docks"),
 }
+DARKSHORE_NORTH.ways, DARKSHORE_SOUTH.ways = DARKSHORE.ways, DARKSHORE.ways
+-- The Night Elf trips: the Auberdine pier (Darkshore 30.7, 41.0, research\rxp_forever_guides.md 2.4), the
+-- tram in Stormwind (U), the road east out of Dun Morogh (the Dun Morogh route's east gate step), the
+-- Elwynn road to Redridge (U).
+LOCH_MODAN_TRIP.ways = {
+    Way("Darkshore", "Boat to Stormwind (Auberdine pier)", 30.7, 41.0, "The Forever boat; your hearth stays in Auberdine"),
+    Way("Stormwind City", "Deeprun Tram to Ironforge (Dwarven District)", 66.0, 34.0, "Unverified spot: check in game"),
+    Way("Dun Morogh", "East gate to Loch Modan", 87.5, 48.8, "South Gate Pass, then Thelsamar"),
+}
+REDRIDGE_TRIP.ways = {
+    Way("Darkshore", "Boat to Stormwind (Auberdine pier)", 30.7, 41.0, "Then east through Elwynn to Redridge"),
+    Way("Elwynn Forest", "East road to Redridge (Three Corners)", 90.5, 71.5, "Approximate spot"),
+}
 
 LevelGuideRoutes = {
     chains = {
-        -- Ordered by route min: the guide takes the first route that fits your level.
-        NightElf = { TELDRASSIL, DARKSHORE, ASHENVALE, WETLANDS, DUSKWOOD, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, TANARIS, HINTERLANDS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Gnome = { DUN_MOROGH, LOCH_MODAN, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, HINTERLANDS, TANARIS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Dwarf = { DUN_MOROGH, LOCH_MODAN, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, HINTERLANDS, TANARIS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Human = { WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, FERALAS, HINTERLANDS, TANARIS, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        -- Ordered by route min (an optional side trip may sit a few levels early, e.g. Stonetalon after
+        -- Ashenvale): the guide takes the first route that fits your level. Order from research\routes_20_60.md
+        -- 1.1, 1.2 and 4.2; Riverglades has no route until its quest givers are known (the plan names it).
+        -- Night Elf 11-21 is a plan of legs (Routes.lua Leg fields leg/key/name/zones): Darkshore, the Loch
+        -- Modan trip, Darkshore, the Redridge trip, Darkshore; the guide follows them in order.
+        NightElf = { TELDRASSIL, DARKSHORE, LOCH_MODAN_TRIP, DARKSHORE_NORTH, REDRIDGE_TRIP, DARKSHORE_SOUTH, ASHENVALE, STONETALON, WETLANDS, DUSKWOOD,
+            HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS, FERALAS, TANARIS, HINTERLANDS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        Gnome = { DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS,
+            FERALAS, HINTERLANDS, TANARIS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        Dwarf = { DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS,
+            FERALAS, HINTERLANDS, TANARIS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        Human = { WESTFALL, REDRIDGE, DUSKWOOD, WETLANDS, ASHENVALE, STONETALON, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS,
+            FERALAS, HINTERLANDS, TANARIS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
     },
     plan = PLAN,
 }

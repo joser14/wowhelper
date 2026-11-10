@@ -148,8 +148,8 @@ parts[#parts + 1] = (function()
 -- Sources: https://wow4ever.quest/en/quests/<slug> ; https://foreverchanges.pro/quest/<id>
 return {
     ["Northfold Manor"] = { level = 30 },
-    ["Wanted! Marez Cowl"] = { level = 30 },
-    ["Wanted! Otto and Falconcrest"] = { level = 30 },
+    ["WANTED: Marez Cowl"] = { level = 30 },
+    ["WANTED: Otto and Falconcrest"] = { level = 30 },
     ["Worth Its Weight in Gold"] = { all = { 690 }, level = 30 },       -- Malin's Request part 1 (turned in here first)
     ["Stromgarde Badges"] = { all = { 681 }, level = 30 },              -- Northfold Manor
     ["The Princess Trapped"] = { level = 30 },                          -- wow4ever lists no required quest (Crystal in the Mountains is optional)
@@ -701,7 +701,7 @@ return {
     ["Young Crocolisk Skins"] = { level = 18 },
     ["Crocs of the Sky"] = { level = 19 },
     ["Alchemical Hazards"] = { level = 20 },
-    ["Fiora Longears"] = { level = 18 },
+    ["Fiora Longears"] = { level = 30 },
     ["Apprentice's Duties"] = { all = { 484 }, level = 18 },
     ["In Search of The Excavation Team"] = { level = 21 },
     ["Reclaiming Goods"] = { all = { 279 }, level = 20 },
@@ -764,6 +764,22 @@ return {
     ["Guardians of the Altar"] = { all = { 979 }, level = 52 },         -- Find Ranshalla (Erelas Ambersky, Teldrassil)
 }
 end)()
+
+-- legs_11_20.lua (2026-11): Redridge and the Night Elf legs. Sources: research\routes_20_60.md 2.2, 3.5, 4.4 (V).
+parts[#parts + 1] = {
+    ["A Baying of Gnolls"] = { all = { 119 } },                        -- Return to Verner (the Goldshire errand)
+    ["Tharil'zun"] = { all = { 20, 98387 } },                          -- Forever: Blackrock Menace and Blackrock Blockade
+    ["Shadow Magic"] = { all = { 20, 98387 } },
+    ["Murloc Poachers"] = { level = 20 },
+    ["Elune's Grace"] = { level = 20 },
+    -- 20-60 add-ons (research\routes_20_60.md 2.1, 2.4, 2.5, 2.6, 4.3)
+    ["Pridewings of Stonetalon"] = { all = { 1008 }, level = 18 },    -- The Zoram Strand
+    ["Velinde Starsong"] = { all = { 1022 } },                         -- The Howling Vale
+    ["Suspicious Hoofprints"] = { any = { 1282, 1302 } },
+    ["Tremors of the Earth"] = { all = { 718 }, level = 40 },
+    ["Friend of the Kirin Tor"] = { all = { 92432 }, level = 24 },     -- An Alarming Request
+    ["Fiora Longears"] = { level = 30 },
+}
 
 LevelGuidePrereqs = {}
 for _, part in ipairs(parts) do

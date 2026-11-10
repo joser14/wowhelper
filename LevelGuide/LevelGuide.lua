@@ -916,8 +916,10 @@ local function RouteKeys(route)
     if not (keys and keys.n == #steps_ and keys.first == steps_[1] and keys.last == steps_[#steps_]) then
         keys = { n = #steps_, first = steps_[1], last = steps_[#steps_] }
         local seen = {}
+        -- A leg with its own key (Routes.lua Leg(), e.g. the Night Elf Loch Modan trip) keeps its saved
+        -- skips apart from the zone's own route; legs without one share the zone's keys.
         for index, step in ipairs(steps_) do
-            local base = BaseKey(route.zone, step)
+            local base = BaseKey(route.key or route.zone, step)
             seen[base] = (seen[base] or 0) + 1
             keys[index] = seen[base] > 1 and (base .. "#" .. seen[base]) or base
         end
@@ -947,18 +949,24 @@ local function MigrateKeys(set)
     if not old then
         return
     end
+    -- A zone split into legs (Darkshore before and after the Loch Modan trip) was one route then: its
+    -- legs without a key of their own, in chain order, are that route again.
     local byZone = {}
     for _, chain in pairs(LevelGuideRoutes and LevelGuideRoutes.chains or {}) do
+        local here = {}
         for _, route in ipairs(chain) do
-            if not byZone[route.zone] then
-                local keys, list = RouteKeys(route), {}
+            if not route.key and not byZone[route.zone] then
+                local keys, list = RouteKeys(route), here[route.zone] or {}
                 for index, step in ipairs(route.steps) do
                     if not step.since then
                         list[#list + 1] = keys[index]
                     end
                 end
-                byZone[route.zone] = list
+                here[route.zone] = list
             end
+        end
+        for zone, list in pairs(here) do
+            byZone[zone] = list
         end
     end
     for key, value in pairs(old) do
@@ -1383,18 +1391,45 @@ local function InZone(name)
     return false
 end
 
+-- A move made another way: you stand in a zone the route only reaches after this step (a leg's tram ride
+-- you skipped by flying, say). Steps on another zone's map (On()) are in that zone; a hearth is nowhere.
+local function MovedPast(route, index)
+    local function zoneOf(other)
+        return not other.side and other.t ~= "hearth" and (other.map or route.zone) or nil
+    end
+    local before, checked = {}, {}
+    -- The step's own zone (where you set out from) and every earlier one don't count.
+    for earlier = 1, index do
+        local zone = zoneOf(route.steps[earlier])
+        if zone then
+            before[zone] = true
+        end
+    end
+    for later = index + 1, #route.steps do
+        local zone = zoneOf(route.steps[later])
+        if zone and not before[zone] and not checked[zone] then
+            checked[zone] = true
+            if ZoneMap(zone) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 -- A utility step's own completion. What can be lost later (a bound hearth moved on, items used up for a
--- quest) is remembered once seen, so the guide never sends you back for it.
-function UtilityDone(step, key, level)
+-- quest) is remembered once seen, so the guide never sends you back for it. With the route and the
+-- step's place in it, a move is also done once you're past it (MovedPast).
+function UtilityDone(step, key, level, route, index)
     if step.t == "go" then
         -- A move into a place (Routes.lua Reach(), e.g. "Enter Darnassus") is done once you're there,
         -- wherever you came in.
-        if not charData.visited[key] and step.reach and InZone(step.reach) then
+        if not charData.visited[key] and step.reach and (InZone(step.reach) or (route and MovedPast(route, index))) then
             charData.visited[key] = true
         end
         return charData.visited[key] or false
     elseif step.t == "zone" then
-        if not charData.visited[key] and InZone(step.reach) then
+        if not charData.visited[key] and (InZone(step.reach) or (route and MovedPast(route, index))) then
             charData.visited[key] = true
         end
         return charData.visited[key] or false
@@ -1546,7 +1581,7 @@ local function RouteStepDone(route, index, step, byTitle, level)
         return true
     end
     if UTILITY[step.t] then
-        return UtilityDone(step, key, level) or index < LastProgress(route, byTitle)
+        return UtilityDone(step, key, level, route, index) or index < LastProgress(route, byTitle)
     end
     local turnedIn = TurnedIn(step.q)
     local part = tonumber(step.part) or 1
@@ -1948,17 +1983,72 @@ end
 
 -- Returns the route to follow and, when the zone you're standing in was passed over because all it has
 -- left waits on your level, that zone's route (so the guide can say why it sends you elsewhere).
-local function FindRoute(level, byTitle)
+local FindRoute
+do -- route choice helpers
+-- A route is "here" when you stand in its zone, or, for a leg spanning several (Routes.lua Leg(): the
+-- Night Elf trip through Stormwind, Ironforge and Loch Modan), in any of them.
+local function RouteHere(route)
+    if ZoneMap(route.zone) then
+        return true
+    end
+    for _, zone in ipairs(route.zones or {}) do
+        if ZoneMap(zone) then
+            return true
+        end
+    end
+    return false
+end
+
+-- A leg is under way once one of its pick-ups is in your log or turned in (the part it names: holding
+-- part 1 of a chain doesn't start the leg that takes part 2).
+local function LegStarted(route, byTitle)
+    for index, step in ipairs(route.steps) do
+        if step.t == "accept" and not charData.skips[RouteKey(route, index)] and ClassMatches(step.cls) then
+            local part = tonumber(step.part) or 1
+            local held = InLog(byTitle, step.q)
+            if TurnedIn(step.q) >= part or (held and (held.part or 1) == part) then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Legs (Routes.lua Leg()) are a plan in order: once a later leg is under way, the earlier ones are behind
+-- you, whatever they have left, so the guide never sends you back across the sea for a leftover.
+local function PassedLegs(routes, byTitle)
+    local passed, laterStarted = {}, false
+    for index = #routes, 1, -1 do
+        local route = routes[index]
+        if route.leg then
+            if laterStarted then
+                passed[route] = true
+            elseif LegStarted(route, byTitle) then
+                laterStarted = true
+            end
+        end
+    end
+    return passed
+end
+
+function FindRoute(level, byTitle)
     local chains = LevelGuideRoutes and LevelGuideRoutes.chains
     local race = UnitRace and Safe(select(2, UnitRace("player")))
-    local routes = chains and race and chains[race] or {}
+    local all = chains and race and chains[race] or {}
+    local passed = PassedLegs(all, byTitle)
+    local routes = {}
+    for _, route in ipairs(all) do
+        if not passed[route] then
+            routes[#routes + 1] = route
+        end
+    end
     -- The zone you're standing in comes first once you're its level: a few leftover steps in the
     -- zone before shouldn't keep the guide pointing back there.
     -- ZoneMap climbs from the map you're on (a town, a cave, a city) to its zone, so standing in
     -- Darnassus or Dolanaar still counts as Teldrassil.
     local stuckHere
     for _, route in ipairs(routes) do
-        if level >= route.min and level <= route.max and ZoneMap(route.zone) and RouteUnfinished(route, byTitle, level) then
+        if level >= route.min and level <= route.max and RouteHere(route) and RouteUnfinished(route, byTitle, level) then
             if RouteHasWork(route, byTitle, level) then
                 return route
             end
@@ -1983,6 +2073,7 @@ local function FindRoute(level, byTitle)
         end
     end
 end
+end -- route choice helpers
 
 -- The plan's dungeon hint for your level, if any.
 local function PlanNote(level)
@@ -2014,14 +2105,14 @@ end
 -- 2. else the route's next step itself, straight across the map (same continent),
 -- 3. else (another continent, no way written) just the zone's name.
 function TravelTo(route, why, byTitle, level)
-    local travel = { kind = "travel", title = route.zone, detail = why, zone = route.zone }
+    local travel = { kind = "travel", title = route.name or route.zone, detail = why, zone = route.zone }
     for _, way in ipairs(route.ways or {}) do
         local fromMap = MapNamed(way.from)
         if fromMap and way.x and way.y then
             travel.title = way.text
             travel.detail = (way.note and (way.note .. ". ") or "") .. why
             travel.mapID, travel.x, travel.y = fromMap, way.x / 100, way.y / 100
-            travel.wayKey = route.zone .. "|way|" .. way.from
+            travel.wayKey = (route.key or route.zone) .. "|way|" .. way.from
             return travel
         end
     end
@@ -2623,7 +2714,7 @@ local function Render(mapID, playerX, playerY, later)
     if level and xp and maxXP and maxXP > 0 then
         local ready = ReadyShare(steps)
         local readyText = ready and string.format("  |cff33ff33+%d%% ready to turn in|r", ready) or ""
-        local title = activeRoute and ("Route: " .. activeRoute.zone) or "Guide"
+        local title = activeRoute and ("Route: " .. (activeRoute.name or activeRoute.zone)) or "Guide"
         headerText:SetText(string.format("%s  %sLevel %d, %d%%|r%s", title, COLOR_DIM, level, math.floor(xp * 100 / maxXP), readyText))
     else
         headerText:SetText("Guide")
@@ -2857,7 +2948,7 @@ function RefreshList()
     local level = Safe(UnitLevel("player"))
     local total = route and #route.steps or 0
     listOffset = math.max(0, math.min(listOffset, total - LIST_ROWS))
-    listTitle:SetText(route and string.format("Route: %s  %s(%d-%d of %d, scroll for more)|r", route.zone, COLOR_DIM,
+    listTitle:SetText(route and string.format("Route: %s  %s(%d-%d of %d, scroll for more)|r", route.name or route.zone, COLOR_DIM,
         math.min(listOffset + 1, total), math.min(listOffset + LIST_ROWS, total), total) or "No route for your level here")
     for row = 1, LIST_ROWS do
         local button = listRows[row]
