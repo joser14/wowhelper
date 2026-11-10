@@ -60,7 +60,8 @@ M.level = 13
 M.update()
 print("13 in Teldrassil: " .. show())
 assert(text(1):find("Darkshore", 1, true) or text(1):find("Auberdine", 1, true) or text(1):find("Rut'theran", 1, true), "heads for Darkshore: " .. text(1))
-assert(step().mapID == 1438 and step().x, "travel step has a point on Teldrassil: " .. text(1))
+-- The travel planner's first leg: the portal in Darnassus (on the city's map) down to Rut'theran.
+assert((step().mapID == 1438 or step().mapID == 1457) and step().x, "travel step has a point on Teldrassil or Darnassus: " .. text(1))
 M.update(0.06)
 assert(M.arrowShown(), "arrow to the way out")
 M.best, M.pos = 1457, { [1457] = { 0.5, 0.5 } }

@@ -3679,25 +3679,12 @@ local PLAN = {
 
 -- Ways into a route's zone from a neighbouring one: when the guide sends you to a route's zone from `from`,
 -- the arrow points at this spot (x, y are percent of the `from` map) instead of only naming the zone.
+-- Flights, boats, the tram, the Darnassus portals and the hearthstone are the travel planner's now
+-- (LevelGuide\Travel.lua, TravelPlan.lua); a Way() is only for what it can't know (a road through a pass, a
+-- portal only your race takes), and one written here wins over the planner on that map.
 local function Way(from, text, x, y, note) return { from = from, text = text, x = x, y = y, note = note } end
--- Sources: Vesprystus 58.4, 94.0 Teldrassil (https://wow4ever.quest/en/npcs/vesprystus); Caylais Moonfeather
--- by the Auberdine docks (https://warcraft.wiki.gg/wiki/Caylais_Moonfeather, Darkshore 36.4, 45.6 as the
--- Darkshore route's FP step); the Darnassus portal to Rut'theran on the city's west side
--- (https://warcraft.wiki.gg/wiki/Darnassus, about 30, 41: approximate, check in game).
-DARKSHORE.ways = {
-    Way("Darnassus", "Portal down to Rut'theran Village", 28.5, 39.9, "On the west side of Darnassus, then fly to Auberdine from Vesprystus"),
-    Way("Teldrassil", "Fly from Rut'theran Village to Auberdine", 58.4, 94.0, "Vesprystus, the flight master in Rut'theran Village"),
-}
-TELDRASSIL.ways = {
-    Way("Darkshore", "Fly from Auberdine to Rut'theran Village", 36.4, 45.6, "Caylais Moonfeather, by the Auberdine docks"),
-}
-DARKSHORE_NORTH.ways, DARKSHORE_SOUTH.ways = DARKSHORE.ways, DARKSHORE.ways
--- The Night Elf trips: the Auberdine pier (Darkshore 30.7, 41.0, research\rxp_forever_guides.md 2.4), the
--- tram in Stormwind (U), the road east out of Dun Morogh (the Dun Morogh route's east gate step), the
--- Elwynn road to Redridge (U).
+-- The road east out of Dun Morogh (the Dun Morogh route's east gate step); the Elwynn road to Redridge (U).
 LOCH_MODAN_TRIP.ways = {
-    Way("Darkshore", "Boat to Stormwind (Auberdine pier)", 30.7, 41.0, "The Forever boat; your hearth stays in Auberdine"),
-    Way("Stormwind City", "Deeprun Tram to Ironforge (Dwarven District)", 66.0, 34.0, "Unverified spot: check in game"),
     Way("Dun Morogh", "East gate to Loch Modan", 87.5, 48.8, "South Gate Pass, then Thelsamar"),
 }
 -- Skyborne leave Zephras Isle by zeppelin (65.8, 83.4, RestedXP's Skyborne guide), then the portal to Stormwind.
@@ -3705,7 +3692,6 @@ WESTFALL.ways = {
     Way("Zephras Isle", "Zeppelin to Dalaran", 65.8, 83.4, "Then the Skyborne Portal to Stormwind; Bolvar sends you on to Sentinel Hill"),
 }
 REDRIDGE_TRIP.ways = {
-    Way("Darkshore", "Boat to Stormwind (Auberdine pier)", 30.7, 41.0, "Then east through Elwynn to Redridge"),
     Way("Elwynn Forest", "East road to Redridge (Three Corners)", 90.5, 71.5, "Approximate spot"),
 }
 

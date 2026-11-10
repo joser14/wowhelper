@@ -706,12 +706,17 @@ local function ReadQuests(mapID)
                     here[#here + 1] = step
                 elseif waypointMap then
                     local entry = { step = step, zone = ZoneName(waypointMap), mapID = waypointMap, x = waypointX, y = waypointY }
+                    -- Where it is, for the travel planner (X.ApplyTravel), unless the game gives its own leg.
+                    if waypointX and waypointY then
+                        entry.goalMap, entry.goalX, entry.goalY = waypointMap, waypointX * 100, waypointY * 100
+                    end
                     -- The game's next leg on the map you're on (the boat, portal or zone exit), when it knows it.
                     if mapID and C_QuestLog.GetNextWaypointForMap then
                         local legX, legY = C_QuestLog.GetNextWaypointForMap(id, mapID)
                         legX, legY = Safe(legX), Safe(legY)
                         if legX and legY then
                             entry.mapID, entry.x, entry.y = mapID, legX, legY
+                            entry.goalMap = nil
                         end
                     end
                     away[#away + 1] = entry
@@ -844,6 +849,9 @@ local function TravelSteps(away)
         -- border too, through world positions).
         if not zone.x and entry.mapID and entry.x and entry.y then
             zone.mapID, zone.x, zone.y = entry.mapID, entry.x, entry.y
+        end
+        if not zone.goalMap and entry.goalMap then
+            zone.goalMap, zone.goalX, zone.goalY = entry.goalMap, entry.goalX, entry.goalY
         end
     end
     table.sort(order, function(a, b)
@@ -2577,6 +2585,8 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
         end
     end
     shown.mapID, shown.x, shown.y = PlacePoint(step, zoneMap, x, y)
+    -- Where it is in any case, for the travel planner when you're on another map (X.ApplyTravel).
+    shown.goalMap, shown.goalX, shown.goalY = X.GoalOf(route, step, x, y)
     return shown
 end
 
@@ -2772,11 +2782,12 @@ local function LevelStep(route, byTitle, level, zoneMap)
 end
 
 -- The way into a route's zone from where you are, always as a stop with an arrow when it can be placed:
--- 1. the route's own ways (Routes.lua Way(): the flight master, boat or portal to take from a zone),
--- 2. else the route's next step itself, straight across the map (same continent),
--- 3. else (another continent, no way written) just the zone's name.
+-- 1. the route's own ways (Routes.lua Way(): a way the planner can't know, e.g. a road through a pass),
+-- 2. else the travel planner's next leg toward the route's next stop (X.ApplyTravel, from goalMap/X/Y),
+-- 3. else the route's next step itself, straight across the map (same continent),
+-- 4. else (another continent, no way known) just the zone's name.
 function TravelTo(route, why, byTitle, level)
-    local travel = { kind = "travel", title = route.name or route.zone, detail = why, zone = route.zone }
+    local travel = { kind = "travel", title = route.name or route.zone, detail = why, zone = route.zone, why = why }
     for _, way in ipairs(route.ways or {}) do
         local fromMap = MapNamed(way.from)
         if fromMap and way.x and way.y then
@@ -2787,19 +2798,24 @@ function TravelTo(route, why, byTitle, level)
             return travel
         end
     end
-    local zoneMap = FindMap(route.zone)
-    if zoneMap then
-        for index, step in ipairs(route.steps) do
-            if step.x and step.y and not step.map and not step.side
-                and not RouteStepDone(route, index, step, byTitle, level) then
-                local x, y = CityToZone(zoneMap, step, step.x / 100, step.y / 100)
-                if x and PositionOn(zoneMap) then
-                    travel.mapID, travel.x, travel.y = zoneMap, x, y
-                    travel.detail = why .. ". The arrow points at the route's next stop there"
-                end
-                break
+    for index, step in ipairs(route.steps) do
+        if step.x and step.y and not step.side and not RouteStepDone(route, index, step, byTitle, level) then
+            -- The planner aims at the next stop, on its own map (On()) or the route's.
+            travel.goalMap, travel.goalX, travel.goalY = X.GoalOf(route, step, step.x, step.y)
+            local zoneMap = not step.map and FindMap(route.zone)
+            local x, y
+            if zoneMap then
+                x, y = CityToZone(zoneMap, step, step.x / 100, step.y / 100)
             end
+            if x and PositionOn(zoneMap) then
+                travel.mapID, travel.x, travel.y = zoneMap, x, y
+                travel.detail = why .. ". The arrow points at the route's next stop there"
+            end
+            break
         end
+    end
+    if not travel.goalMap then
+        travel.goalMap, travel.goalX, travel.goalY = X.GoalOf(route, nil, 50, 50)
     end
     return travel
 end
@@ -3068,6 +3084,8 @@ local function PlanStep(level, mapID)
     end
     local detail = plan.hub .. (plan.note and (". " .. plan.note) or "")
     local travel = { kind = "travel", title = table.concat(plan.zones, " or "), detail = detail, zone = plan.zones[1] }
+    -- The planner (X.ApplyTravel) aims at the middle of the first zone.
+    travel.goalMap, travel.goalX, travel.goalY = X.MapIDNamed(plan.zones[1]), 50, 50
     -- The middle of the first zone that's on your continent, so the arrow has somewhere to point.
     for _, zone in ipairs(plan.zones) do
         local zoneMap = FindMap(zone)
@@ -3255,7 +3273,8 @@ local function StepLine(step)
     if step.hard then
         tags = tags .. string.format(" |cffff4040Hard (level %d)|r", step.hard)
     end
-    return kind.color .. kind.label .. ":|r " .. tostring(step.title) .. tags
+    -- A travel leg (X.ApplyTravel) reads "Travel: Take the boat at ...", not "Go to: Take ...".
+    return kind.color .. (step.leg and step.kind == "travel" and "Travel" or kind.label) .. ":|r " .. tostring(step.title) .. tags
 end
 
 local function DistanceText(step, mapID, playerX, playerY)
@@ -4024,17 +4043,17 @@ local function UpdateArrow()
     if not (step and step.x and playerX) then
         arrow:Hide()
         state.bearing = nil
-        yardsText:SetText(step and step.kind == "travel" and COLOR_DIM .. "other zone|r" or "")
+        yardsText:SetText(step and (step.arrowNote or (step.kind == "travel" and COLOR_DIM .. "other zone|r")) or "")
         return
     end
     local target = (step.corpse and "corpse" or tostring(step.routeKey or StepKey(step) or step.title))
-        .. ":" .. tostring(step.pointIndex or "") .. ":" .. tostring(step.campIndex or "")
+        .. ":" .. tostring(step.pointIndex or "") .. ":" .. tostring(step.campIndex or "") .. ":" .. tostring(step.legKey or "")
     if state.key ~= target then
         state.key, state.closing = target, {}
     end
     local east, south, isYards = Offset(mapID, playerX, playerY, step.x, step.y)
     local yards = math.sqrt(east * east + south * south)
-    local radius = P and P.Radius(step.kind, step.campRadius) or K.ARRIVED_YARDS
+    local radius = P and P.Radius(step.leg and "travel" or step.kind, step.campRadius) or K.ARRIVED_YARDS
     local arrived
     if P then
         arrived = isYards and P.Arrived(state, target, yards, radius)
@@ -4049,7 +4068,10 @@ local function UpdateArrow()
             return
         end
         yardsText:SetText("|cff33ff33You're there|r")
-        if step.routeKey and step.pointMode and step.pointCount and charData then
+        if step.leg then
+            -- At a travel leg's spot (the pier, the flight master): the step itself isn't done here.
+            return
+        elseif step.routeKey and step.pointMode and step.pointCount and charData then
             -- A circuit goes on to the next point (wrapping); "nearest" remembers this spot as checked.
             local nextPoint = step.pointMode == "loop" and (step.pointIndex % step.pointCount + 1) or step.pointIndex
             if charData.points[step.routeKey] ~= nextPoint then
@@ -4303,11 +4325,229 @@ function ToggleList()
 end
 end -- route list window
 
+-- The travel planner in the guide (research\guides_deep_re.md 12.7; LevelGuide\TravelPlan.lua does the sums,
+-- LevelGuide\Travel.lua holds the flight masters, boats and inns). When the current step is on another map,
+-- it shows the next leg of the quickest way there: "Take the portal in Darnassus to Rut'theran Village",
+-- "Fly Rut'theran Village to Auberdine, ~2 min", "Use your hearthstone to Auberdine", "Take the boat at
+-- Auberdine pier to Stormwind Harbor, ~3 min", with the arrow on that leg's spot. Flights are the ones this
+-- character knows (charData.flights; Landmarks' learned flight times where it has them), the hearthstone
+-- only when it's in your bags, off cooldown and bound at a known inn. Worked out again on a step or zone
+-- change, after 10 s and 50 yd moved, or every 30 s; held while you fly (UnitOnTaxi) or ride a boat. A Way()
+-- written in Routes.lua for the map you're on wins (TravelTo). It only says what to do.
+do
+-- One table, not several locals: this file is at Lua's 200-local limit.
+local V = { dockYards = 30, leftYards = 40, holdExtra = 90, replanSeconds = 10, replanYards = 50, staleSeconds = 30 }
+X.travel = { at = 0 }
+
+-- A map's uiMap ID from its name (Travel.lua's names); a number is already one.
+function X.MapIDNamed(name)
+    if type(name) == "number" then
+        return name
+    end
+    local T = LevelGuideTravel
+    if not (T and type(name) == "string") then
+        return nil
+    end
+    if not V.ids then
+        V.ids = {}
+        for id, mapName in pairs(T.names) do
+            V.ids[mapName] = id
+        end
+    end
+    return V.ids[name]
+end
+
+-- Where a route step is, as uiMap and map percent: its own map (On()), Darnassus for "Name, Darnassus",
+-- else the route's zone. Nil without a spot or a known map.
+function X.GoalOf(route, step, x, y)
+    if not (route and x and y) then
+        return nil
+    end
+    local name = step and step.map or route.zone
+    if step and not step.map then
+        local text = (step.npc or step.note or ""):gsub("%b()", "")
+        for _, city in ipairs(CITIES) do
+            if text:find(", " .. city, 1, true) then
+                name = city
+            end
+        end
+    end
+    local id = X.MapIDNamed(name)
+    if id then
+        return id, x, y
+    end
+end
+
+-- Flight times Landmarks learned from your own flights, by flight master name ("Auberdine>Astranaar").
+function V.Learned()
+    local out = {}
+    pcall(function()
+        local all = LandmarksDB
+        if type(all) ~= "table" then
+            return
+        end
+        local names = {}
+        for _, saved in pairs(type(all.flightPoints) == "table" and all.flightPoints or {}) do
+            for nodeID, node in pairs(type(saved) == "table" and type(saved.nodes) == "table" and saved.nodes or {}) do
+                if type(node) == "table" and type(node.name) == "string" then
+                    names[nodeID] = node.name:match("^([^,]+)") or node.name
+                end
+            end
+        end
+        for _, realm in pairs(all) do
+            for key, entry in pairs(type(realm) == "table" and type(realm.flightTimes) == "table" and realm.flightTimes or {}) do
+                local a, b = tostring(key):match("^(%d+)>(%d+)$")
+                local from, to = names[tonumber(a)], names[tonumber(b)]
+                if from and to and type(entry) == "table" and tonumber(entry.seconds) then
+                    out[from .. ">" .. to] = tonumber(entry.seconds)
+                end
+            end
+        end
+    end)
+    return out
+end
+
+-- The inn you'd hearth to, when the hearthstone is in your bags and ready (read only, never used).
+function V.Hearth()
+    local P = LevelGuidePlanner
+    if not (C_Container and C_Container.GetItemCooldown and C_Item and C_Item.GetItemCount and GetBindLocation) then
+        return nil
+    end
+    local count = Safe(C_Item.GetItemCount(6948))
+    if not (type(count) == "number" and count > 0) then
+        return nil
+    end
+    local start, duration = C_Container.GetItemCooldown(6948)
+    start, duration = Safe(start), Safe(duration)
+    if not (start and duration) or (start > 0 and duration > 0 and start + duration > Now()) then
+        return nil
+    end
+    return P.TravelInn(Safe(GetBindLocation()))
+end
+
+function V.Speed()
+    if not GetUnitSpeed then
+        return nil
+    end
+    local _, run = GetUnitSpeed("player")
+    run = Safe(run)
+    return type(run) == "number" and run > 0 and run or nil
+end
+
+-- Puts a leg on the step: its words, the arrow on its spot (none for the hearthstone or in the air).
+function V.Show(step, leg, title, note, point)
+    local rest = step.why or step.detail
+    step.leg, step.legKey = leg, leg.kind .. ":" .. tostring(leg.from and leg.from.name) .. ":" .. tostring(title)
+    if step.kind == "travel" then
+        step.title = title
+        step.detail = note .. (rest and (". " .. rest) or "")
+    else
+        step.detail = title .. ". " .. note .. (rest and (". " .. rest) or "")
+    end
+    if point then
+        step.mapID, step.x, step.y = point.map, point.x / 100, point.y / 100
+    else
+        step.mapID, step.x, step.y = nil, nil, nil
+        step.arrowNote = COLOR_DIM .. (leg.kind == "hearth" and "Hearthstone" or "On the way") .. "|r"
+    end
+end
+
+function X.ApplyTravel(list)
+    local P, T, S = LevelGuidePlanner, LevelGuideTravel, X.travel
+    local step = list and list[1]
+    if not (P and P.TravelPlan and T and step and charData) or step.corpse or step.wayKey or not RoutesForYou() then
+        return
+    end
+    local goalMap = X.MapIDNamed(step.goalMap)
+    if not (goalMap and step.goalX and step.goalY and T.frames[goalMap]) then
+        return
+    end
+    local mapID, px, py = PlayerPosition()
+    if not (mapID and px and py and T.frames[mapID]) then
+        return
+    end
+    local here, now = { map = mapID, x = px * 100, y = py * 100 }, Now()
+    local goal = { map = goalMap, x = step.goalX, y = step.goalY }
+    -- In the air: the flight you took, no arrow, nothing worked out mid-air.
+    if UnitOnTaxi and Safe(UnitOnTaxi("player")) == true then
+        local leg = S.shown and S.shown.kind == "fly" and S.shown or { kind = "fly" }
+        V.Show(step, leg, leg.to and ("Flying to " .. tostring(leg.to.name)) or "On a flight", "The guide goes on when you land", nil)
+        S.atDock, S.ride = nil, nil
+        return
+    end
+    -- On a boat (you were at its pier and moved off): held until you land, walk back to the pier, or it
+    -- should have arrived.
+    if S.atDock and not S.ride then
+        local yards = P.TravelYards(here, S.atDock.from)
+        if yards and yards > V.leftYards then
+            S.ride, S.atDock = { leg = S.atDock, at = now }, nil
+        end
+    end
+    local ride = S.ride
+    if ride then
+        local toYards = P.TravelYards(here, ride.leg.to)
+        local fromYards = P.TravelYards(here, ride.leg.from)
+        if (toYards and toYards < 60) or (fromYards and fromYards <= V.dockYards) or mapID == ride.leg.to.map
+            or now - ride.at > ride.leg.seconds + V.holdExtra or X.travelReplan then
+            S.ride = nil
+        else
+            V.Show(step, ride.leg, "On the " .. ride.leg.kind .. " to " .. tostring(ride.leg.to.name), "The guide goes on when you get off", ride.leg.to)
+            return
+        end
+    end
+    if goalMap == mapID or (step.mapID and step.mapID == mapID) then
+        S.shown, S.atDock = nil, nil
+        return
+    end
+    local level = Safe(UnitLevel("player")) or 1
+    local hearth = V.Hearth()
+    local knownCount = 0
+    for _ in pairs(charData.flights or {}) do
+        knownCount = knownCount + 1
+    end
+    local key = table.concat({ goalMap, math.floor(goal.x), math.floor(goal.y), level, knownCount,
+        hearth and hearth.name or "-" }, ":")
+    local region = T.Region(mapID, here.x, here.y)
+    local moved = S.here and P.TravelYards(here, S.here)
+    if X.travelReplan or S.key ~= key or S.map ~= mapID or S.region ~= region or now - S.at >= V.staleSeconds
+        or (now - S.at >= V.replanSeconds and (not moved or moved >= V.replanYards)) then
+        X.travelReplan = false
+        S.key, S.map, S.region, S.at, S.here = key, mapID, region, now, here
+        S.plan = P.TravelPlan({ from = here, to = goal, level = level, speed = V.Speed(),
+            known = P.TravelKnown(charData.flights), hearth = hearth, learned = V.Learned() })
+    end
+    local plan = S.plan
+    local legs = plan and plan.legs or {}
+    local leg = legs[1]
+    if leg and leg.kind == "walk" then
+        leg = legs[2]
+    end
+    if not leg then
+        -- Walking there is quickest: straight at it when the step had no spot here.
+        S.shown, S.atDock = nil, nil
+        return
+    end
+    S.shown = leg
+    local note = string.format("About %d min to %s", math.max(1, math.floor(plan.total / 60 + 0.5)),
+        tostring(T.names[goalMap] or "there"))
+    V.Show(step, leg, leg.text, note, leg.kind ~= "hearth" and leg.from or nil)
+    -- At a pier: once you move off it with the boat, the step holds "On the boat to ..." (above).
+    local yards = (leg.kind == "boat" or leg.kind == "zeppelin") and P.TravelYards(here, leg.from)
+    if yards and yards <= V.dockYards then
+        S.atDock = leg
+    elseif not yards then
+        S.atDock = nil
+    end
+end
+end -- travel planner
+
 local function Rebuild()
     local mapID, playerX, playerY, later
     X.ResolveRemoved()
     steps, mapID, playerX, playerY, later = BuildSteps()
     currentKey = StepKey(steps[1])
+    -- A current step on another map shows the next leg of the way there (TravelPlan.lua).
+    X.ApplyTravel(steps)
     X.WhileHere(steps)
     Render(mapID, playerX, playerY, later)
     X.RenderLost()
@@ -4731,6 +4971,7 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         end)
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         requestedMap = nil
+        X.travelReplan = true   -- off a boat, through a portal, landed: the next leg
     elseif event == "GOSSIP_SHOW" or event == "QUEST_GREETING" or event == "QUEST_DETAIL" then
         Attempt(function()
             X.JudgeOffers(event)

@@ -120,9 +120,12 @@ function M.load(base, setup)
     assert(loadfile(base .. "/Prereqs.lua"))("LevelGuide", {})
     assert(loadfile(base .. "/Routes.lua"))("LevelGuide", {})
     if setup then setup() end
-    -- Planner.lua (the guide's arithmetic) loads before LevelGuide.lua, as in the .toc.
-    local planner = loadfile(base .. "/Planner.lua")
-    if planner then planner("LevelGuide", {}) end
+    -- Travel.lua, Planner.lua and TravelPlan.lua (the guide's data and arithmetic) load before LevelGuide.lua,
+    -- as in the .toc.
+    for _, name in ipairs({ "Travel.lua", "Planner.lua", "TravelPlan.lua" }) do
+        local chunk = loadfile(base .. "/" .. name)
+        if chunk then chunk("LevelGuide", {}) end
+    end
     assert(loadfile(base .. "/LevelGuide.lua"))("LevelGuide", {})
     M.events = M.frames[1]
     M.events.scripts.OnEvent(M.events, "PLAYER_LOGIN")

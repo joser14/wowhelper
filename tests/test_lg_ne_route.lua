@@ -41,9 +41,8 @@ assert(bound, "Auberdine bind in the first steps")
 for _, leg in ipairs({ TRIP, RR }) do
     local last = leg.steps[#leg.steps]
     assert(last.t == "hearth" and last.place == "Auberdine", (leg.name) .. " ends with the hearth home")
-    local fromDarkshore
-    for _, way in ipairs(leg.ways or {}) do if way.from == "Darkshore" then fromDarkshore = way end end
-    assert(fromDarkshore and fromDarkshore.x, leg.name .. ": a way from Darkshore")
+    -- The way out of Darkshore is the travel planner's (the Auberdine boat), no longer a written Way().
+    for _, way in ipairs(leg.ways or {}) do assert(way.from ~= "Darkshore", leg.name .. ": Darkshore way left to the planner") end
 end
 for _, leg in ipairs({ DA, DB }) do
     local last = leg.steps[#leg.steps]
