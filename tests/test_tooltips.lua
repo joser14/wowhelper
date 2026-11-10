@@ -340,7 +340,7 @@ hover(2042)
 need("Quest reward = The Defias Brotherhood (The Deadmines)", "dungeon quest reward line")
 lack("Drops from", "a quest reward isn't a drop")
 hover(6463)
-need("Drops from = Mutanus the Devourer in Wailing Caverns |cff999999+1 more|r", "several sources: first plus count")
+need("Drops from = Mutanus the Devourer in Wailing Caverns |cff999999+1 more, several dungeons|r", "several sources: first plus count (round 4 R12 adds 'several dungeons')")
 -- Indexed once: adding loot to the same table isn't seen; a new table is.
 items[6911] = { "Moss Cinch", 25, 900, 4, 1 }
 DungeonsData[1].loot[2] = { 6911, "Moss Cinch", "Aku'mai", "Waist" }

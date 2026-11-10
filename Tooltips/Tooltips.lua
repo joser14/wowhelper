@@ -650,7 +650,13 @@ local function BuildDropIndex(dungeons)
                     if type(id) == "number" and type(boss) == "string" and boss ~= "" then
                         local quest = boss:match("^quest:%s*(.+)$")
                         local list = index[id] or {}
-                        list[#list + 1] = { boss = quest or boss, dungeon = dungeonName, quest = quest ~= nil }
+                        local low, high = Safe(dungeon.minLevel), Safe(dungeon.maxLevel)
+                        list[#list + 1] = {
+                            boss = quest or boss, dungeon = dungeonName, quest = quest ~= nil,
+                            trash = not quest and boss:lower():find("trash", 1, true) ~= nil,
+                            horde = dungeon.horde == true,
+                            low = type(low) == "number" and low or nil, high = type(high) == "number" and high or nil,
+                        }
                         index[id] = list
                     end
                 end
@@ -674,12 +680,37 @@ local function AddDropLine(tooltip, id)
     if not sources or #sources == 0 then
         return
     end
-    local first = sources[1]
-    local more = #sources > 1 and string.format(" |cff999999+%d more|r", #sources - 1) or ""
+    -- Round 4 R12 (ranking idea from DungeonJournal, no code): boss drop 1, trash 2, quest reward of your own
+    -- faction 3 (DungeonsData's quests are Alliance's, Horde's in a dungeon marked horde), other quest 4; then the
+    -- dungeon whose level range holds your level; then the guide's order.
+    local level = Safe(UnitLevel and UnitLevel("player"))
+    local horde = Safe(UnitFactionGroup and UnitFactionGroup("player")) == "Horde"
+    local function Rank(source)
+        if source.quest then
+            return source.horde == horde and 3 or 4
+        end
+        return source.trash and 2 or 1
+    end
+    local function Fits(source)
+        return type(level) == "number" and source.low and source.high and level >= source.low and level <= source.high and 0 or 1
+    end
+    local first, dungeons = nil, {}
+    for _, source in ipairs(sources) do
+        dungeons[source.dungeon] = true
+        if not first or Rank(source) < Rank(first) or (Rank(source) == Rank(first) and Fits(source) < Fits(first)) then
+            first = source
+        end
+    end
+    local several = next(dungeons, next(dungeons)) ~= nil
+    local more = ""
+    if #sources > 1 then
+        more = string.format(" |cff999999+%d more%s|r", #sources - 1, several and ", several dungeons" or "")
+    end
+    local range = first.low and first.high and string.format("lvl %d-%d", first.low, first.high) or nil
     if first.quest then
-        AddPair(tooltip, "Quest reward", first.boss .. " (" .. first.dungeon .. ")" .. more)
+        AddPair(tooltip, "Quest reward", first.boss .. " (" .. first.dungeon .. (range and (", " .. range) or "") .. ")" .. more)
     else
-        AddPair(tooltip, "Drops from", first.boss .. " in " .. first.dungeon .. more)
+        AddPair(tooltip, "Drops from", first.boss .. " in " .. first.dungeon .. (range and (" (" .. range .. ")") or "") .. more)
     end
 end
 
