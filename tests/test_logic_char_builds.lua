@@ -139,7 +139,7 @@ trees = { [60] = { nodes = {
 treeOrder = { 60 }
 fire("TRAIT_NODE_CHANGED")
 local text = panelText()
-check(has(text, "Improved Rend 1|r") and has(text, "(Tree 2, row 1)"), "x = 800 is in the middle tree:\n" .. text)
+check(has(text, "Improved Rend 1|r") and has(text, "(Fury, row 1)"), "x = 800 is in the middle tree (Fury, from the class's tree order):\n" .. text)
 
 -- 3. Three tree IDs, no titles and no tab names: each tree keeps its own number (their x positions
 -- overlap, so they must not be split into columns).
@@ -151,7 +151,7 @@ trees = {
 treeOrder = { 71, 72, 73 }
 fire("TRAIT_NODE_CHANGED")
 text = panelText()
-check(has(text, "Improved Rend 1|r") and has(text, "(Tree 2, row 1)"), "second tree ID is Tree 2:\n" .. text)
+check(has(text, "Improved Rend 1|r") and has(text, "(Fury, row 1)"), "second tree ID is the second tree, Fury:\n" .. text)
 
 -- 4. The panel beside the talent window.
 local blizzOpen = true

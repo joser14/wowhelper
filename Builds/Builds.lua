@@ -221,6 +221,43 @@ local function TabName(tab)
     return nil
 end
 
+-- The talent window's trees left to right, named as the build data names them. Forever's API has one spec
+-- per class, named after the class (research\thirdparty_features.md 6.10), and its trait tree may not name
+-- its parts, so a tree takes its name from here unless the game gives one of the class's own tree names.
+local CLASS_TREES = {
+    WARRIOR = { "Arms", "Fury", "Protection" }, PALADIN = { "Holy", "Protection", "Retribution" },
+    HUNTER = { "Beast Mastery", "Marksmanship", "Survival" }, ROGUE = { "Assassination", "Combat", "Subtlety" },
+    PRIEST = { "Discipline", "Holy", "Shadow Magic" }, SHAMAN = { "Elemental Combat", "Enhancement", "Restoration" },
+    MAGE = { "Arcane", "Fire", "Frost" }, WARLOCK = { "Affliction", "Demonology", "Destruction" },
+    DRUID = { "Balance", "Feral Combat", "Restoration" },
+}
+
+-- True when the game's name is one of your class's trees ("Shadow" for "Shadow Magic" too).
+local function KnownTree(name)
+    local trees = CLASS_TREES[PlayerClass() or ""]
+    local first = type(name) == "string" and name:lower():match("^(%S+)")
+    if not (trees and first) then
+        return false
+    end
+    for _, tree in ipairs(trees) do
+        if tree:lower():match("^(%S+)") == first then
+            return true
+        end
+    end
+    return false
+end
+
+-- The name of the tree at a position: the game's when it is one of your class's trees, else the class's
+-- tree at that position, else whatever the game says, else "Tree N".
+local function TreeName(index)
+    local name = TabName(index)
+    if KnownTree(name) then
+        return name
+    end
+    local trees = CLASS_TREES[PlayerClass() or ""]
+    return (trees and trees[index]) or name or ("Tree " .. index)
+end
+
 -- The classic global first: GetTalentInfo(tab, index) -> name, icon, tier, column, rank, maxRank.
 local function LegacyTalent(tab, index)
     if type(GetTalentInfo) ~= "function" then
@@ -311,7 +348,7 @@ local function TraitTalents()
                     end
                     if not tree and #treeIDs > 1 then
                         -- Each tree ID has its own positions, so a tree is never split into columns.
-                        tree = treeTitle or TabName(treeIndex) or ("Tree " .. treeIndex)
+                        tree = (KnownTree(treeTitle) and treeTitle) or TreeName(treeIndex)
                     end
                     nodes[#nodes + 1] = { name = name, tree = tree, treeIndex = treeIndex, subTreeID = subTreeID,
                         rank = math.max(Number(node.activeRank) or Number(node.currentRank) or 0, 0),
@@ -371,7 +408,7 @@ local function TraitTalents()
                 else
                     column = math.min(3, math.floor((node.x - minX) / width * 3) + 1)
                 end
-                node.tree = TabName(column) or ("Tree " .. column)
+                node.tree = TreeName(column)
                 node.treeIndex = column
             end
         end
@@ -416,7 +453,7 @@ local function LegacyTalents()
     local group = ActiveGroup()
     local result = { byName = {}, list = {}, spent = 0 }
     for tab = 1, math.min(math.max(tabs, 0), MAX_TABS) do
-        local tree = TabName(tab) or ("Tree " .. tab)
+        local tree = TreeName(tab)
         local count = Number(SafeCall(GetNumTalents, tab))
         for index = 1, math.min(count or MAX_TALENTS_PER_TAB, MAX_TALENTS_PER_TAB) do
             local name, rank, maxRank = LegacyTalent(tab, index)

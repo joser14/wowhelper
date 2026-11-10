@@ -286,13 +286,14 @@ local CLASS_PROFILES = {
 }
 
 -- Talent tab names (lower case, as the talent window shows them) and the role each one suggests.
--- A tab not listed here, or a class with one role, leaves the role as it is.
+-- A tab not listed here, or a class with one role, leaves the role as it is. The 1.60.1 game data names
+-- two tabs "Shadow Magic" and "Elemental Combat" (research\builds\PRIEST.md, SHAMAN.md), so both forms count.
 local TAB_PROFILES = {
     WARRIOR = { arms = "warrior", fury = "warrior", protection = "tank" },
     PALADIN = { holy = "healer", protection = "tank", retribution = "retribution" },
     HUNTER = { ["beast mastery"] = "hunter", marksmanship = "hunter", survival = "survival" },
-    PRIEST = { discipline = "healer", holy = "healer", shadow = "shadow" },
-    SHAMAN = { elemental = "caster", enhancement = "enhancement", restoration = "healer" },
+    PRIEST = { discipline = "healer", holy = "healer", shadow = "shadow", ["shadow magic"] = "shadow" },
+    SHAMAN = { elemental = "caster", ["elemental combat"] = "caster", enhancement = "enhancement", restoration = "healer" },
     DRUID = { balance = "caster", ["feral combat"] = "feral", feral = "feral", restoration = "healer" },
 }
 -- The talent window's tabs left to right, for a trait tree that doesn't name its parts.
@@ -1642,6 +1643,7 @@ local WATCH_INTERVAL = 0.25
 local bagBadges = setmetatable({}, { __mode = "k" })
 local rewardMarks = setmetatable({}, { __mode = "k" })
 local REWARD_WAIT_LIMIT, LOOT_TYPE_CURRENCY = 2, 1
+local LEVEL_SETTLE_DELAY = 2
 local rewardWindowOpen, rewardToastPending, rewardWaitOver = false, false, false
 local repaintScheduled, repaintAfterCombat = false, false
 
@@ -2077,6 +2079,15 @@ events:SetScript("OnEvent", function(_, event, arg1)
                 repaintAfterCombat = false
                 ScheduleRepaint()
             end
+        elseif event == "PLAYER_LEVEL_UP" then
+            -- UnitLevel can still give the old level for about a second (research\thirdparty_features.md
+            -- 6.12), and anything judged meanwhile is remembered: judge again once the new level shows.
+            ScheduleRepaint()
+            C_Timer.After(LEVEL_SETTLE_DELAY, function()
+                if charData then
+                    ScheduleRepaint()
+                end
+            end)
         else
             ScheduleRepaint()
         end
