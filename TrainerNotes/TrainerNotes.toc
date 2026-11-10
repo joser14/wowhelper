@@ -5,4 +5,5 @@
 ## Version: 0.1.4
 ## SavedVariables: TrainerNotesDB
 
+Data.lua
 TrainerNotes.lua
