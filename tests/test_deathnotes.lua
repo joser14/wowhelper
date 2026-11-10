@@ -4,6 +4,7 @@
 local base = ADDON_PATH
 local out, frames, failures = {}, {}, {}
 local SECRET = {}
+local foe
 ForeverHub_Receive = function(_, t) out[#out + 1] = t end
 issecretvalue = function(v) return v == SECRET end
 CreateFrame = function()
@@ -14,7 +15,7 @@ CreateFrame = function()
     return f
 end
 SlashCmdList = {}
-UnitName = function(unit) if unit == "player" then return "Juan" end end
+UnitName = function(unit) if unit == "player" then return "Juan" elseif unit == "target" then return foe end end
 UnitGUID = function() return "Player-1-ABC" end
 local level = 12
 UnitLevel = function() return level end
@@ -49,12 +50,14 @@ C_Map = {
 UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { uiMapID = m, x = x, y = y } end }
 C_SuperTrack = { SetSuperTrackedUserWaypoint = function() end }
 
-local cleu
-CombatLogGetCurrentEventInfo = function() return table.unpack(cleu, 1, 13) end
+-- The killer comes from your hostile target (the combat log is closed on Forever).
+UnitExists = function(u) return u == "target" and foe ~= nil end
+UnitCanAttack = function() return true end
 
 local n = #frames
 assert(loadfile(base .. "/DeathNotes/DeathNotes.lua"))("DeathNotes", {})
 local f = frames[n + 1]
+assert(not f.registered.COMBAT_LOG_EVENT_UNFILTERED, "never registers the combat log: Forever forbids it (blocked-action pop-up)")
 local function fire(ev) clock = clock + 1; gametime = gametime + 1; f.fn(f, ev) end
 local function tick() for _, t in ipairs(tickers) do t() end end
 local function at(x, y, m) px, py = x, y; if m then mapID = m end end
@@ -76,18 +79,15 @@ page("")
 need("No deaths remembered", "empty page")
 
 -- A wolf hits us, then we die.
-cleu = { 0, "SWING_DAMAGE", false, "Creature-1", "Young Wolf", 0, 0, "Player-1-ABC", "Juan", 0, 0, 5 }
-fire("COMBAT_LOG_EVENT_UNFILTERED")
+foe = "Young Wolf"
 out = {}
 fire("PLAYER_DEAD")
 need("Noted: died at level 12", "death noted")
 need("to Young Wolf", "killer named")
 check(DeathNotesDB.R.deaths[1].wx == 5000, "world position saved")
 
--- A hit on someone else must not be blamed.
-cleu = { 0, "SWING_DAMAGE", false, "Creature-2", "Kobold", 0, 0, "Player-2-XYZ", "Other", 0, 0, 5 }
-fire("COMBAT_LOG_EVENT_UNFILTERED")
-gametime = gametime + 20  -- old hits are forgotten
+-- No hostile target: no killer.
+foe = nil
 at(0.7, 0.7)
 out = {}
 fire("PLAYER_DEAD")
@@ -141,19 +141,16 @@ page("forget all")
 need("Forgot 1 death", "forget all")
 need("No deaths remembered", "empty after forget all")
 
--- Repeat offenders and the environment.
-cleu = { 0, "SWING_DAMAGE", false, "Creature-1", "Defias Thug", 0, 0, "Player-1-ABC", "Juan", 0, 0, 5 }
-for _ = 1, 2 do fire("COMBAT_LOG_EVENT_UNFILTERED"); fire("PLAYER_DEAD") end
-cleu = { 0, "ENVIRONMENTAL_DAMAGE", false, nil, nil, 0, 0, "Player-1-ABC", "Juan", 0, 0, "FALLING", 300 }
-fire("COMBAT_LOG_EVENT_UNFILTERED"); fire("PLAYER_DEAD")
+-- Repeat offenders.
+foe = "Defias Thug"
+for _ = 1, 2 do fire("PLAYER_DEAD") end
+foe = nil
 page("")
 need("Repeat offenders: Defias Thug x2", "repeat offenders")
-need("killed by Falling", "environmental death named")
 
 -- No combat log: the hostile target at death names the killer.
 gametime = gametime + 30
-UnitExists = function(u) return u == "target" end
-UnitCanAttack = function() return true end
+foe = "x"
 local realUnitName = UnitName
 UnitName = function(u) if u == "target" then return "Murloc Raider" end return realUnitName(u) end
 out = {}
@@ -164,27 +161,6 @@ out = {}
 fire("PLAYER_DEAD")
 check(not has(" to "), "secret target name is left out")
 UnitName = realUnitName
-
--- Registering the combat log may be refused; loading must still work.
-do
-    local saved = CreateFrame
-    CreateFrame = function()
-        local f2 = saved()
-        f2.RegisterEvent = function(self, e)
-            if e == "COMBAT_LOG_EVENT_UNFILTERED" then error("forbidden") end
-            self.registered[e] = true
-        end
-        return f2
-    end
-    local ok2, err2 = pcall(function() assert(loadfile(base .. "/DeathNotes/DeathNotes.lua"))("DeathNotes", {}) end)
-    check(ok2, "loads when the combat log is refused: " .. tostring(err2))
-    CreateFrame = saved
-end
-
--- Secret values never leak.
-cleu = { 0, SECRET, false, "Creature-1", SECRET, 0, 0, SECRET, "Juan", 0, 0, 5 }
-local ok = pcall(fire, "COMBAT_LOG_EVENT_UNFILTERED")
-check(ok, "secret combat log values are ignored without error")
 
 if #failures > 0 then
     print("FAILURES (" .. #failures .. "):")

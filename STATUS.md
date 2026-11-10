@@ -15,6 +15,7 @@ Start here when resuming.
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/accept/turn-in/equip/train/cast) and nothing that causes taint errors.
 - NEVER use the world-map canvas pin pool (WorldMapFrame:AddDataProvider / AcquirePin): it caused "ForeverWorld has been blocked from an action" (UNKNOWN()) in game on 2026-11-09. MapPins draws its own overlay frames.
+- NEVER register COMBAT_LOG_EVENT_UNFILTERED or other CallbackEvent events, even in pcall: ADDON_ACTION_FORBIDDEN pop-up. DeathNotes did this on every load; that was the real cause of the ForeverWorld pop-up (removed 2026-11-09, evening). The killer is now taken from your hostile target.
 - Never assign Blizzard globals or tables (e.g. `SlashCmdList = SlashCmdList or {}`); only add our own keys. See research/taint_audit.md.
 - Fine: tooltip lines (TooltipDataProcessor), our frames on the minimap, our own badges anchored over Blizzard buttons, Settings panel (registered out of combat), addon compartment, keybindings, cosmetic alpha on Blizzard's quest tracker.
 - Never replace/hook/rewrite Blizzard functions, never call protected functions.

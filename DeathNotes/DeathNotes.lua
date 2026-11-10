@@ -272,7 +272,6 @@ local LIST_PER_LINE = 1
 
 local db
 local playerGUID
-local lastHit               -- the last thing that damaged you: { name, when }
 local warned = {}           -- death entry -> true while you're still near it
 local nearNow               -- the closest death spot you're currently being warned about
 
@@ -361,14 +360,9 @@ local function StillDangerous(death, level)
     return (tonumber(death.level) or 1) + OUTGROWN_LEVELS > level
 end
 
--- The last creature or player that hit you. Hits older than a few seconds are forgotten, so a
--- fall or drowning after a fight isn't blamed on the fight.
+-- The combat log is closed to addons on Forever, so the enemy you were targeting is the best guess.
+-- The game may hide the name during combat, and then the death is saved without one.
 local function Killer()
-    if lastHit and lastHit.name and GetTime() - lastHit.when < 8 then
-        return lastHit.name
-    end
-    -- Without the combat log, the enemy you were targeting is the best guess. The game may hide
-    -- the name during combat, and then the death is saved without one.
     if UnitExists and UnitCanAttack and Safe(UnitExists("target")) and Safe(UnitCanAttack("player", "target")) then
         local name = UnitName and Safe(UnitName("target"))
         if type(name) == "string" and name ~= "" then
@@ -376,27 +370,6 @@ local function Killer()
         end
     end
     return nil
-end
-
-local function NoteHit()
-    if not (CombatLogGetCurrentEventInfo and playerGUID) then
-        return
-    end
-    local _, subevent, _, _, sourceName, _, _, destGUID = CombatLogGetCurrentEventInfo()
-    subevent, sourceName, destGUID = Safe(subevent), Safe(sourceName), Safe(destGUID)
-    if type(subevent) ~= "string" or destGUID ~= playerGUID then
-        return
-    end
-    if subevent:find("_DAMAGE", 1, true) or subevent == "ENVIRONMENTAL_DAMAGE" then
-        local name = sourceName
-        if subevent == "ENVIRONMENTAL_DAMAGE" then
-            local kind = Safe((select(12, CombatLogGetCurrentEventInfo())))
-            name = type(kind) == "string" and (kind:sub(1, 1):upper() .. kind:sub(2):lower()) or "the environment"
-        end
-        if type(name) == "string" and name ~= "" then
-            lastHit = { name = name, when = GetTime() }
-        end
-    end
 end
 
 local function RecordDeath()
@@ -587,9 +560,9 @@ end
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_DEAD")
--- Midnight-era clients (Forever included) closed the combat log to addons. Where the event is
--- refused, deaths are still recorded, just without the name of what killed you.
-pcall(events.RegisterEvent, events, "COMBAT_LOG_EVENT_UNFILTERED")
+-- Never register COMBAT_LOG_EVENT_UNFILTERED: Forever (Midnight rules) forbids it, and even inside
+-- pcall the attempt raises ADDON_ACTION_FORBIDDEN ("blocked from an action", logged as UNKNOWN()).
+-- The killer is taken from your hostile target instead (see Killer).
 events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         DeathNotesDB = DeathNotesDB or {}
@@ -620,8 +593,6 @@ events:SetScript("OnEvent", function(_, event)
                 end
             end)
         end
-    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        NoteHit()
     elseif event == "PLAYER_DEAD" then
         RecordDeath()
     end

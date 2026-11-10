@@ -108,3 +108,8 @@ and the narration CVar now wait for the end of combat, and QuestTracker's tracke
 secret-safe. Secure buttons (hearth, quest items) are already handled carefully. The overlay badges and
 nameplate markers only anchor our frames to Blizzard's. The remaining "possible" items are QuestMobs nameplate
 anchoring and !ErrorLog's error handler. Both are standard patterns and need only an in-game check.
+
+## Update 2026-11-09 (evening): the real cause
+
+The pop-up came back after the MapPins fix. The Disable/Ignore pop-up is ADDON_ACTION_FORBIDDEN, raised the moment a forbidden call is made. DeathNotes called `pcall(events.RegisterEvent, events, "COMBAT_LOG_EVENT_UNFILTERED")` on every load; that event is a CallbackEvent with restrictions on this client, and pcall does not stop the forbidden-action pop-up. The registration and the combat-log code are removed; the killer now comes from your hostile target at death. No other helper registers a CallbackEvent or calls TargetUnit, CastSpell*, UseAction or RunMacro*. The MapPins and SlashCmdList fixes above stay: they removed real taint risks.
+
