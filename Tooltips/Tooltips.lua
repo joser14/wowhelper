@@ -489,7 +489,24 @@ local function CountIn(places, name)
     return type(value) == "number" and value or 0
 end
 
-local function AddCountLine(tooltip, itemName)
+-- ItemFinder's places (round 4: records keyed by item ID under record.items) and their labels, in order.
+-- Old records keyed by name (record.bags/bank/gear) are still read until ItemFinder rescans them.
+local COUNT_PLACES = { { "bags", "bags", "bags" }, { "keys", "keyring" }, { "bank", "bank", "bank" }, { "gear", "worn", "gear" }, { "mail", "mail" } }
+
+local function CountsOn(record, itemID, itemName)
+    local counts, sum = {}, 0
+    local items = type(record.items) == "table" and record.items or nil
+    for _, place in ipairs(COUNT_PLACES) do
+        local n = (items and CountIn(items[place[1]], itemID) or 0) + (place[3] and CountIn(record[place[3]], itemName) or 0)
+        if n > 0 then
+            counts[#counts + 1] = n .. " " .. place[2]
+            sum = sum + n
+        end
+    end
+    return counts, sum
+end
+
+local function AddCountLine(tooltip, itemName, itemID)
     local db = ItemFinderDB
     if type(db) ~= "table" then
         return
@@ -499,21 +516,22 @@ local function AddCountLine(tooltip, itemName)
     if db[myKey] == nil then
         myKey = ForeverCharacterLegacyKey()
     end
+    local myFaction = Safe(UnitFactionGroup and UnitFactionGroup("player"))
     local total, mine, others = 0, nil, {}
     for key, record in pairs(db) do
         if type(key) == "string" and type(record) == "table" then
-            local bags, bank, worn = CountIn(record.bags, itemName), CountIn(record.bank, itemName), CountIn(record.gear, itemName)
-            local sum = bags + bank + worn
+            local where, sum = CountsOn(record, itemID, itemName)
             if sum > 0 then
                 total = total + sum
                 if key == myKey then
-                    local where = {}
-                    if bags > 0 then where[#where + 1] = bags .. " bags" end
-                    if bank > 0 then where[#where + 1] = bank .. " bank" end
-                    if worn > 0 then where[#where + 1] = worn .. " worn" end
                     mine = ShortName(key, record) .. " " .. table.concat(where, ", ")
                 else
-                    others[#others + 1] = ShortName(key, record) .. " " .. sum
+                    local text = ShortName(key, record) .. " " .. sum
+                    -- Another faction's character can't hand it over directly: say so, dimmed.
+                    if type(record.faction) == "string" and myFaction and record.faction ~= myFaction then
+                        text = "|cff666666" .. text .. " (" .. record.faction .. ")|r|cff999999"
+                    end
+                    others[#others + 1] = { sort = ShortName(key, record), text = text }
                 end
             end
         end
@@ -521,11 +539,15 @@ local function AddCountLine(tooltip, itemName)
     if total == 0 then
         return
     end
-    table.sort(others)
+    table.sort(others, function(a, b) return a.sort < b.sort end)
+    local parts = {}
     if mine then
-        table.insert(others, 1, mine)
+        parts[1] = mine
     end
-    AddPair(tooltip, "You have", total .. " |cff999999(" .. table.concat(others, "; ") .. ")|r")
+    for _, other in ipairs(others) do
+        parts[#parts + 1] = other.text
+    end
+    AddPair(tooltip, "You have", total .. " |cff999999(" .. table.concat(parts, "; ") .. ")|r")
 end
 
 -- Which profession guide steps use each item, worked out once per guide table.
@@ -949,7 +971,7 @@ local function ItemBody(tooltip, data)
         pcall(AddAuctionLine, tooltip, data, id, facts)
     end
     if facts and IsOn("count") and not already.count then
-        pcall(AddCountLine, tooltip, facts.name)
+        pcall(AddCountLine, tooltip, facts.name, id)
     end
     if IsOn("profession") then
         pcall(AddProfessionLine, tooltip, id)
