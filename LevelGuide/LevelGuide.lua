@@ -281,7 +281,11 @@ local K = {
     OUTLEVELED = 4, -- route steps this far below you count as done, so a route can start midway
     ROUTE_WINDOW = 10, -- how many upcoming route steps may be reordered to save walking
     ZONE_MAP_TYPE = 3, -- Enum.UIMapType.Zone: caves and buildings below this report up to their zone
+    NEAR_START_YARDS = 150, -- a move before the next pick-up is behind you when you stand this close to it
 }
+-- Helpers shared between the `do` blocks below (one table, one local) and per-rebuild caches. The arithmetic
+-- lives in Planner.lua (LevelGuidePlanner).
+local X = { places = {} }
 
 local KINDS = {
     turnin = { label = "Turn in", color = "|cff33ff33" },
@@ -331,7 +335,6 @@ local activeRoute
 local lastByTitle, lastZoneMap  -- from the last rebuild, for the route list window and the focus step
 local focusKey                  -- a route step picked in the route list: the arrow points at it until it's done
 local frontiers = {}
-local progressMarks = {}
 local turnedCache = {}
 local offersByNpc, visit = {}, nil  -- what each quest giver offered when you last talked to them
 local VISIT_SECONDS = 60
@@ -854,7 +857,7 @@ local BARRIER = { go = true, zone = true, xp = true, hearth = true }
 local function LogByTitle()
     local byTitle = {}
     frontiers = {}
-    progressMarks = {}
+    X.places = {}
     zoneOffers = {}
     turnedCache = {}
     local byID = {}
@@ -1120,32 +1123,6 @@ local function Frontier(route, byTitle)
         frontiers[route] = earliest
     end
     return frontiers[route]
-end
-
--- The furthest pick-up on the route you've taken (in your log or turned in). A move written before
--- it is behind you even if the addon never saw you reach the spot.
-local function LastProgress(route, byTitle)
-    if progressMarks[route] == nil then
-        local furthest, seen = 0, {}
-        for index, step in ipairs(route.steps) do
-            local part = tonumber(step.part) or 1
-            -- Only a quest part's first pick-up counts: one written twice mustn't move you past everything
-            -- between the two.
-            local key = step.t == "accept" and (step.q .. "#" .. part)
-            if key and not seen[key] then
-                seen[key] = true
-                -- Holding part 1 of a chain says nothing about where part 8's pick-up is. Without a part
-                -- from the quest IDs, the part you hold is the one after those turned in.
-                local held = InLog(byTitle, step.q)
-                local heldPart = held and (held.part or (step.part and TurnedIn(step.q) + 1) or part)
-                if (held and heldPart >= part) or TurnedIn(step.q) >= part then
-                    furthest = index
-                end
-            end
-        end
-        progressMarks[route] = furthest
-    end
-    return progressMarks[route]
 end
 
 -- Prerequisites (Prereqs.lua, from Questie's Forever data): a quest giver only offers a quest once
@@ -1529,7 +1506,7 @@ local function OpenMoveBefore(route, index, level)
     if not (route and index) then
         return false
     end
-    local passed = LastProgress(route, lastByTitle or {})
+    local passed = X.PassedTo(route, lastByTitle or {}, level)
     for earlier = index - 1, 1, -1 do
         local other = route.steps[earlier]
         if earlier < passed then
@@ -1656,6 +1633,102 @@ function ClassMatches(cls)
 end
 end -- utility step helpers
 
+-- Placement from live state (after Polestar's place/anchorStep, research\guides_deep_re.md 1.3 and 12.2),
+-- worked out again on every rebuild from the quest log and completed quests, never stored as an index:
+-- * anchor: the last route step with real progress, a quest turned in or with objectives under way, of a
+--   quest the route gives at or before that step (class-only steps are not evidence). Holding a quest is
+--   not progress. Once the log has loaded (QUEST_LOG_UPDATE) the anchor only moves forward this session,
+--   so dropping a quest doesn't send you back through moves you made.
+-- * start: the first step with a quest you hold, or a pick-up you can take now (IDs known, earlier part
+--   and prerequisites done, level near).
+-- Behind the anchor, utility steps are passed. Before the first quest you hold, moves and pick-ups the game
+-- can't vouch for are passed (Frontier). A move before the start is passed when you stand within 150 yd of
+-- the start. Nothing else is passed: skipped or deferred steps never count as done.
+do
+X.TRAVEL = { go = true, zone = true, hearth = true }
+
+local function HasProgress(questID)
+    for _, objective in ipairs(questID and C_QuestLog.GetQuestObjectives(questID) or {}) do
+        local fulfilled = Safe(objective.numFulfilled)
+        if Safe(objective.finished) or (type(fulfilled) == "number" and fulfilled > 0) then
+            return true
+        end
+    end
+    return false
+end
+
+local function PickupOpen(route, index, step, byTitle, level)
+    return step.t == "accept" and HasIDs(step.q) and level ~= nil and not InLog(byTitle, step.q)
+        and TurnedIn(step.q) == (tonumber(step.part) or 1) - 1 and (not step.lvl or step.lvl <= level + 1)
+        and PrereqsMet(step.q, level)
+end
+
+function X.Placement(route, byTitle, level)
+    local place = X.places[route]
+    if place then
+        return place
+    end
+    place = { anchor = 0 }
+    local given = {}
+    for index, step in ipairs(route.steps) do
+        local quest = step.q and not step.side and (step.t == "accept" or step.t == "do" or step.t == "turnin")
+        if quest and not step.cls then
+            local part = tonumber(step.part) or 1
+            local key = step.q .. "#" .. part
+            given[key] = given[key] or step.t == "accept"
+            if given[key] then
+                local evidence = TurnedIn(step.q) >= part
+                if not evidence and step.t ~= "accept" then
+                    local entry = HeldPart(byTitle, step)
+                    evidence = entry ~= nil and (entry.ready or HasProgress(entry.id))
+                end
+                if evidence then
+                    place.anchor = index
+                end
+            end
+        end
+        if not place.start and not step.side and ClassMatches(step.cls) and not charData.skips[RouteKey(route, index)] then
+            if (quest and HeldPart(byTitle, step)) or PickupOpen(route, index, step, byTitle, level) then
+                place.start = index
+            end
+        end
+    end
+    X.latched = X.latched or setmetatable({}, { __mode = "k" })
+    if X.logSeen then
+        X.latched[route] = math.max(X.latched[route] or 0, place.anchor)
+    end
+    place.anchor = math.max(place.anchor, X.latched[route] or 0)
+    X.places[route] = place
+    return place
+end
+
+-- How far the route is behind you: the anchor, or the first quest you hold.
+function X.PassedTo(route, byTitle, level)
+    return math.max(X.Placement(route, byTitle, level).anchor, Frontier(route, byTitle) or 0)
+end
+
+-- A move written before the start step, while you stand within NEAR_START_YARDS of that step.
+function X.NearStart(route, index, place)
+    if not (place.start and index < place.start) then
+        return false
+    end
+    if place.near == nil then
+        place.near = false
+        local start = route.steps[place.start]
+        local zoneMap = start.x and start.y and not start.map and ZoneMap(route.zone)
+        local px, py
+        if zoneMap then
+            px, py = PositionOn(zoneMap)
+        end
+        if px and py then
+            local yards, isYards = Distance(zoneMap, px, py, start.x / 100, start.y / 100)
+            place.near = isYards and yards <= K.NEAR_START_YARDS or false
+        end
+    end
+    return place.near
+end
+end -- placement
+
 local function RouteStepDone(route, index, step, byTitle, level)
     local key = RouteKey(route, index)
     if charData.skips[key] then
@@ -1706,18 +1779,22 @@ local function RouteStepDone(route, index, step, byTitle, level)
             end
         end
     end
-    -- Behind the frontier: moves are behind you, and so are pick-ups the game can't vouch for.
-    -- A pick-up with quest IDs is asked of the game instead, so one you took out of order still shows.
+    -- Behind the frontier (the first quest you hold): moves are behind you, and so are pick-ups the game
+    -- can't vouch for. A pick-up with quest IDs is asked of the game instead, so one you took out of order
+    -- still shows. Hearth, training and items before it are not: holding a quest isn't progress (X.Placement).
     local frontier = Frontier(route, byTitle)
-    -- Utility steps behind it count as behind you too (except an XP gate, which the game can answer).
-    if frontier and index < frontier and ((UTILITY[step.t] and step.t ~= "xp") or (step.t == "accept" and not HasIDs(step.q))) then
+    if frontier and index < frontier and (X.TRAVEL[step.t] or (step.t == "accept" and not HasIDs(step.q))) then
         return true
     end
     if Outleveled(step, level) then
         return true
     end
     if UTILITY[step.t] then
-        return UtilityDone(step, key, level, route, index) or index < LastProgress(route, byTitle)
+        if UtilityDone(step, key, level, route, index) then
+            return true
+        end
+        local place = X.Placement(route, byTitle, level)
+        return index < place.anchor or (X.TRAVEL[step.t] and X.NearStart(route, index, place)) or false
     end
     local turnedIn = TurnedIn(step.q)
     local part = tonumber(step.part) or 1
@@ -3608,6 +3685,10 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         end
     end
     questID = Safe(questID)
+    if event == "QUEST_LOG_UPDATE" then
+        -- The log has loaded: placement may latch from now on (never from an empty log at login).
+        X.logSeen = true
+    end
     if event == "QUEST_ACCEPTED" or event == "QUEST_TURNED_IN" then
         -- Grace entries only matter for seconds; old ones go so the tables stay small.
         for _, list in ipairs({ recentAccepts, recentTurnins }) do

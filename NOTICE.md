@@ -44,7 +44,19 @@ these sources:
 - `LevelGuide\QuestDB.lua` is generated from forever-db's GPL-3.0 tables by `tools\gen_questdb.js`; its
   elite / timed / escort flags also use forever-db's `mechanic` table, (c) the Polestar project, licensed
   CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); only the flag letters are used, unchanged in meaning.
+- `LevelGuide\QuestXP.lua` (quest XP rewards, and the kills objectives take from npc levels and drop chances)
+  is generated from forever-db's GPL-3.0 tables by `tools\gen_questxp.js`; the same credits apply.
 - **Questie** Forever data (Questie team), GPL, used for quest IDs, givers and coordinates.
+
+## Code credits
+
+- **Polestar** (https://github.com/fitzforge/polestar), Copyright (c) 2026 The Polestar authors, GPL-3.0-only.
+  `LevelGuide\Planner.lua` ports its XP model (`addon\Polestar\Core\Levels.lua`: the level table, quest XP
+  share, grey level, zero-difference and mob XP formulas, and the route XP simulation), changed for LevelGuide.
+  Because this code is GPL-3.0-only, the combined work is distributed under the GPL version 3 only.
+  Other LevelGuide features (placement from the quest log, "not offered" marks, while-you're-here, arrow
+  damping, spawn-camp circuit, server quest levels, lost quests) are our own code written after the ideas
+  described in `research\guides_deep_re.md`.
 - Web references for individual facts: wow4ever.quest, foreverchanges.pro, wowhead classic, warcraft.wiki.gg.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under

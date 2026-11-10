@@ -120,6 +120,9 @@ function M.load(base, setup)
     assert(loadfile(base .. "/Prereqs.lua"))("LevelGuide", {})
     assert(loadfile(base .. "/Routes.lua"))("LevelGuide", {})
     if setup then setup() end
+    -- Planner.lua (the guide's arithmetic) loads before LevelGuide.lua, as in the .toc.
+    local planner = loadfile(base .. "/Planner.lua")
+    if planner then planner("LevelGuide", {}) end
     assert(loadfile(base .. "/LevelGuide.lua"))("LevelGuide", {})
     M.events = M.frames[1]
     M.events.scripts.OnEvent(M.events, "PLAYER_LOGIN")

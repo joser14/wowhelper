@@ -11,7 +11,7 @@ $map = @{
   'test14.lua' = "$w\LevelGuide\LevelGuide.lua"
   'test_lg_teldrassil.lua' = "$w\LevelGuide"; 'test_lg_side.lua' = "$w\LevelGuide"; 'test_lg_engine.lua' = "$w\LevelGuide"; 'test_lg_route_data.lua' = "$w\LevelGuide"
   'test_lg_legs.lua' = "$w\LevelGuide"; 'test_lg_ne_route.lua' = "$w\LevelGuide"; 'test_lg_20_60.lua' = "$w\LevelGuide"; 'test_lg_db.lua' = "$w\LevelGuide"; 'test_lg_db_guide.lua' = "$w\LevelGuide"
-  'test_lg_faction.lua' = "$w\LevelGuide"; 'test_lg_givers.lua' = "$w\LevelGuide"
+  'test_lg_faction.lua' = "$w\LevelGuide"; 'test_lg_givers.lua' = "$w\LevelGuide"; 'test_lg_place.lua' = "$w\LevelGuide"
   'test16.lua' = "$w\LevelGuide";'test16_pre.lua' = "$w\LevelGuide"; 'test17.lua' = "$w\LevelGuide"; 'test18.lua' = "$w\LevelGuide"
 }
 Push-Location $t

@@ -10,4 +10,6 @@ Prereqs.lua
 QuestDB.lua
 QuestLookup.lua
 Routes.lua
+QuestXP.lua
+Planner.lua
 LevelGuide.lua
