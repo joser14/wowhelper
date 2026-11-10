@@ -550,6 +550,78 @@ local function AddCountLine(tooltip, itemName, itemID)
     AddPair(tooltip, "You have", total .. " |cff999999(" .. table.concat(parts, "; ") .. ")|r")
 end
 
+-- Round 4 R21: Forever's Waylaid Crates (items 248682-248713) list their bundles as "- 20 Soul Dust" lines under
+-- "Use:" (format checked in game by Alts Forever, MIT; idea only). Each bundle gets the counts from ItemFinder on
+-- the characters that can mail it to you (same realm and faction; old records without either count too).
+local function IsCrate(id, facts)
+    return (id >= 248682 and id <= 248713) or (facts and type(facts.name) == "string" and facts.name:find("^Waylaid ") ~= nil)
+end
+
+local function CountByName(record, name)
+    local id
+    for itemID, itemName in pairs(type(record.names) == "table" and record.names or {}) do
+        if itemName == name then
+            id = itemID
+            break
+        end
+    end
+    local _, sum = CountsOn(record, id, name)
+    return sum
+end
+
+local function AddCrateLines(tooltip, data, id, facts)
+    if not IsCrate(id, facts) or type(data.lines) ~= "table" or type(ItemFinderDB) ~= "table" then
+        return
+    end
+    local myKey = MyKey()
+    if ItemFinderDB[myKey] == nil then
+        myKey = ForeverCharacterLegacyKey()
+    end
+    local myFaction = Safe(UnitFactionGroup and UnitFactionGroup("player"))
+    local myRealm = Safe(GetRealmName and GetRealmName())
+    local afterUse = false
+    for _, line in ipairs(data.lines) do
+        local text = type(line) == "table" and Safe(line.leftText)
+        if type(text) == "string" then
+            if text:find("^Use:") then
+                afterUse = true
+            end
+            local need, material = text:match("^%s*%-%s*(%d+)%s+(.-)%s*$")
+            need = tonumber(need)
+            if afterUse and need and material ~= "" then
+                local mine, others, total = nil, {}, 0
+                for key, record in pairs(ItemFinderDB) do
+                    local mailable = type(record) == "table"
+                        and not (type(record.faction) == "string" and myFaction and record.faction ~= myFaction)
+                        and not (type(record.realm) == "string" and myRealm and record.realm ~= myRealm)
+                    local count = mailable and CountByName(record, material) or 0
+                    if count > 0 then
+                        total = total + count
+                        if key == myKey then
+                            mine = "you " .. count
+                        else
+                            others[#others + 1] = ShortName(key, record) .. " " .. count
+                        end
+                    end
+                end
+                table.sort(others)
+                if mine then
+                    table.insert(others, 1, mine)
+                end
+                local verdict, r, g, b
+                if total == 0 then
+                    verdict, r, g, b = "none", 0.6, 0.6, 0.6
+                elseif total >= need then
+                    verdict, r, g, b = table.concat(others, ", ") .. " - enough", 0.2, 1, 0.2
+                else
+                    verdict, r, g, b = table.concat(others, ", ") .. " - " .. (need - total) .. " short", 1, 0.6, 0.2
+                end
+                tooltip:AddLine(material .. " " .. need .. ": " .. verdict, r, g, b)
+            end
+        end
+    end
+end
+
 -- Which profession guide steps use each item, worked out once per guide table.
 local professionIndex, indexedGuide
 
@@ -1003,6 +1075,9 @@ local function ItemBody(tooltip, data)
     end
     if facts and IsOn("count") and not already.count then
         pcall(AddCountLine, tooltip, facts.name, id)
+    end
+    if IsOn("count") then
+        pcall(AddCrateLines, tooltip, data, id, facts)
     end
     if IsOn("profession") then
         pcall(AddProfessionLine, tooltip, id)
