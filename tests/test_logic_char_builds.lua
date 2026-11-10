@@ -89,6 +89,43 @@ treeOrder = { 50 }
 local p = page()
 check(has(p, "Shadow raid"), "level-60 shadow priest defaults to the Shadow raid build:\n" .. p)
 
+-- 1b. Review 2026-11-10: at 60, a priest who followed the leveling build point for point and has the
+-- 51st point to spend is told that build's last talent, not switched to a raid build for one point.
+do
+    local points = BuildsData.PRIEST.leveling.points
+    local subOf, ranks, maxOf, order = {}, {}, {}, {}
+    for index, point in ipairs(points) do
+        if not subOf[point.tree] then
+            subNames[#subNames + 1] = point.tree
+            subOf[point.tree] = #subNames
+        end
+        if not maxOf[point.talent] then order[#order + 1] = point end
+        maxOf[point.talent] = math.max(maxOf[point.talent] or 0, point.rank or 1)
+        if index < #points then ranks[point.talent] = point.rank or 1 end
+    end
+    subNames = {}
+    subOf = {}
+    for _, point in ipairs(order) do
+        if not subOf[point.tree] then
+            subNames[#subNames + 1] = point.tree
+            subOf[point.tree] = #subNames
+        end
+    end
+    local nodes = {}
+    for index, point in ipairs(order) do
+        -- One row, so the tier rule never holds a point back here.
+        nodes[#nodes + 1] = { point.talent, subOf[point.tree], ranks[point.talent] or 0, maxOf[point.talent], index * 10, 100 }
+    end
+    trees = { [55] = { nodes = nodes } }
+    treeOrder = { 55 }
+    unspent = 1
+    local last = points[#points]
+    local q = page()
+    check(has(q, "goal: Leveling"), "level 60, last leveling point: still the leveling build:\n" .. q)
+    check(has(q, "Next talent:|r " .. last.talent), "the leveling build's last talent next (" .. last.talent .. "):\n" .. q)
+    unspent = 0
+end
+
 -- 2. One tree, no sub-trees, no tree titles, no tab names: three columns found by the gaps between them.
 -- The third tree has nothing in its right-most column, so equal thirds of the width would put the
 -- second tree's right-most column (x = 800) into tree 3.

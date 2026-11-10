@@ -292,14 +292,21 @@ local function SafeCrafts(from, to, yellow, grey)
 end
 
 -- Crafts left in this step from your skill. Steps that also stock parts for later steps (bolts, stones)
--- plan more crafts than the skill needs; that extra is kept.
+-- plan more crafts than the skill needs: then what's left is whichever is more, the crafts for the skill
+-- or the parts still missing from the stock (the parts you own, bought or made, count).
 local function CraftsLeft(step, rank)
     local start = math.max(rank, step.from)
     if step.yellow and step.grey then
         local whole = SafeCrafts(step.from, step.to, step.yellow, step.grey)
         local left = SafeCrafts(start, step.to, step.yellow, step.grey)
         if whole and left then
-            return left + math.max((step.crafts or whole) - whole, 0)
+            local planned = step.crafts or whole
+            if planned <= whole or not step.itemID then
+                return left + math.max(planned - whole, 0)
+            end
+            local makes = step.makes or 1
+            local missing = math.max(planned * makes - Owned(step.itemID), 0)
+            return math.max(left, math.ceil(missing / makes))
         end
     end
     local crafts = step.crafts or (step.to - step.from)
@@ -316,11 +323,19 @@ local function MatsLeft(step, crafts)
     return rows
 end
 
--- How many crafts you could make right now from what you own.
+-- What's in your bags: you can only craft from these, not from the bank.
+local function InBags(itemID)
+    if not (C_Item and C_Item.GetItemCount) then
+        return 0
+    end
+    return Safe(C_Item.GetItemCount(itemID, false)) or 0
+end
+
+-- How many crafts you could make right now from what you carry.
 local function CraftsReady(step)
     local ready
     for _, mat in ipairs(step.mats or {}) do
-        local can = math.floor(Owned(mat.itemID) / mat.count)
+        local can = math.floor(InBags(mat.itemID) / mat.count)
         ready = ready and math.min(ready, can) or can
     end
     return ready or 0
@@ -487,7 +502,10 @@ local function ShowMats(rows)
         local color = missing == 0 and "|cff66dd66" or "|cffffffff"
         local vendor = row.mat.vendor and " |cff999999(vendor)|r" or ""
         if missing == 0 then
-            Print(string.format("    %s%s|r %d/%d, ready%s", color, row.mat.name, row.have, row.need, vendor))
+            -- Owned counts the bank (nothing is bought twice), but only what you carry can be crafted.
+            local carried = InBags(row.mat.itemID)
+            local where = carried < row.need and string.format(", %d in the bank", row.have - carried) or ""
+            Print(string.format("    %s%s|r %d/%d, ready%s%s", color, row.mat.name, row.have, row.need, where, vendor))
         else
             Print(string.format("    %s%s|r %d/%d, need %d more%s", color, row.mat.name, row.have, row.need, missing, vendor))
         end
@@ -505,6 +523,10 @@ local function ShowProfession(profession)
     if not step then
         Print("    Path complete. Nothing left to level.")
         return
+    end
+    if profession.rank >= profession.maxRank and profession.maxRank < 300 then
+        -- At the cap no craft gives a point (ProfessionCap says which rank and where).
+        Print("    |cffff9933Capped: train the next rank first. Crafting now gives no skill.|r")
     end
     if step.gather then
         Print(string.format("    Now: gather %s until %d", step.gather, step.to))

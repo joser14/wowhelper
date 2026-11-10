@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## OptionalDeps: ForeverHub
 ## Title: Landmarks
-## Notes: Remembers every vendor, repairer, innkeeper, flight master, mailbox, bank and trainer you visit, and shows the nearest one. Only gives information.
+## Notes: Remembers every vendor, repairer, innkeeper, flight master, mailbox, bank and trainer you visit, shows the nearest one, and learns flight times from your own flights. Only gives information.
 ## Version: 0.1.0
 ## SavedVariables: LandmarksDB
 

@@ -231,6 +231,7 @@ local CLASSIC_ZONE = {
 
 local LAYERS = {
     { key = "guide", label = "Guide stops", helper = "LevelGuide" },
+    { key = "givers", label = "Quest givers", helper = "LevelGuide" },
     { key = "places", label = "Places", helper = "Landmarks" },
     { key = "deaths", label = "Deaths", helper = "DeathNotes" },
     { key = "rares", label = "Rares", helper = "RareWatch" },
@@ -245,6 +246,8 @@ end
 -- Icons: an atlas when this client has it, else a plain texture. Icon textures get their border trimmed.
 local ICONS = {
     guide = { atlas = "Waypoint-MapPin-Tracked", file = "Interface\\Icons\\INV_Misc_Map_01", size = 20 },
+    accept = { atlas = "QuestNormal", file = "Interface\\GossipFrame\\AvailableQuestIcon" },
+    turnin = { atlas = "QuestTurnin", file = "Interface\\GossipFrame\\ActiveQuestIcon" },
     repair = { file = "Interface\\Minimap\\Tracking\\Repair" },
     vendor = { file = "Interface\\Minimap\\Tracking\\Reagents" },
     food = { file = "Interface\\Minimap\\Tracking\\Food" },
@@ -433,6 +436,30 @@ local function GuideStops(list)
     end
 end
 
+-- Quest givers from LevelGuide's routes: "!" for a quest you can pick up now, "?" for one to hand in.
+local function Givers(list)
+    if type(LevelGuide_QuestGivers) ~= "function" then
+        return
+    end
+    local ok, givers = pcall(LevelGuide_QuestGivers)
+    if not ok or type(givers) ~= "table" then
+        return
+    end
+    for _, giver in ipairs(givers) do
+        if type(giver) == "table" then
+            local zone = Text(giver.zone)
+            local turnin = giver.kind == "turnin"
+            local level = Safe(giver.level)
+            Add(list, "givers", {
+                mapID = ResolveMap(zone, {}), zone = zone, x = Fraction(giver.x), y = Fraction(giver.y),
+                icon = turnin and ICONS.turnin or ICONS.accept,
+                title = (turnin and "Hand in: " or "Quest: ") .. (Text(giver.title) or "?"),
+                lines = { Text(giver.npc), (not turnin and level) and ("Level " .. tostring(level)) or nil },
+            })
+        end
+    end
+end
+
 local function RealmTable(saved, field)
     if type(saved) ~= "table" then
         return nil
@@ -528,7 +555,7 @@ local function Dungeons(list)
     end
 end
 
-local SOURCES = { guide = GuideStops, places = Places, deaths = Deaths, rares = Rares, farms = Farms, dungeons = Dungeons }
+local SOURCES = { guide = GuideStops, givers = Givers, places = Places, deaths = Deaths, rares = Rares, farms = Farms, dungeons = Dungeons }
 
 local function LayerOn(key)
     return db and db.layers[key] ~= false and not IsOff(LAYER[key].helper)
@@ -577,6 +604,10 @@ local function Signature()
     -- A helper switched on or off in the hub shows or hides its layer.
     for _, layer in ipairs(LAYERS) do
         parts[#parts + 1] = IsOff(layer.helper) and "x" or "o"
+    end
+    if type(LevelGuide_QuestGivers) == "function" then
+        local ok, _, key = pcall(LevelGuide_QuestGivers)
+        parts[#parts + 1] = ok and tostring(key) or "-"
     end
     if type(LevelGuide_UpcomingStops) == "function" then
         -- Every stop, not just the first: finishing point 2 of 3 changes only a later one.
@@ -1091,6 +1122,7 @@ end
 
 local AVAILABLE = {
     guide = function() return type(LevelGuide_UpcomingStops) == "function" end,
+    givers = function() return type(LevelGuide_QuestGivers) == "function" end,
     places = function() return LandmarksDB ~= nil end,
     deaths = function() return DeathNotesDB ~= nil end,
     rares = function() return RareWatchDB ~= nil end,

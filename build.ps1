@@ -37,7 +37,7 @@ $Bundles = [ordered]@{
                             Modules = @('ItemAdvisor', 'BagCheck', 'ItemFinder', 'PriceMemory', 'FoodCheck', 'SupplyWatch', 'DurabilityWatch', 'Tooltips', 'WindowBadges') }
     'ForeverCharacter' = @{ Title = 'Forever Character'; Notes = 'Talents, trainer, weapon skills, rested XP, level log, reputation, spell ranks and buffs.'
                             Modules = @('TalentNudge', 'Builds', 'TrainerNotes', 'WeaponSkillWatch', 'RestGuard', 'LevelLog', 'RepWatch', 'ReadyCheck') }
-    'ForeverWorld'     = @{ Title = 'Forever World'; Notes = 'Remembered places, death spots and rare alerts.'
+    'ForeverWorld'     = @{ Title = 'Forever World'; Notes = 'Remembered places and flight times, death spots, drowning warnings, rare alerts, quest givers on the map and /way.'
                             Modules = @('Landmarks', 'DeathNotes', 'RareWatch', 'MapPins') }
 }
 

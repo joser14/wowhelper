@@ -12,25 +12,34 @@ no auto-selling, auto-buying, auto-equipping, auto-training, targeting, moving o
 > Status: early. Every helper is covered by automated tests, but the suite has only just been installed in game.
 > Expect rough edges, and check the hub's **Errors** page if something looks wrong.
 >
-> Last full review: 10 November 2026. It found and fixed 19 bugs; see `research\review_2026-11-10.md`. The most
-> important fixes:
+> Last full review: 10 November 2026. Every helper was read; 31 bugs were found and fixed, each listed in
+> `research\review_2026-11-10.md`. The most important fixes:
 > - ItemAdvisor could call a worse item an upgrade when it lost spell power.
 > - The XP rate missed level-ups gained while XP was hidden.
+> - At 60, Builds switched to a raid build for your last leveling talent point.
+> - ProfessionGuide asked for stock you already had.
+
+## New on 10 November 2026
+
+| Feature | Where | What it does |
+|---|---|---|
+| **Quest givers on the map** | MapPins, from LevelGuide | A yellow **!** on the world map and minimap at each quest you can pick up now. "Now" means: within your level range, not in your log, earlier parts of its chain done, and its prerequisites done. A **?** shows where to hand in each finished quest. The quests come from the leveling routes, so they cover the Alliance zones those routes cover. Switch the layer off with `/mappins off givers`. |
+| **Drowning and fatigue warning** | DeathNotes | A large warning in the middle of the screen, a sound and a taskbar flash when your breath or deep-water fatigue has 15 seconds left, and again at 5. |
+| **XP from quests and from kills** | LevelLog | Each level shows how much XP came from turn-ins and how much from kills and exploring, plus a running total. Counting starts with this version. |
+| **Flight times** | Landmarks | Learned from your own flights, averaged, and shown at the flight master ("Flight times from here: ...") and on the Places page. |
+| **`/way`** | MapPins | `/way 45.2 58.5`, `/way Darkshore 45.2 58.5` or `/way clear`. Uses the game's own map pin, so its on-screen marker points you there, and the pin clears when you arrive. |
 
 ## Compared with other addons
 
 `research\compare_2026-11-10.md` puts every helper next to the addons people use for the same job:
 RestedXP, Questie, Auctionator, Pawn, Baganator, TomTom and others. For each one it lists what those addons
-have that we don't, and where ours does better. The biggest gaps:
+have that we don't, and where ours does better. The quest givers, drowning warning, XP split, flight times
+and `/way` listed there as gaps are now built (above). Still missing:
 
 - **Horde leveling routes.** Ours are Alliance only.
 - **A step-by-step Skyborne route** for levels 1-13. Today the guide only names the zone.
-- **Questie-style markers** for every quest giver on the map.
-- **Smaller missing features:**
-  - a drowning warning;
-  - XP split between quests and kills;
-  - flight times;
-  - a `/way` command.
+- **Quest givers outside the routes.** Questie marks every quest in its database; ours marks the quests in
+  our routes.
 
 Features that would play for you (auto-sell, auto-train and the like) are left out on purpose.
 
@@ -44,8 +53,8 @@ The 30-odd helpers are installed as six addons:
 | **Forever Guides** | LevelGuide, ProfessionGuide, ProfessionCap, GoldGuide, GoldGoal, Dungeons | A step-by-step leveling route with an arrow, built from Forever quest data (Alliance only for now, see below); profession guides from 1 to 300 for all 12 professions; gold farms for your level and professions; a riding or custom gold goal; a guide to the 35 dungeons, Forever's new ones included. |
 | **Forever Quests** | QuestTracker, QuestCheck, ZoneLevels, QuestMobs, AutoQuest | A cleaner quest tracker, quest log checks, zone level warnings, markers with progress (like 3/8) beside enemies you still need, and quests accepted and turned in for you at NPCs you talk to (hold Shift to pause). |
 | **Forever Bags** | ItemAdvisor, BagCheck, ItemFinder, PriceMemory, FoodCheck, SupplyWatch, DurabilityWatch, Tooltips, WindowBadges | Equip, keep, sell or auction advice on every item; item search across all your characters; auction prices remembered from your own searches; extra tooltip lines (vendor price, last auction price, how many you own, where it drops, which quest needs it); badges on vendor, trainer and quest-reward windows; food, supplies and repair warnings. |
-| **Forever Character** | Builds, TalentNudge, TrainerNotes, ReadyCheck, WeaponSkillWatch, RestGuard, LevelLog, RepWatch | Talent builds for all nine classes (leveling, PvP, tank, healer, damage) with the next talent to take; old spell ranks on your bars and missing buffs; trainer reminders; weapon skill, rested XP, level times and reputation. |
-| **Forever World** | Landmarks, MapPins, DeathNotes, RareWatch | Remembers vendors, inns, flight masters, mailboxes, banks and trainers you visit and finds the nearest; pins on the world map and minimap; remembers where you died and warns when you walk back; rare sightings and a layer estimate. |
+| **Forever Character** | Builds, TalentNudge, TrainerNotes, ReadyCheck, WeaponSkillWatch, RestGuard, LevelLog, RepWatch | Talent builds for all nine classes (leveling, PvP, tank, healer, damage) with the next talent to take; old spell ranks on your bars and missing buffs; trainer reminders; weapon skill, rested XP, level times, XP from quests against kills, and reputation. |
+| **Forever World** | Landmarks, MapPins, DeathNotes, RareWatch | Remembers vendors, inns, flight masters, mailboxes, banks and trainers you visit, finds the nearest, and learns flight times; pins on the world map and minimap, including quest givers (! and ?) and a `/way` command; remembers where you died, warns when you walk back, and warns when you're about to drown; rare sightings and a layer estimate. |
 
 ### Leveling routes: who they cover
 

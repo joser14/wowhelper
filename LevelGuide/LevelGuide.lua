@@ -3502,3 +3502,86 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
     end
     dirty = true
 end)
+
+-- Quest givers for the map (MapPins' "Quest givers" layer), the way Questie marks them: every pick-up on
+-- the written routes you could take now (not in your log, not done, its earlier parts and prerequisites
+-- done, within a few levels of yours), and where to hand in what's finished. From the routes, so
+-- Alliance quests in zones a route covers; the game's own map shows the rest. Never acts.
+do -- (a block, so its helpers don't count toward the file's 200-local limit)
+    -- One table, not several locals: this file is at Lua's 200-local limit.
+    local G = { above = 1, below = 7 }
+
+    -- The map a step's spot is on: its own (On()), a city named in the giver's text, else the route's zone.
+    function G.StepZone(route, step)
+        if step.map then
+            return step.map
+        end
+        local text = step.npc or ""
+        for _, city in ipairs(CITIES) do
+            if text:find(", " .. city, 1, true) then
+                return city
+            end
+        end
+        return route.zone
+    end
+
+    function G.Build(level)
+        local list, seen, keys = {}, {}, {}
+        for _, chain in pairs(LevelGuideRoutes.chains or {}) do
+            for _, route in ipairs(type(chain) == "table" and chain or {}) do
+                for _, step in ipairs(type(route) == "table" and route.steps or {}) do
+                    if (step.t == "accept" or step.t == "turnin") and step.q and step.x and step.y and not step.side
+                        and ClassMatches(step.cls) then
+                        local part = tonumber(step.part) or 1
+                        local id = step.t .. "|" .. step.q .. "|" .. part
+                        if not seen[id] then
+                            seen[id] = true
+                            local show
+                            if step.t == "accept" then
+                                local lvl = tonumber(step.lvl) or level
+                                show = not InLog(lastByTitle, step.q) and TurnedIn(step.q) == part - 1
+                                    and lvl <= level + G.above and lvl >= level - G.below
+                                    and PrereqsMet(step.q, level)
+                            else
+                                local entry = HeldPart(lastByTitle, step)
+                                show = entry and entry.ready or false
+                            end
+                            if show then
+                                list[#list + 1] = { kind = step.t, title = step.q, npc = step.npc, level = step.lvl,
+                                    zone = G.StepZone(route, step), x = step.x / 100, y = step.y / 100 }
+                                keys[#keys + 1] = id
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        table.sort(keys)
+        return list, table.concat(keys, ";")
+    end
+
+    -- { { kind = "accept"|"turnin", title, npc, level, zone, x, y (0-1) } }, plus a key that changes when the
+    -- list does. Worked out again after each of the guide's own rebuilds, or when your level changes.
+    function LevelGuide_QuestGivers()
+        if not (charData and lastByTitle and type(LevelGuideRoutes) == "table" and RoutesForYou()) then
+            return {}, ""
+        end
+        local level = UnitLevel and Safe(UnitLevel("player"))
+        if type(level) ~= "number" then
+            return G.cache or {}, G.key or ""
+        end
+        if not (G.cache and G.forLog == lastByTitle and G.level == level) then
+            local ok, list, key = pcall(G.Build, level)
+            if ok then
+                G.cache, G.key = list, key
+            else
+                G.cache, G.key = {}, ""
+                if geterrorhandler then
+                    geterrorhandler()(list)
+                end
+            end
+            G.forLog, G.level = lastByTitle, level
+        end
+        return G.cache, G.key
+    end
+end

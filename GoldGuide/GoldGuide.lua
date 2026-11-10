@@ -252,11 +252,12 @@ local function Professions()
     for position = 1, MAX_PROFESSION_SLOTS do
         local index = Safe(slots[position])
         if index then
-            local name, _, _, _, _, _, skillLine = GetProfessionInfo(index)
-            name, skillLine = Safe(name), Safe(skillLine)
+            local name, _, rank, _, _, _, skillLine = GetProfessionInfo(index)
+            name, rank, skillLine = Safe(name), Safe(rank), Safe(skillLine)
             local line = PROFESSION_NAME[skillLine] and skillLine or GATHERING_BY_NAME[name]
             if line then
-                have[line] = true
+                -- Your skill when the game says, else just "you have it".
+                have[line] = type(rank) == "number" and rank or true
             end
         end
     end
@@ -420,8 +421,13 @@ local function BestFarms(level)
     local mine, open, other = {}, {}, {}
     for _, farm in ipairs(farms) do
         if Matches(farm, level) then
-            if farm.profession and have[farm.profession] then
+            local skill = farm.profession and have[farm.profession]
+            -- A vein or herb your skill can't gather yet is no farm for you (yet).
+            local tooLow = type(skill) == "number" and farm.minSkill and skill < farm.minSkill
+            if skill and not tooLow then
                 mine[#mine + 1] = farm
+            elseif tooLow then
+                other[#other + 1] = farm
             elseif not farm.profession then
                 open[#open + 1] = farm
             else
@@ -527,7 +533,13 @@ end
 local function FarmLine(number, farm, mine)
     local tag = ""
     if farm.profession then
-        tag = string.format(" |cff88bbee[%s%s]|r", PROFESSION_NAME[farm.profession] or "Gathering", mine and "" or ", you don't have it")
+        local why = ""
+        if not mine then
+            why = ", you don't have it"
+        elseif type(mine) == "number" and farm.minSkill and mine < farm.minSkill then
+            why = string.format(", needs skill %d (you have %d)", farm.minSkill, mine)
+        end
+        tag = string.format(" |cff88bbee[%s%s]|r", PROFESSION_NAME[farm.profession] or "Gathering", why)
     end
     return string.format("|cffffd100%d.|r %s |cff999999- %s, level %d-%d|r%s", number, farm.name, farm.zone, farm.minLevel, farm.maxLevel, tag)
 end
@@ -545,6 +557,12 @@ end
 local function MapName(mapID)
     local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
     return type(info) == "table" and Safe(info.name) or nil
+end
+
+-- Zone names in the data are English.
+local function EnglishClient()
+    local locale = GetLocale and Safe(GetLocale())
+    return locale == nil or locale == "enUS" or locale == "enGB"
 end
 
 -- The map to pin on: the first of the zone's map IDs the game takes a waypoint on, preferring one whose
@@ -568,8 +586,9 @@ local function PinMap(farm)
             if name and name:lower() == farm.zone:lower() then
                 return id
             end
-            -- With no name to compare, take the first map that accepts a waypoint.
-            if not name and not fallback then
+            -- With no name to compare, take the first map that accepts a waypoint. On a client in
+            -- another language the names never match, so the farm's own (Classic) map is used.
+            if not fallback and (not name or not EnglishClient()) then
                 fallback = id
             end
         end

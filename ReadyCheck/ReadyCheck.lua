@@ -75,7 +75,7 @@ local REAGENTS = {
         { item = 17057, name = "Shiny Fish Scales", spells = { "Water Breathing" } },
     },
     WARLOCK = {
-        { item = 6265, name = "Soul Shard", spells = { "Summon Voidwalker", "Summon Succubus", "Summon Felhunter", "Ritual of Summoning", "Shadowburn", "Soul Fire" },
+        { item = 6265, name = "Soul Shard", spells = { "Summon Voidwalker", "Summon Sayaad", "Summon Succubus", "Summon Felhunter", "Ritual of Summoning", "Shadowburn", "Soul Fire" },
           prefixes = { "Create Healthstone", "Create Soulstone", "Create Spellstone", "Create Firestone" } },
     },
     ROGUE = {
@@ -752,13 +752,19 @@ local events = CreateFrame("Frame")
 for _, event in ipairs({
     "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED",
     "ACTIONBAR_SLOT_CHANGED", "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "LEARNED_SPELL_IN_TAB",
-    "PLAYER_LEVEL_UP", "SPELL_TEXT_UPDATE", "UNIT_AURA", "UNIT_INVENTORY_CHANGED",
+    "PLAYER_LEVEL_UP", "SPELL_TEXT_UPDATE", "UNIT_INVENTORY_CHANGED",
     "PLAYER_UPDATE_RESTING", "BAG_UPDATE_DELAYED",
     -- The answer to C_Spell.RequestLoadSpellData, and macro edits (a macro can now cast another spell).
     "SPELL_DATA_LOAD_RESULT", "UPDATE_MACROS",
 }) do
     -- An event this client doesn't have (LEARNED_SPELL_IN_TAB is gone from newer ones) mustn't stop loading.
     pcall(events.RegisterEvent, events, event)
+end
+-- Only your own auras: in a group UNIT_AURA fires for every member's every buff.
+if events.RegisterUnitEvent then
+    pcall(events.RegisterUnitEvent, events, "UNIT_AURA", "player")
+else
+    pcall(events.RegisterEvent, events, "UNIT_AURA")
 end
 events:SetScript("OnEvent", function(_, event, unit)
     if event == "PLAYER_LOGIN" then

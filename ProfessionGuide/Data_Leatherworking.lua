@@ -53,7 +53,7 @@ ProfessionGuideData[165] = {
               { itemID = 2321, name = "Fine Thread", count = 4, vendor = true },
           },
           learn = "trainer",
-          note = "Orange to 145. Train Expert at 125 (Telonis, Darnassus, level 20)." },
+          note = "Orange to 145. Train Expert at 125 (Telonis, Darnassus, level 20). Sources differ on learning it at 120 or 125: if the trainer doesn't list it yet, keep making Dark Leather Cloaks until it does." },
         { from = 130, to = 140, craft = "Cured Heavy Hide", itemID = 4236, crafts = 47, yellow = 135, grey = 145, makes = 1,
           mats = {
               { itemID = 4235, name = "Heavy Hide", count = 1 },

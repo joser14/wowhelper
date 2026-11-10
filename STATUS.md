@@ -25,6 +25,20 @@ Start here when resuming.
     `test_landmarks.lua`.
   - The comparison with other addons is in `research\compare_2026-11-10.md`, with a ranked "build next" list.
 
+- 2026-11-10, later:
+  - Second review round fixed 12 more bugs in Builds, ReadyCheck, ProfessionGuide, GoldGuide and Dungeons.
+  - New features, each with a test:
+    - quest givers on the map (`LevelGuide_QuestGivers` plus a MapPins "givers" layer; `test_lg_givers.lua`,
+      `test_mappins.lua`);
+    - drowning/fatigue warning (`DeathNotes\BreathWatch.lua`, `test_breathwatch.lua`);
+    - XP from quests vs kills (LevelLog, `test_levellog_xp.lua`);
+    - flight times (Landmarks, `test_flighttimes.lua`);
+    - `/way` (`MapPins\Way.lua`, `test_way.lua`).
+  - **LevelGuide.lua is at Lua's 200-local limit in its main chunk.** New code there must go in a `do` block and
+    keep its state in one table, as `LevelGuide_QuestGivers` does.
+  - `research\builds\gen_data.js` can't run: it reads `research\builds\data_header.lua`, which was never
+    committed. `Builds\Data.lua` was edited by hand to match `research\builds\WARLOCK.lua`.
+
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
   Exception asked for by the owner (2026-11-09): AutoQuest accepts and turns in quests, only in a quest window the player opened
@@ -51,6 +65,13 @@ Start here when resuming.
     are hidden there.
   - Three trainers on Craftsmen's Terrace should be three Landmarks entries.
   - MapPins switched off and on in the hub should bring minimap pins back at once.
+- New features (2026-11-10), not yet seen in game:
+  - Quest-giver "!" and "?" icons: check the atlases QuestNormal/QuestTurnin exist, else the gossip icons show.
+  - Flight times: the flight map's node positions are on the continent map (GetTaxiMapID), and landing within
+    0.02 of a node is recognised.
+  - The drowning warning fires under water, with the sound.
+  - `/way` doesn't clash with another addon's `/way` (TomTom); `/fway` always works.
+  - LevelLog's quest XP comes from QUEST_TURNED_IN's xpReward.
 - Fight with the world map open and closed: no "blocked from an action" pop-up, no new Blocked action line on the Errors page.
 - Map pins line up when the map is zoomed, panned, windowed and maximised; hover and click work; gamepad mode has no errors.
 - /reload in combat, leave combat: Forever Hub page appears in Options.

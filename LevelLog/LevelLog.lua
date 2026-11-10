@@ -91,6 +91,8 @@ local ADDON_NAME = ...
 local RECENT_LEVELS = 10
 
 local levels, currentLevel, lastMark
+-- The last XP reading, to count what each XP update added.
+local lastXP, lastMax, lastLevel
 
 local function Safe(value)
     if issecretvalue and issecretvalue(value) then
@@ -124,6 +126,56 @@ local function Entry(level)
     return entry
 end
 
+-- Where your XP came from. All XP is counted from the XP bar (PLAYER_XP_UPDATE); quest XP from the
+-- turn-in itself (QUEST_TURNED_IN's reward). The rest is from kills and exploring. Counting from the bar
+-- avoids the combat XP chat text, which this client can hide.
+local function AddXP(level, field, amount)
+    if level and amount and amount > 0 then
+        local entry = Entry(level)
+        entry[field] = (tonumber(entry[field]) or 0) + amount
+    end
+end
+
+local function ReadXP()
+    if not (UnitXP and UnitXPMax and UnitLevel) then
+        return nil
+    end
+    return Safe(UnitXP("player")), Safe(UnitXPMax("player")), Safe(UnitLevel("player"))
+end
+
+local function TrackXP()
+    local xp, max, level = ReadXP()
+    if not (xp and max) then
+        -- Hidden now: the next readable update counts what came in between.
+        return
+    end
+    if lastXP and lastMax then
+        if max ~= lastMax or xp < lastXP then
+            -- A new level: the rest of the old bar to the old level, the new XP to the new one.
+            -- UnitLevel can still say the old level right at the level-up.
+            local before = lastLevel or (level and level - 1)
+            local after = before and math.max(level or 0, before + 1) or level
+            AddXP(before, "xp", math.max(lastMax - lastXP, 0))
+            AddXP(after, "xp", xp)
+            level = after
+        else
+            AddXP(level or lastLevel, "xp", xp - lastXP)
+        end
+    end
+    lastXP, lastMax, lastLevel = xp, max, level or lastLevel
+end
+
+-- "62% quests, 38% kills and exploring", or nil before any XP was counted.
+local function SourceText(entry)
+    local total = tonumber(entry.xp) or 0
+    if total <= 0 then
+        return nil
+    end
+    local quest = math.min(tonumber(entry.questXP) or 0, total)
+    local percent = math.floor(quest * 100 / total + 0.5)
+    return string.format("%d%% quests, %d%% kills and exploring", percent, 100 - percent)
+end
+
 local function BankTime()
     local now = GetTime()
     local entry = Entry(currentLevel)
@@ -135,6 +187,7 @@ local function ShowLog(showAll)
     BankTime()
     local first = showAll and 1 or math.max(1, currentLevel - RECENT_LEVELS + 1)
     local totalSeconds, totalDeaths = 0, 0
+    local all = { xp = 0, questXP = 0 }
     for level = 1, currentLevel do
         local entry = levels[level]
         if type(entry) == "table" then
@@ -142,12 +195,20 @@ local function ShowLog(showAll)
             local seconds, deaths = tonumber(entry.seconds) or 0, tonumber(entry.deaths) or 0
             totalSeconds = totalSeconds + seconds
             totalDeaths = totalDeaths + deaths
+            all.xp = all.xp + (tonumber(entry.xp) or 0)
+            all.questXP = all.questXP + math.min(tonumber(entry.questXP) or 0, tonumber(entry.xp) or 0)
             if level >= first then
-                Print(string.format("Level %d: %s, %d death(s)", level, FormatDuration(seconds), deaths))
+                local source = SourceText(entry)
+                Print(string.format("Level %d: %s, %d death(s)%s", level, FormatDuration(seconds), deaths,
+                    source and ("; XP " .. source) or ""))
             end
         end
     end
     Print(string.format("Total logged: %s, %d death(s)", FormatDuration(totalSeconds), totalDeaths))
+    local source = SourceText(all)
+    if source then
+        Print("XP so far: " .. source .. ". Counted since this version; earlier levels have none.")
+    end
 end
 
 local events = CreateFrame("Frame")
@@ -155,7 +216,9 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_LOGOUT")
 events:RegisterEvent("PLAYER_LEVEL_UP")
 events:RegisterEvent("PLAYER_DEAD")
-events:SetScript("OnEvent", function(_, event, arg1)
+events:RegisterEvent("PLAYER_XP_UPDATE")
+events:RegisterEvent("QUEST_TURNED_IN")
+events:SetScript("OnEvent", function(_, event, arg1, arg2)
     if event == "PLAYER_LOGIN" then
         LevelLogDB = LevelLogDB or {}
         local key = ForeverCharacterAdopt(LevelLogDB)
@@ -163,6 +226,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
         levels = ForeverCharacterStamp(LevelLogDB[key])
         currentLevel = Safe(UnitLevel("player")) or 1
         lastMark = GetTime()
+        lastXP, lastMax, lastLevel = ReadXP()
     elseif not levels then
         -- Saved data isn't set up until PLAYER_LOGIN.
         return
@@ -170,6 +234,12 @@ events:SetScript("OnEvent", function(_, event, arg1)
         BankTime()
         Print(string.format("Level %d took %s.", currentLevel, FormatDuration(levels[currentLevel].seconds)))
         currentLevel = Safe(arg1) or currentLevel + 1
+    elseif event == "PLAYER_XP_UPDATE" then
+        TrackXP()
+    elseif event == "QUEST_TURNED_IN" then
+        -- Counted to the level you hand it in at.
+        local reward = Safe(arg2)
+        AddXP(Safe(UnitLevel("player")) or currentLevel, "questXP", type(reward) == "number" and reward or nil)
     elseif event == "PLAYER_DEAD" then
         local entry = Entry(currentLevel)
         entry.deaths = entry.deaths + 1

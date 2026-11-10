@@ -1929,7 +1929,7 @@ BuildsData.WARLOCK = {
             { from = 31, to = 40, text = "Demonology: Demonic Knowledge, Master Demonologist, Demonic Pact." },
             { from = 41, to = 60, text = "Affliction: Improved Corruption, Suppression, Improved Bane of Agony, Pandemic, Malevolence." },
         },
-        keyTalents = { "Soul Link", "Demonic Embrace", "Demonic Aegis", "Fel Domination", "Demonic Sacrifice", "Demonic Pact", "Improved Corruption" },
+        keyTalents = { "Soul Link", "Demonic Embrace", "Fel Vitality", "Demonic Aegis", "Improved Sayaad", "Fel Domination", "Demonic Sacrifice", "Master Summoner", "Demonic Knowledge", "Master Demonologist", "Demonic Pact", "Improved Corruption", "Suppression", "Improved Bane of Agony", "Pandemic", "Malevolence" },
         stats = { "Stamina", "Spell Power", "Hit (4% vs players)", "Spell Penetration" },
         source = "https://skycoach.gg/blog/wow-forever/articles/best-pvp-specs (2026-11-06); https://seemeta.com/en/wow-forever/pvp-tier-list (2026-11-08)",
         checked = "2026-11-09", confidence = "low",
