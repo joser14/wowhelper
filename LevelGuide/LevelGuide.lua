@@ -285,7 +285,7 @@ local K = {
 }
 -- Helpers shared between the `do` blocks below (one table, one local) and per-rebuild caches. The arithmetic
 -- lives in Planner.lua (LevelGuidePlanner).
-local X = { places = {} }
+local X = { places = {}, arrow = {}, clock = 0 }
 
 local KINDS = {
     turnin = { label = "Turn in", color = "|cff33ff33" },
@@ -814,8 +814,10 @@ local function Route(candidates, mapID, playerX, playerY)
             end
         end
         if #route == unplaced and currentKey then
+            local best = remaining[bestIndex]
             for index, step in ipairs(remaining) do
-                if StepKey(step) == currentKey and Cost(step, mapID, fromX, fromY) <= bestCost * K.KEEP_RATIO then
+                if StepKey(step) == currentKey and (Cost(step, mapID, fromX, fromY) <= bestCost * K.KEEP_RATIO
+                    or X.HoldTarget(step, best, mapID, fromX, fromY)) then
                     bestIndex = index
                 end
             end
@@ -2096,6 +2098,48 @@ function X.XPPerSecond(step, mapID, fromX, fromY)
     return xp / (Distance(mapID, fromX, fromY, step.x, step.y) * 1.25 / 7 + 6)
 end
 end -- XP projection
+
+-- Target hysteresis (Polestar's currentGoal rule, research\guides_deep_re.md 1.7; our own code): the step the
+-- arrow points at stays while you fight, for 5 s after objective progress, and until another is more than
+-- 25% and more than 40 yd nearer (Planner.Switch), so two nearly equal stops don't take turns.
+do
+local PROGRESS_HOLD = 5
+
+function X.HoldTarget(current, best, mapID, fromX, fromY)
+    local P = LevelGuidePlanner
+    if not (P and current and best and current.x and best.x) or current == best then
+        return false
+    end
+    if UnitAffectingCombat and Safe(UnitAffectingCombat("player")) then
+        return true
+    end
+    if X.progressAt and Now() - X.progressAt < PROGRESS_HOLD then
+        return true
+    end
+    local curYards, isYards = Distance(mapID, fromX, fromY, current.x, current.y)
+    local newYards = Distance(mapID, fromX, fromY, best.x, best.y)
+    return isYards and not P.Switch(curYards, newYards) or false
+end
+
+-- On QUEST_LOG_UPDATE: notes when any objective count went up (X.progressAt, for the hold above and the
+-- spawn-camp dwell).
+function X.CheckProgress()
+    local total = 0
+    for index = 1, Safe(C_QuestLog.GetNumQuestLogEntries()) or 0 do
+        local info = C_QuestLog.GetInfo(index)
+        local id = info and Safe(info.questID)
+        if id and not Safe(info.isHeader) then
+            for _, objective in ipairs(C_QuestLog.GetQuestObjectives(id) or {}) do
+                total = total + (tonumber(Safe(objective.numFulfilled)) or 0)
+            end
+        end
+    end
+    if X.progressTotal and total > X.progressTotal then
+        X.progressAt = Now()
+    end
+    X.progressTotal = total
+end
+end -- target hysteresis
 -- Quest givers often offer the next quest only after an earlier one with them, so a pick-up waits
 -- while anything earlier on the route with that same person is still to do.
 local function RouteStepActionable(step, byTitle, level, busyNpcs)
@@ -3495,15 +3539,34 @@ local function UpdateArrow()
     if mapID then
         playerX, playerY = PositionOn(mapID)
     end
+    -- Arrow state (Planner.lua): the damped bearing, closing speed and arrival, per target.
+    local P = LevelGuidePlanner
+    local state = X.arrow
+    local dt = math.max((X.clock or 0) - (state.clock or X.clock or 0), 0)
+    state.clock = X.clock
     if not (step and step.x and playerX) then
         arrow:Hide()
+        state.bearing = nil
         yardsText:SetText(step and step.kind == "travel" and COLOR_DIM .. "other zone|r" or "")
         return
     end
+    local target = (step.corpse and "corpse" or tostring(step.routeKey or StepKey(step) or step.title))
+        .. ":" .. tostring(step.pointIndex or "") .. ":" .. tostring(step.campIndex or "")
+    if state.key ~= target then
+        state.key, state.closing = target, {}
+    end
     local east, south, isYards = Offset(mapID, playerX, playerY, step.x, step.y)
     local yards = math.sqrt(east * east + south * south)
-    if isYards and yards <= K.ARRIVED_YARDS then
+    local radius = P and P.Radius(step.kind, step.campRadius) or K.ARRIVED_YARDS
+    local arrived
+    if P then
+        arrived = isYards and P.Arrived(state, target, yards, radius)
+    else
+        arrived = isYards and yards <= radius
+    end
+    if arrived then
         arrow:Hide()
+        state.bearing = nil
         if step.corpse then
             yardsText:SetText("|cff33ff33Your corpse|r")
             return
@@ -3528,14 +3591,23 @@ local function UpdateArrow()
         end
         return
     end
-    yardsText:SetText(isYards and string.format(step.corpse and "Corpse %d yd" or "%d yd", math.floor(yards))
+    -- ETA from how fast you're closing in (shown only above 1.5 yd/s).
+    local eta = P and isYards and P.ETA(yards, P.Closing(state.closing, yards, dt))
+    local etaText = eta and eta < 6000 and string.format("  %d:%02d", math.floor(eta / 60), math.floor(eta % 60)) or ""
+    yardsText:SetText(isYards and (string.format(step.corpse and "Corpse %d yd" or "%d yd", math.floor(yards)) .. etaText)
         or (step.corpse and "Corpse" or ""))
     local facing = GetPlayerFacing and Safe(GetPlayerFacing())
     if not facing then
         arrow:Hide()
         return
     end
-    local relative = atan2(-east, -south) - facing
+    -- The map bearing swings smoothly to a new target; your facing applies at once (turning the camera).
+    local bearing = atan2(-east, -south)
+    if P then
+        bearing = P.Damp(state.bearing, bearing, dt)
+    end
+    state.bearing = bearing
+    local relative = bearing - facing
     arrow:SetRotation(relative)
     local wrapped = (relative + math.pi) % (2 * math.pi) - math.pi
     if math.abs(wrapped) < K.AHEAD_RADIANS then
@@ -3545,7 +3617,6 @@ local function UpdateArrow()
     end
     arrow:Show()
 end
-
 -- The route list window: every step of the current route with its state. Read-only like the rest:
 -- a click only points the arrow (and your map waypoint) at a step; Shift+right-click skips or unskips.
 local RefreshList, ToggleList
@@ -3803,6 +3874,7 @@ end
 local function OnUpdate(_, elapsed)
     sinceArrow = sinceArrow + elapsed
     sinceRoute = sinceRoute + elapsed
+    X.clock = X.clock + elapsed   -- the arrow's own clock (damping, closing speed)
     -- A burst of quest events (looting, zoning) rebuilds once, not once per frame.
     if (dirty and sinceRoute >= DIRTY_SECONDS) or sinceRoute >= K.ROUTE_SECONDS then
         dirty, sinceRoute, sinceArrow = false, 0, 0
@@ -4112,6 +4184,7 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
     if event == "QUEST_LOG_UPDATE" then
         -- The log has loaded: placement may latch from now on (never from an empty log at login).
         X.logSeen = true
+        Attempt(X.CheckProgress)
     end
     if event == "QUEST_ACCEPTED" or event == "QUEST_TURNED_IN" then
         -- Grace entries only matter for seconds; old ones go so the tables stay small.
