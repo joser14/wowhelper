@@ -452,6 +452,34 @@ function P.KillsLeft(missing, rested, perKill)
     return max(1, ceil(max(missing - (rested or 0), missing / 2) / perKill))
 end
 
+-- ---- grind or quest (research\re_round3.md rank 11) --------------------------------------------------------
+-- From MacQuest / SpeedLevel (by Methodologist, tools\build_route.py, GPL-3.0; NOTICE.md): a kill takes
+-- 14 x (1 + 0.15 x (mob - you)) + 6 seconds; a quest's rate is its reward plus 0.6 of its kills' XP over its
+-- time; a quest is worth dropping when its rate is under 0.65 x what grinding nearby gives.
+P.GRIND = { share = 0.65, killShare = 0.6, talk = 6 }
+function P.KillSeconds(plevel, mob)
+    return 14 * (1 + 0.15 * ((mob or plevel) - plevel)) + 6
+end
+
+-- XP per second grinding same-level mobs, at ratio x a same-level mob's XP (your measured kills; 1 = the book).
+function P.GrindRate(plevel, ratio)
+    return (plevel * 5 + 45) * (ratio or 1) / P.KillSeconds(plevel, plevel)
+end
+
+-- XP per second of a quest: xp (its reward to you), kills { { mob, n, elite } }, walkSeconds to it.
+function P.QuestRate(xp, kills, plevel, walkSeconds)
+    local gain, seconds = xp or 0, (walkSeconds or 0) + P.GRIND.talk
+    for _, kill in ipairs(kills or {}) do
+        gain = gain + (kill.n or 0) * P.MobXP(plevel, kill.mob or plevel, kill.elite) * P.GRIND.killShare
+        seconds = seconds + (kill.n or 0) * P.KillSeconds(plevel, kill.mob or plevel)
+    end
+    return gain / max(seconds, 1)
+end
+
+function P.Slow(questRate, grindRate)
+    return questRate < P.GRIND.share * grindRate
+end
+
 -- ---- route choice (research\guides_deep_re.md 12.17; our own code after Polestar's rankRoutes idea) ---------
 
 -- About how long the rest of a route takes: 6 s talking per stop (pick-up or turn-in), (11 + 19(L-1)/59) s a

@@ -777,6 +777,7 @@ local function ReadOffers(mapID)
             and not Recent(recentAccepts, id, ACCEPT_GRACE)
             and (not startMap or startMap == 0 or startMap == mapID) then
             offers[#offers + 1] = { id = id, kind = "pickup", title = name, mapID = mapID, x = x, y = y }
+            X.OfferXP(offers[#offers])
         end
     end
     return offers
@@ -2296,6 +2297,42 @@ function X.XPPerSecond(step, mapID, fromX, fromY)
 end
 end -- XP projection
 
+-- XP for quests not taken yet and the grind-vs-quest check (research\re_round3.md rank 11; the rates are
+-- Planner.QuestRate / GrindRate, MacQuest's maths). A map offer gets its XP at your level; a pick-up whose XP per
+-- second is under 0.65 x grinding same-level mobs (at your measured kill XP) is tagged slow.
+do
+function X.OfferXP(offer)
+    local P = LevelGuidePlanner
+    local level = Safe(UnitLevel("player"))
+    local full = P and P.QuestXP and offer.id and P.QuestXP(offer.id)
+    if full and level then
+        offer.questLevel = offer.questLevel or X.QuestLevel(offer.id)
+        offer.xpValue = math.floor(full * P.Share(level, offer.questLevel) + 0.5)
+    end
+end
+
+function X.MarkSlow(list)
+    local P = LevelGuidePlanner
+    local level = Safe(UnitLevel("player"))
+    if not (P and P.QuestRate and level and list) then
+        return
+    end
+    local mapID, px, py = PlayerPosition()
+    local grind = P.GrindRate(level, P.Median(charData and charData.killXP) or 1)
+    for _, step in ipairs(list) do
+        if step.kind == "pickup" and step.xpValue and step.x and step.mapID == mapID and px and py then
+            local ids = step.quest and LevelGuideQuestIDs and LevelGuideQuestIDs.ids
+            ids = ids and (ids[step.quest] or ids[RealTitle(step.quest)])
+            local id = step.id or (ids and ids[tonumber(step.questPart) or 1])
+            local kills = id and select(2, P.QuestXP(id)) or {}
+            local yards, isYards = Distance(mapID, px, py, step.x, step.y)
+            local rate = P.QuestRate(step.xpValue, kills, level, isYards and yards * 1.25 / 7 or 0)
+            step.slow = P.Slow(rate, grind) or nil
+        end
+    end
+end
+end -- XP for offers, grind or quest
+
 -- Exact order inside a hub (research\guides_deep_re.md 12.11; our own code, Planner.HubOrder): after the
 -- nearest-first pass, the pick-ups and turn-ins within 100 yd of the current stop are walked in the shortest
 -- order from it when they're 7 groups or fewer (NPCs within 10 yd are one), keeping a chain's later part after
@@ -3644,6 +3681,7 @@ local function BuildSteps()
         PutTimedFirst(routed)
         MarkLevelUp(routed)
         X.MarkHard(routed)
+        X.MarkSlow(routed)
         return routed, mapID, playerX, playerY, nil
     end
     local here, away, unplaced, later = ReadQuests(mapID)
@@ -3675,6 +3713,7 @@ local function BuildSteps()
     end
     PutTimedFirst(list)
     MarkLevelUp(list)
+    X.MarkSlow(list)
     return list, mapID, playerX, playerY, later
 end
 
@@ -3714,6 +3753,10 @@ local function StepLine(step)
     end
     if step.hard then
         tags = tags .. string.format(" |cffff4040Hard (level %d)|r", step.hard)
+    end
+    -- Under 0.65 x the XP per second of grinding (X.MarkSlow).
+    if step.slow then
+        tags = tags .. " |cff999999Slow (grinding is faster)|r"
     end
     -- QuestDB flags (X.FlagStep): group, elite mobs, timed, escort.
     if step.groupQuest then

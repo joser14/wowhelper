@@ -81,6 +81,8 @@ these sources:
 - **MacQuest / SpeedLevel** (https://github.com/Methodologist, by Methodologist), GPL-3.0.
   `LevelGuide\TravelPlan.lua` `P.DeathSkip` uses its death-skip numbers (`tools\tricks.py`): 45 s plus 21 s per
   level above 10 for dying, the walk from the spirit healer, and the 75 s / 135 s thresholds up to level 20.
+  LevelGuide\Planner.lua `P.KillSeconds` / `GrindRate` / `QuestRate` / `Slow` port its grind-vs-quest maths
+  (`tools\build_route.py`: 14 x (1 + 0.15 x level gap) + 6 s a kill, 0.6 of a quest's kill XP, drop below 0.65).
 - `tools\audit_questie.js` reads a local QuestieDB checkout as text to find gaps in our quest data and prints
   them; nothing from QuestieDB is copied into the addons. `LevelGuide\QuestRules.lua` is our own code; its
   exclusive groups are worked out from forever-db's own "one of" prerequisites (QuestDB.lua).
