@@ -27,7 +27,7 @@ local KINDS = {
     { name = "gold", label = "Most gold", about = "a coin and \"Most gold\" on the quest reward that sells for the most, when it isn't already the best one" },
     { name = "merchant", label = "Vendor upgrades", about = "a green arrow on vendor items that are an upgrade for you (needs ItemAdvisor); nothing on the buyback tab" },
     { name = "known", label = "Known recipes", about = "a check on vendor recipes the game says you already know" },
-    { name = "trainer", label = "Trainer spells", about = "\"On your bars\" on a higher rank of a spell you use, \"New\" on a spell you don't have yet" },
+    { name = "trainer", label = "Trainer spells", about = "\"On your bars\" on a higher rank of a spell you use, \"New\" on a spell you don't have yet, and whether your reputation gives 10% off (with TrainerNotes)" },
 }
 local KIND_BY_NAME = {}
 for _, kind in ipairs(KINDS) do
@@ -602,10 +602,54 @@ local function TrainerSignature()
     return table.concat(parts, ",")
 end
 
+-- Round 4 R16: Honored or better with a faction whose trainers teach your class takes 10 % off (What's Training's
+-- Forever pricing, MIT, via TrainerNotesData.trainerFactions when TrainerNotes is loaded). Returns the badge text:
+-- "10% off (Honored with X)", or "10% off at Honored with Y" naming the closest faction; nil when unknown.
+local HONORED = 6
+local function DiscountText()
+    local data = type(TrainerNotesData) == "table" and type(TrainerNotesData.trainerFactions) == "table" and TrainerNotesData.trainerFactions
+    local class
+    if type(UnitClass) == "function" then
+        local ok, _, file = pcall(UnitClass, "player")
+        class = ok and Safe(file) or nil
+    end
+    local side = SafeCall(UnitFactionGroup, "player")
+    local ids = data and type(class) == "string" and type(data[class]) == "table" and type(side) == "string" and data[class][side]
+    if type(ids) ~= "table" or not (C_Reputation and C_Reputation.GetFactionDataByID) then
+        return nil
+    end
+    local honored, closest, closestStanding
+    for _, id in ipairs(ids) do
+        local info = SafeCall(C_Reputation.GetFactionDataByID, id)
+        local reaction = type(info) == "table" and Safe(info.reaction)
+        local name = type(info) == "table" and Safe(info.name)
+        if type(reaction) == "number" and type(name) == "string" and name ~= "" then
+            if reaction >= HONORED then
+                honored = honored or name
+            else
+                local standing = tonumber(Safe(info.currentStanding)) or 0
+                if not closest or standing > closestStanding then
+                    closest, closestStanding = name, standing
+                end
+            end
+        end
+    end
+    if honored then
+        return "10% off (Honored with " .. honored .. ")", true
+    elseif closest then
+        return "10% off at Honored with " .. closest, false
+    end
+end
+
 local function PaintTrainer()
     ReleaseWindow("trainer")
     if not trainerOpen or not IsOn("trainer") or not IsClassTrainer() then
         return
+    end
+    local discount, on = DiscountText()
+    if discount and Visible(ClassTrainerFrame) then
+        Place("trainer", ClassTrainerFrame, { texture = COIN_TEXTURE, text = discount, color = on and { 0.2, 1, 0.2 } or { 0.7, 0.7, 0.7 } },
+            "TOPRIGHT", "TOPRIGHT", -30, -28)
     end
     local rows, box = TrainerRows()
     if #rows == 0 then
