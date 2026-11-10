@@ -135,6 +135,18 @@ local function ShowCheck()
     end
 end
 
+-- The best drink in your bags for your level (for ManaFull.lua): its link and count, or nil.
+function FoodCheck_BestDrink()
+    local level = Safe(UnitLevel("player"))
+    if not level then
+        return nil
+    end
+    local drink = BestFor((ReadBags()), level, "mana")
+    if drink then
+        return drink.link, drink.count
+    end
+end
+
 -- ---- Buff reminders (research\re_round3.md rank 8, opt-in) -------------------------------------------------
 -- Buffs you ask to keep up (Well Fed, an elixir, a scroll) and a weapon oil, stone or poison. Each is watched by
 -- spell ID (or its name, so any "Well Fed" counts), out of combat and only while auras aren't secret: a buff

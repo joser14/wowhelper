@@ -8,3 +8,4 @@
 FoodIDs.lua
 CampObjects.lua
 FoodCheck.lua
+ManaFull.lua

@@ -115,7 +115,7 @@ local GOLD, GRAY, GREEN, ORANGE, RED = "|cffffd100", "|cff999999", "|cff33ff33",
 
 -- Most useful first; the panel shows these in this order.
 local STATUS_ORDER = { "RareWatch", "DeathNotes", "LevelLog", "RestGuard", "ItemAdvisor", "Builds", "TalentNudge", "TrainerNotes", "SpellReady", "QuestCheck", "Dungeons",
-    "DurabilityWatch", "BagCheck", "SupplyWatch", "ProfessionCap", "ProfessionGuide", "WeaponSkillWatch", "GoldGoal", "GoldGuide" }
+    "DurabilityWatch", "BagCheck", "SupplyWatch", "FoodCheck", "ProfessionCap", "ProfessionGuide", "WeaponSkillWatch", "GoldGoal", "GoldGuide" }
 
 -- The sidebar groups, one per installed addon (see build.ps1), in the order they're shown.
 -- "core" is the addon that holds the hub itself, so it can never be turned off from here.

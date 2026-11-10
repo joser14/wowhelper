@@ -203,6 +203,9 @@ these sources:
   (`Data\CampBenefits.lua`, GPL-3.0-or-later, generated from Blizzard client tables); which class buffs each
   object is exclusive with from Firekeeper (https://github.com/Brattlof/Firekeeper, `docs/SOURCES.md`, MIT
   License, Copyright (c) 2026 Firekeeper contributors). Facts in our own table, no code copied.
+- `FoodCheck\ManaFull.lua`: "normal" regen as the lowest 30-second rate over 5 minutes, the five-second rule
+  and Resurrection Sickness 15007 follow the in-game facts noted in Full Mana Forever by KesaObscura
+  (`Regen.lua`, MIT License); written in our own code.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.
