@@ -1,5 +1,4 @@
--- Round 3 rank 3: the hub side panel shows "~N kills" next to the time to level and the kills the rested
--- pool covers, from LevelLog_KillsToLevel; nothing when LevelLog is missing or fails. (Mocks from test_hub_xp.)
+-- Round 3 rank 3: the hub side panel shows the kills the rested pool covers, from LevelLog_KillsToLevel; nothing when LevelLog is missing or fails. (Mocks from test_hub_xp.)
 local base = ADDON_PATH
 local chat, timers, frames, handled = {}, {}, {}, {}
 ALLFONTS = {}
@@ -101,20 +100,17 @@ boot(true, false)
 need("Next level time appears once you earn XP", "no LevelLog")
 never("kills", "no kill counts without LevelLog")
 
------ With LevelLog's estimate: before any XP this session, the kills replace the waiting text.
+----- With LevelLog's estimate: the rested pool in kills; kills to level stay on LevelGuide's window.
 LevelLog_KillsToLevel = function() return 12, 4, 75 end
 GetXPExhaustion = function() return 300 end
 tick()
-need("About 12 kills to level", "kills shown before a rate exists")
 need("Rested 30% of this level (~4 kills)", "rested pool in kills")
------ After warm-up the time to level carries the kill count.
-now = 1030; gain(100); now = 1200; tick()
-need("Next level in", "estimate")
-need("~12 kills", "kills next to the time")
+never("12 kills", "kills to level not repeated here")
 ----- An error or nil from LevelLog never breaks the panel.
 LevelLog_KillsToLevel = function() error("boom") end
 tick()
 never("kills", "no kill count on error")
+need("Rested 30% of this level", "rested line still there")
 LevelLog_KillsToLevel = function() return nil end
 tick()
 never("kills", "no kill count when unknown")

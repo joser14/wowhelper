@@ -144,12 +144,10 @@ local function ReadXP()
 end
 
 -- ---- Kill XP (research\re_round3.md rank 3) ----------------------------------------------------------------
--- What one kill gives you, measured from the XP bar: a gain while you fight (or just after) that no quest
--- turn-in explains. The rested bonus is taken off (the rested pool drops by the bonus it pays), so the
--- median is a kill's own XP and rested XP can be counted on top.
-local KILL_SAMPLES, MIN_KILL_SAMPLES, AFTER_COMBAT_SECONDS, QUEST_SAME_SECONDS = 10, 3, 3, 0.5
-local lastRested -- the rested pool at the last XP reading
-local combatUntil = -math.huge
+-- LevelGuide measures your kills (rested bonus and quest turn-ins taken out) and keeps the last 30 per
+-- character as a share of a same-level mob's XP (LevelGuideDB.characters[key].killXP). LevelLog only reads
+-- that list, never writes it; without LevelGuide there is no kill estimate.
+local MIN_KILL_SAMPLES = 3
 
 local function ReadRested()
     if not GetXPExhaustion then
@@ -162,51 +160,13 @@ local function ReadRested()
     return tonumber(value) or 0
 end
 
-local function Fighting()
-    local now = GetTime()
-    if now <= combatUntil then
-        return true
-    end
-    local busy = UnitAffectingCombat and Safe(UnitAffectingCombat("player"))
-    if busy == nil and InCombatLockdown then
-        busy = Safe(InCombatLockdown())
-    end
-    return busy == true
-end
-
-local function KillSamples()
-    local list = type(levels.killSamples) == "table" and levels.killSamples or {}
-    levels.killSamples = list
-    return list
-end
-
-local function AddKillSample(gained, level, restedBefore, restedAfter)
-    if not (levels and level and gained and gained > 0) or not Fighting() then
-        return
-    end
-    if restedBefore == nil or restedAfter == nil then
-        -- The pool can't be read: the rested share can't be taken off, so no sample.
-        return
-    end
-    local bonus = math.max(restedBefore - restedAfter, 0)
-    -- A rested kill pays at most twice its own XP.
-    local own = math.max(gained - bonus, gained / 2)
-    local list = KillSamples()
-    list[#list + 1] = { xp = math.floor(own + 0.5), level = level, at = GetTime() }
-    while #list > KILL_SAMPLES do
-        table.remove(list, 1)
-    end
-end
-
 local function TrackXP()
     local xp, max, level = ReadXP()
     if not (xp and max) then
         -- Hidden now: the next readable update counts what came in between.
         return
     end
-    local rested = ReadRested()
     if lastXP and lastMax then
-        local gained, gainLevel
         if max ~= lastMax or xp < lastXP then
             -- A new level: the rest of the old bar to the old level, the new XP to the new one.
             -- UnitLevel can still say the old level right at the level-up.
@@ -214,25 +174,31 @@ local function TrackXP()
             local after = before and math.max(level or 0, before + 1) or level
             AddXP(before, "xp", math.max(lastMax - lastXP, 0))
             AddXP(after, "xp", xp)
-            gained, gainLevel = math.max(lastMax - lastXP, 0) + xp, before
             level = after
         else
-            gained, gainLevel = xp - lastXP, level or lastLevel
-            AddXP(gainLevel, "xp", gained)
+            AddXP(level or lastLevel, "xp", xp - lastXP)
         end
-        AddKillSample(gained, gainLevel, lastRested, rested)
     end
     lastXP, lastMax, lastLevel = xp, max, level or lastLevel
-    lastRested = rested
 end
 
--- A quest turned in this very moment explains the gain just counted as a kill.
-local function ForgetQuestSample()
-    local list = levels and type(levels.killSamples) == "table" and levels.killSamples
-    local last = list and list[#list]
-    if last and math.abs(GetTime() - (tonumber(last.at) or -math.huge)) <= QUEST_SAME_SECONDS then
-        list[#list] = nil
+-- LevelGuide's recent kill shares for this character (read-only), or nil.
+local function GuideKillShares()
+    local db = type(LevelGuideDB) == "table" and LevelGuideDB
+    local chars = db and type(db.characters) == "table" and db.characters
+    local key = chars and ForeverCharacterKey and ForeverCharacterKey()
+    local record = key and chars[key]
+    local list = type(record) == "table" and record.killXP
+    if type(list) ~= "table" then
+        return nil
     end
+    local shares = {}
+    for _, v in ipairs(list) do
+        if type(v) == "number" and v > 0 then
+            shares[#shares + 1] = v
+        end
+    end
+    return shares
 end
 
 -- One kill's XP for a player level and mob level. Uses LevelGuide's XP model when it's loaded; otherwise
@@ -290,24 +256,17 @@ local function Median(list)
     return (sorted[n / 2] + sorted[n / 2 + 1]) / 2
 end
 
--- The median of your recent kills' own XP, scaled to your current level (a kill's XP grows with
--- 5 x level + 45). nil until a few kills were seen.
+-- A kill's own XP at your current level: the median of LevelGuide's recent kill shares (LevelGuidePlanner's
+-- Median when loaded) times a same-level mob's XP (5 x level + 45). nil until a few kills were seen.
 function LevelLog_KillXP()
-    if not levels then
-        return nil
-    end
+    local shares = GuideKillShares()
     local level = Safe(UnitLevel("player")) or currentLevel
-    local values = {}
-    for _, sample in ipairs(KillSamples()) do
-        local xp, at = tonumber(sample.xp), tonumber(sample.level)
-        if xp and xp > 0 and at and level then
-            values[#values + 1] = xp * (level * 5 + 45) / (at * 5 + 45)
-        end
-    end
-    if #values < MIN_KILL_SAMPLES then
+    if not (shares and level) or #shares < MIN_KILL_SAMPLES then
         return nil
     end
-    return Median(values), #values
+    local planner = LevelGuidePlanner
+    local median = type(planner) == "table" and type(planner.Median) == "function" and planner.Median(shares) or Median(shares)
+    return math.max(1, math.floor((level * 5 + 45) * median + 0.5)), #shares
 end
 
 -- Kills to the next level counting rested XP (rested kills pay double until the pool runs out), and how
@@ -320,9 +279,13 @@ function LevelLog_KillsToLevel()
     end
     local rested = ReadRested() or 0
     local missing = max - xp
-    local kills = 0
-    if missing > 0 then
-        kills = math.max(1, math.ceil(math.max(missing - rested, missing / 2) / perKill))
+    local planner = LevelGuidePlanner
+    local kills
+    if type(planner) == "table" and type(planner.KillsLeft) == "function" then
+        kills = planner.KillsLeft(missing, rested, perKill)
+    else
+        -- The same rule: rested kills pay double until the pool runs out.
+        kills = missing > 0 and math.max(1, math.ceil(math.max(missing - rested, missing / 2) / perKill)) or 0
     end
     return kills, math.floor(rested / perKill), perKill
 end
@@ -351,19 +314,19 @@ function LevelLog_TargetXP()
     return xp, xp + math.min(xp, rested), type(name) == "string" and name or nil
 end
 
--- One line for the pages: "About 45 kills to level (a kill ~110 XP, rested taken off); rested covers ~38."
+-- One line for the pages: "A kill gives you about 110 XP; rested covers about 38 kills." (LevelGuide's own
+-- window already says how many kills to level.)
 function LevelLog_KillsText()
     local kills, restedKills, perKill = LevelLog_KillsToLevel()
     if not kills then
         return nil
     end
-    local text = string.format("About %d kill(s) to level (a kill ~%d XP, rested taken off)", kills, math.floor(perKill + 0.5))
+    local text = string.format("A kill gives you about %d XP (your recent kills, rested taken off)", perKill)
     if restedKills > 0 then
         text = text .. string.format("; rested covers about %d kill(s)", restedKills)
     end
     return text .. "."
 end
-
 -- "62% quests, 38% kills and exploring", or nil before any XP was counted.
 local function SourceText(entry)
     local total = tonumber(entry.xp) or 0
@@ -421,8 +384,6 @@ events:RegisterEvent("PLAYER_LEVEL_UP")
 events:RegisterEvent("PLAYER_DEAD")
 events:RegisterEvent("PLAYER_XP_UPDATE")
 events:RegisterEvent("QUEST_TURNED_IN")
-events:RegisterEvent("PLAYER_REGEN_ENABLED")
-events:RegisterEvent("UPDATE_EXHAUSTION")
 events:SetScript("OnEvent", function(_, event, arg1, arg2)
     if event == "PLAYER_LOGIN" then
         LevelLogDB = LevelLogDB or {}
@@ -432,20 +393,9 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         currentLevel = Safe(UnitLevel("player")) or 1
         lastMark = GetTime()
         lastXP, lastMax, lastLevel = ReadXP()
-        lastRested = ReadRested()
     elseif not levels then
         -- Saved data isn't set up until PLAYER_LOGIN.
         return
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        -- The last kill's XP can arrive just after combat ends.
-        combatUntil = GetTime() + AFTER_COMBAT_SECONDS
-    elseif event == "UPDATE_EXHAUSTION" then
-        -- Rest earned (an inn, a camp) raises the pool; a drop is a rested kill's bonus and is
-        -- measured at the XP update, whichever event comes first.
-        local rested = ReadRested()
-        if rested and (lastRested == nil or rested > lastRested) then
-            lastRested = rested
-        end
     elseif event == "PLAYER_LEVEL_UP" then
         BankTime()
         Print(string.format("Level %d took %s.", currentLevel, FormatDuration(levels[currentLevel].seconds)))
@@ -456,7 +406,6 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         -- Counted to the level you hand it in at.
         local reward = Safe(arg2)
         AddXP(Safe(UnitLevel("player")) or currentLevel, "questXP", type(reward) == "number" and reward or nil)
-        ForgetQuestSample()
     elseif event == "PLAYER_DEAD" then
         local entry = Entry(currentLevel)
         entry.deaths = entry.deaths + 1

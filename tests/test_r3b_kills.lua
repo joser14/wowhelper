@@ -1,4 +1,4 @@
--- Round 3 rank 3: kill XP measured by LevelLog with the rested bonus taken off, "about N kills to level",
+-- Round 3 rank 3: LevelLog reads LevelGuide's kill XP (read-only) for "about N kills to level",
 -- "rested covers about N kills", and the XP your target gives (LevelGuide's model when loaded, else a local
 -- copy). Shown on the Level log page, the hub side panel and the Rested XP page.
 local base = ADDON_PATH
@@ -36,60 +36,51 @@ assert(loadfile(base .. "/LevelLog/LevelLog.lua"))("LevelLog", {})
 local f = frames[1]
 local function fire(...) f.fn(f, ...) end
 fire("PLAYER_LOGIN")
-local function kill(gain, restedAfter)
+-- LevelGuide's per-character kill shares (a kill's own XP / a same-level mob's XP), read-only.
+LevelGuideDB = { characters = {} }
+local shares = {}
+LevelGuideDB.characters[ForeverCharacterKey()] = { killXP = shares }
+local function kill(gain)
     now = now + 10
     xp = xp + gain
-    if restedAfter then rested = restedAfter end
     fire("PLAYER_XP_UPDATE", "player")
 end
 
--- 1. Under three kills there's no estimate.
-kill(100); kill(100)
+-- 1. No LevelGuide data, or under three kills: no estimate.
+LevelGuideDB.characters[ForeverCharacterKey()] = nil
+assert(LevelLog_KillsToLevel() == nil, "no LevelGuide data")
+LevelGuideDB.characters[ForeverCharacterKey()] = { killXP = shares }
+shares[1], shares[2] = 1, 1
 assert(LevelLog_KillsToLevel() == nil, "no estimate from two kills")
 print("1 ok")
 
--- 2. Three plain kills of 100: 700 to go -> 7 kills.
-kill(100)
+-- 2. Three kills worth a same-level mob (95 XP at level 10); xp 0 of 1000 -> 11 kills.
+shares[3] = 1
 local kills, restedKills, perKill = LevelLog_KillsToLevel()
-assert(perKill == 100 and kills == 7 and restedKills == 0, "700 to go at 100 a kill: " .. tostring(kills) .. "/" .. tostring(perKill))
+assert(perKill == 95 and kills == 11 and restedKills == 0, "1000 to go at 95 a kill: " .. tostring(kills) .. "/" .. tostring(perKill))
 print("2 ok")
 
--- 3. Rested kills: 200 XP each while the pool drops by 100. The bonus is taken off the sample. The pool
--- can drop before or after the XP update (UPDATE_EXHAUSTION first).
-rested = 500; fire("UPDATE_EXHAUSTION")
-kill(200, 400)
-rested = 300; fire("UPDATE_EXHAUSTION")
-kill(200)
-local list = LevelLogDB[next(LevelLogDB)].killSamples
-assert(list[#list].xp == 100 and list[#list - 1].xp == 100, "rested bonus taken off: " .. list[#list].xp .. ", " .. list[#list - 1].xp)
--- xp 700, 300 to go, pool 300: rested kills pay double -> 150 XP worth of kills at 200 = 2 kills.
+-- 3. Rested: 300 to go with 300 rested -> rested kills pay double: ceil(150 / 95) = 2; the pool covers 3.
+xp = 700; rested = 300
 kills, restedKills = LevelLog_KillsToLevel()
 assert(kills == 2 and restedKills == 3, "rested kills count double: " .. kills .. ", covers " .. restedKills)
 print("3 ok")
 
--- 4. XP out of combat (exploring) isn't a kill; a quest turned in during a fight is taken back.
-fighting = false
-local count = #list
-now = now + 30
-kill(55)
-assert(#list == count, "exploration XP isn't a kill")
-fighting = true
-kill(400)
+-- 4. LevelGuide's Median and KillsLeft are used when loaded; LevelLog never writes LevelGuide's data.
+LevelGuidePlanner = { Median = function() return 2 end, KillsLeft = function() return 42 end }
+kills, restedKills, perKill = LevelLog_KillsToLevel()
+assert(kills == 42 and perKill == 190, "planner used: " .. kills .. "/" .. perKill)
+LevelGuidePlanner = nil
+kill(100)
 fire("QUEST_TURNED_IN", 5, 400, 0)
-assert(#list == count, "a turn-in's XP isn't a kill")
--- The last kill's XP right after combat ends still counts.
-fighting = false
-fire("PLAYER_REGEN_ENABLED")
-now = now + 1; xp = xp + 100; fire("PLAYER_XP_UPDATE", "player")
-assert(#list == count + 1, "XP just after combat counts as a kill")
+assert(#shares == 3, "LevelGuide's list untouched")
 print("4 ok")
 
--- 5. Samples are bounded and saved.
-fighting = true
-for _ = 1, 30 do kill(1) end
-assert(#list == 10, "only the last 10 kills are kept: " .. #list)
+-- 5. Odd entries in the saved list are skipped.
+shares[4], shares[5] = "x", -1
+assert(select(2, LevelLog_KillXP()) == 3, "only real shares counted")
+xp, rested = 0, 0
 print("5 ok")
-
 -- 6. Target XP: one level above, plain -> 95 x 1.05 = 100; elite x2; grey gives nothing; friendly or
 -- players give no line. With rested XP the rested figure doubles up to the pool.
 rested = 0
@@ -127,14 +118,12 @@ target = { level = 4, name = "Rabbit" }
 assert(ForeverHubStatus.LevelLog()[1].text:find("no XP", 1, true), "grey row")
 target = nil
 assert(ForeverHubStatus.LevelLog() == nil, "no target, no row")
--- Ten fresh kills of 100; 800 to go with 300 rested -> max(500, 400) / 100 = 5 kills.
+-- Per kill 95 (three shares of 1), 300 rested -> the pool covers 3 kills.
 rested = 300
-for _ = 1, 10 do kill(100) end
-max = xp + 800
 out = {}
 SlashCmdList.LEVELLOG("all")
 local page = table.concat(out, "\n")
-assert(page:find("About 5 kill(s) to level (a kill ~100 XP", 1, true), "page line:\n" .. page)
+assert(page:find("A kill gives you about 95 XP", 1, true), "page line:\n" .. page)
 assert(page:find("rested covers about", 1, true), "page rested line:\n" .. page)
 print("7 ok")
 

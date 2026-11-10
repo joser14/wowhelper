@@ -1148,7 +1148,7 @@ local function ResolveSession(isInitialLogin, isReloadingUi)
     SaveSession()
 end
 
--- Kills to level and kills the rested pool covers, from LevelLog's measured kill XP (nil without it).
+-- Kills to level and kills the rested pool covers, from LevelLog (which reads LevelGuide's kill XP).
 local function KillsToLevel()
     if type(LevelLog_KillsToLevel) ~= "function" or ForeverHub_IsOff("LevelLog") then
         return nil
@@ -1180,18 +1180,17 @@ local function RefreshStats()
         local rate = recentXP * 3600 / math.min(elapsed, XP_WINDOW_SECONDS)
         -- XP already earned in finished quests doesn't need grinding; only the rest is timed.
         local toGo = maxXP - xp - banked
-        local kills, restedKills = KillsToLevel()
-        local killsText = kills and kills > 0 and string.format("  |cff999999~%d kills|r", kills) or ""
+        -- Kills to level are on LevelGuide's window; here only the rested pool in kills.
+        local _, restedKills = KillsToLevel()
         if banked > 0 and toGo <= 0 then
             statLines[2]:SetText("|cff33ff33Turn in to level up|r")
         elseif rate <= 0 then
-            statLines[2]:SetText(kills and string.format("About %d kills to level", kills)
-                or "|cff999999Next level time appears once you earn XP|r")
+            statLines[2]:SetText("|cff999999Next level time appears once you earn XP|r")
         elseif now - session.start < XP_WARMUP_SECONDS then
             statLines[2]:SetText(string.format("|cff999999Next level time: warming up (%ds)|r",
-                math.ceil(XP_WARMUP_SECONDS - (now - session.start))) .. killsText)
+                math.ceil(XP_WARMUP_SECONDS - (now - session.start))))
         else
-            statLines[2]:SetText(string.format("Next level in %s", FormatDuration(toGo * 3600 / rate)) .. killsText)
+            statLines[2]:SetText(string.format("Next level in %s", FormatDuration(toGo * 3600 / rate)))
         end
         local rested = Safe(GetXPExhaustion()) or 0
         local restedText = restedKills and restedKills > 0 and string.format(" (~%d kills)", restedKills) or ""
