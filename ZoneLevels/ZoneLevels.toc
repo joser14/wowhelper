@@ -2,6 +2,6 @@
 ## OptionalDeps: ForeverHub
 ## Title: ZoneLevels
 ## Notes: Shows a zone's level range and warns when you walk into one above your level. Only gives information.
-## Version: 0.1.1
+## Version: 0.2.0
 
 ZoneLevels.lua
