@@ -336,8 +336,6 @@ local lastByTitle, lastZoneMap  -- from the last rebuild, for the route list win
 local focusKey                  -- a route step picked in the route list: the arrow points at it until it's done
 local frontiers = {}
 local turnedCache = {}
-local offersByNpc, visit = {}, nil  -- what each quest giver offered when you last talked to them
-local VISIT_SECONDS = 60
 local zoneOffers = {}  -- per rebuild: what each zone's map shows as available
 local dirty = true
 local DIRTY_SECONDS = 0.1   -- a burst of quest events within this long rebuilds the route once
@@ -1770,8 +1768,7 @@ local function RouteStepDone(route, index, step, byTitle, level)
         -- quest), so then the giver's own window and the quest's prerequisites decide.
         local onMap = MapOffers(route.zone)
         if not (onMap and OfferedOnMap(onMap, step.q)) then
-            local offers = offersByNpc[NpcKey(step.npc) or ""]
-            if offers and not (offers[step.q] or offers[RealTitle(step.q)]) then
+            if X.NotOffered(step, level) then
                 return true
             end
             if not PrereqsMet(step.q, level) then
@@ -1818,58 +1815,169 @@ local function RouteStepDone(route, index, step, byTitle, level)
     return false
 end
 
--- Whether a step can be done right now: a pick-up whose earlier part is turned in and whose level
--- you've nearly reached, objectives for a quest you have, or a turn-in that's ready.
-local function OfferVisit(npc)
-    if not (visit and visit.npc == npc and GetTime() - visit.time < VISIT_SECONDS) then
-        visit = { npc = npc, time = GetTime(), listed = false }
-    end
-    return visit
+-- "Not offered" marks (after DonData's Offers.lua and Polestar's checkOffers, research\guides_deep_re.md 4.1,
+-- 1.5 and 12.3; our own code). The quest giver's own window is the truth: a route pick-up the giver doesn't
+-- list (GOSSIP_SHOW / QUEST_GREETING, available or active) is "not offered at level L", saved per character
+-- with where it was judged. The mark holds until a level-up, 30 minutes, a turn-in at that NPC or within
+-- 100 yd (or of the quest's prerequisite), the quest being accepted, or seen offered. A window with an
+-- unreadable entry, or within 3 s of a turn-in, judges nothing. The map's quest lines are never a "no".
+do
+local OFFER_HOLD, OFFER_NEAR, OFFER_AFTER_TURNIN = 1800, 100, 3
+
+local function Clock()
+    return (time and Safe(time())) or Now()
 end
 
--- What a quest giver offers, read from their window when you talk to them. The route is written
--- for a typical character, but a giver may want an earlier quest done first; this is the truth.
-local function RecordOffers(event)
+local function MarkKey(step)
+    local ids = LevelGuideQuestIDs and LevelGuideQuestIDs.ids
+    ids = ids and (ids[step.q] or ids[RealTitle(step.q)])
+    local id = ids and ids[tonumber(step.part) or 1]
+    return id or (step.q .. "#" .. (tonumber(step.part) or 1)), id
+end
+
+-- The mark on a route pick-up while it holds, else nil (an expired one is dropped).
+function X.NotOffered(step, level)
+    local marks = charData and charData.notOffered
+    if not (marks and step.q) then
+        return nil
+    end
+    local key = MarkKey(step)
+    local mark = marks[key]
+    if mark and not (type(mark) == "table" and level and (mark.level or 0) >= level and Clock() - (mark.t or 0) < OFFER_HOLD) then
+        marks[key] = nil
+        return nil
+    end
+    return mark
+end
+
+-- What the open window lists (available and active), by quest ID and title, and whether every entry
+-- could be read.
+local function ReadWindow(event)
+    local offered, readable = {}, true
+    local function Add(id, title)
+        id, title = Safe(id), Safe(title)
+        if id == nil and title == nil then
+            readable = false
+            return
+        end
+        if id then
+            offered[id] = true
+        end
+        if title then
+            offered[title] = true
+        end
+    end
+    if event == "GOSSIP_SHOW" and C_GossipInfo then
+        for _, info in ipairs(C_GossipInfo.GetAvailableQuests and C_GossipInfo.GetAvailableQuests() or {}) do
+            Add(info.questID, info.title)
+        end
+        for _, info in ipairs(C_GossipInfo.GetActiveQuests and C_GossipInfo.GetActiveQuests() or {}) do
+            Add(info.questID, info.title)
+        end
+    elseif event == "QUEST_GREETING" then
+        for index = 1, GetNumAvailableQuests and Safe(GetNumAvailableQuests()) or 0 do
+            Add(GetAvailableQuestInfo and select(5, GetAvailableQuestInfo(index)), GetAvailableTitle and GetAvailableTitle(index))
+        end
+        for index = 1, GetNumActiveQuests and Safe(GetNumActiveQuests()) or 0 do
+            Add(GetActiveQuestID and GetActiveQuestID(index), GetActiveTitle and GetActiveTitle(index))
+        end
+    end
+    return offered, readable
+end
+
+local function Clear(match)
+    for key, mark in pairs(charData and charData.notOffered or {}) do
+        if match(key, mark) then
+            charData.notOffered[key] = nil
+        end
+    end
+end
+
+-- GOSSIP_SHOW / QUEST_GREETING / QUEST_DETAIL at a quest giver.
+function X.JudgeOffers(event)
     local npc = NpcKey(Safe(UnitName("npc")))
-    if not npc then
+    if not (npc and charData) then
         return
     end
-    local current = OfferVisit(npc)
-    if event == "GOSSIP_SHOW" or event == "QUEST_GREETING" then
-        local offers = {}
-        if event == "GOSSIP_SHOW" and C_GossipInfo and C_GossipInfo.GetAvailableQuests then
-            for _, info in ipairs(C_GossipInfo.GetAvailableQuests() or {}) do
-                local title = Safe(info.title)
-                if title then
-                    offers[title] = true
-                end
-            end
-        elseif event == "QUEST_GREETING" and GetNumAvailableQuests and GetAvailableTitle then
-            for index = 1, Safe(GetNumAvailableQuests()) or 0 do
-                local title = Safe(GetAvailableTitle(index))
-                if title then
-                    offers[title] = true
-                end
-            end
-        end
-        offersByNpc[npc] = offers
-        current.listed = true
-    elseif event == "QUEST_DETAIL" then
+    charData.notOffered = charData.notOffered or {}
+    local marks = charData.notOffered
+    if event == "QUEST_DETAIL" then
+        -- A quest's own page: it's offered.
         local title = GetTitleText and Safe(GetTitleText())
-        if title then
-            -- Straight to one quest's page means it's the only one they have for you.
-            if not current.listed then
-                offersByNpc[npc] = {}
-            end
-            offersByNpc[npc] = offersByNpc[npc] or {}
-            offersByNpc[npc][title] = true
+        Clear(function(_, mark) return title ~= nil and (mark.q == title or RealTitle(mark.q or "") == title) end)
+        return
+    end
+    local offered, readable = ReadWindow(event)
+    Clear(function(key, mark) return offered[key] or (mark.q and (offered[mark.q] or offered[RealTitle(mark.q)])) end)
+    if not (readable and activeRoute) then
+        return
+    end
+    -- Right after a turn-in the window may not list what it just unlocked yet: confirm offers only.
+    for _, at in pairs(recentTurnins) do
+        if Now() - at < OFFER_AFTER_TURNIN then
+            return
         end
-    elseif not current.listed then
-        -- Straight to a turn-in page means nothing else is on offer.
-        offersByNpc[npc] = offersByNpc[npc] or {}
+    end
+    local level = Safe(UnitLevel("player"))
+    local zoneMap = ZoneMap(activeRoute.zone)
+    local x, y
+    if zoneMap then
+        x, y = PositionOn(zoneMap)
+    end
+    for _, step in ipairs(activeRoute.steps) do
+        if step.t == "accept" and step.q and not step.side and NpcKey(step.npc) == npc and ClassMatches(step.cls) then
+            local key, id = MarkKey(step)
+            local part = tonumber(step.part) or 1
+            if not (offered[step.q] or offered[RealTitle(step.q)] or (id and offered[id])) and level
+                and not InLog(lastByTitle or {}, step.q) and TurnedIn(step.q) == part - 1 and not Outleveled(step, level) then
+                marks[key] = { level = level, npc = npc, q = step.q, t = Clock(), map = x and zoneMap or nil, x = x, y = y }
+            end
+        end
     end
 end
 
+-- A turn-in clears marks of that NPC, within 100 yd of where they were judged, or of quests it unlocks.
+function X.OffersAfterTurnin(questID)
+    local npc = NpcKey(Safe(UnitName("npc")))
+    local facts = LevelGuideQuestFacts
+    Clear(function(key, mark)
+        if npc and mark.npc == npc then
+            return true
+        end
+        if mark.map and mark.x and mark.y then
+            local px, py = PositionOn(mark.map)
+            if px and py then
+                local yards, isYards = Distance(mark.map, px, py, mark.x, mark.y)
+                if isYards and yards <= OFFER_NEAR then
+                    return true
+                end
+            end
+        end
+        local need = mark.q and LevelGuidePrereqs and (LevelGuidePrereqs[mark.q] or LevelGuidePrereqs[RealTitle(mark.q)])
+        if not need and type(key) == "number" and facts and facts.Quest then
+            need = facts.Quest(key)
+        end
+        for _, list in ipairs({ need and need.all or {}, need and need.any or {} }) do
+            for _, pre in ipairs(list) do
+                if pre == questID then
+                    return true
+                end
+            end
+        end
+        return false
+    end)
+end
+
+-- Accepted: no longer "not offered".
+function X.OffersAfterAccept(questID, title)
+    Clear(function(key, mark) return key == questID or (title ~= nil and mark.q ~= nil and (mark.q == title or RealTitle(mark.q) == title)) end)
+end
+
+-- At login: marks past their 30 minutes go, so the saved table stays small.
+function X.PruneOffers()
+    Clear(function(_, mark) return type(mark) ~= "table" or Clock() - (mark.t or 0) >= OFFER_HOLD end)
+end
+end -- "not offered" marks
 -- Quest givers often offer the next quest only after an earlier one with them, so a pick-up waits
 -- while anything earlier on the route with that same person is still to do.
 local function RouteStepActionable(step, byTitle, level, busyNpcs)
@@ -3176,11 +3284,11 @@ local function StepState(route, index, step, byTitle, level)
     end
     -- You talked to the giver and the quest wasn't on offer: say so, and what QuestDB says is missing,
     -- instead of "done".
-    local offers = step.t == "accept" and not InLog(byTitle, step.q) and offersByNpc[NpcKey(step.npc) or ""]
-    if offers and not (offers[step.q] or offers[RealTitle(step.q)]) and TurnedIn(step.q) < (tonumber(step.part) or 1)
-        and not Outleveled(step, level) then
+    local mark = step.t == "accept" and not InLog(byTitle, step.q) and X.NotOffered(step, level)
+    if mark and TurnedIn(step.q) < (tonumber(step.part) or 1) and not Outleveled(step, level) then
         local missing = MissingPrereqs(step.q, level, step.part)
-        return "blocked", "not offered here" .. (#missing > 0 and ("; needs " .. table.concat(missing, ", ")) or "")
+        return "blocked", string.format("not offered here at level %d (%s)", mark.level or 0, tostring(mark.npc or "?"))
+            .. (#missing > 0 and ("; needs " .. table.concat(missing, ", ")) or "")
     end
     if RouteStepDone(route, index, step, byTitle, level) then
         return "done"
@@ -3621,6 +3729,8 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         charData.points = charData.points or {}    -- step key -> next point of a several-point step
         charData.marks = charData.marks or {}      -- step key -> a bound hearth / items once had
         charData.flights = charData.flights or {}  -- flight node name -> known
+        charData.notOffered = charData.notOffered or {}  -- quest ID (or "title#part") -> "not offered" mark
+        X.PruneOffers()
         -- Once: skips and visits saved under the old "Zone#index" keys move to stable keys, for every
         -- character on this account.
         if (db.stepKeys or 1) < 2 then
@@ -3723,22 +3833,18 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         if title and not (unrelated and unrelated[questID]) then
             charData.done[title] = (charData.done[title] or 0) + 1
         end
-        -- Turning a quest in can open new ones anywhere, so what givers offered is out of date.
-        offersByNpc = {}
-    elseif event == "PLAYER_LEVEL_UP" then
-        offersByNpc = {}
-    elseif event == "QUEST_ACCEPTED" then
-        -- Taking a quest can unlock the giver's next one, so what they offered is out of date.
-        local npc = NpcKey(Safe(UnitName("npc")))
-        if npc then
-            offersByNpc[npc] = nil
-        end
+        -- A turn-in at that NPC, nearby, or of a prerequisite clears "not offered" marks.
+        Attempt(function()
+            X.OffersAfterTurnin(questID)
+        end)
+    elseif event == "QUEST_ACCEPTED" and questID then
+        local title = C_QuestLog.GetTitleForQuestID and Safe(C_QuestLog.GetTitleForQuestID(questID))
+        X.OffersAfterAccept(questID, title)
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         requestedMap = nil
-    elseif event == "GOSSIP_SHOW" or event == "QUEST_GREETING" or event == "QUEST_DETAIL"
-        or event == "QUEST_PROGRESS" or event == "QUEST_COMPLETE" then
+    elseif event == "GOSSIP_SHOW" or event == "QUEST_GREETING" or event == "QUEST_DETAIL" then
         Attempt(function()
-            RecordOffers(event)
+            X.JudgeOffers(event)
         end)
     end
     dirty = true

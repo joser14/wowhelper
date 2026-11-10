@@ -13,7 +13,6 @@
 --            Arrived(state, key, yards, r), Switch(curYards, newYards)
 --   Here:    DetourSeconds(dPN, dNW, dPW), TurninShows(...), Mute(...)/Muted(...)
 --   Camps:   PickCamp(camps, distances, state, now, sample)
---   Offers:  MarkHolds(mark, level, now)
 --   Maps:    MapYards(mapID, x1, y1, x2, y2) on QuestDB frames (map percent 0-100)
 --   Fit:     Fit(points, camps, ender, yards) -> do-after index, turn-in-after index
 
@@ -361,16 +360,6 @@ function P.PickCamp(camps, distances, state, now, sample)
     end
     state.at = best
     return best
-end
-
--- ---- "not offered" marks ---------------------------------------------------------------------------------
-
-P.OFFER = { holdSeconds = 1800, nearYards = 100, afterTurninSeconds = 3 }
-
--- A "not offered at level L" mark still holds: you're still that level and it's under 30 minutes old.
-function P.MarkHolds(mark, level, now)
-    return type(mark) == "table" and level ~= nil and (mark.level or 0) >= level
-        and now - (mark.t or 0) < P.OFFER.holdSeconds
 end
 
 -- ---- maps -------------------------------------------------------------------------------------------------
