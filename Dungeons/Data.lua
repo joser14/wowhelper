@@ -17,12 +17,28 @@
 --
 -- quests: Alliance quests (and quests both factions can do), { title, questIDs, giver, where, level, min, note }.
 -- loot: { itemID, name, boss, slot, note }; slot text names the armor type so the engine can tell plate from cloth.
+--
+-- npcs: boss name -> creature (NPC) ID, used to count kills from UNIT_DIED / PARTY_KILL. Audited Nov 2026
+-- (round 4): Forever bosses from their Wowhead Forever pages (wowhead.com/forever/npc=<id>), Warcraft Tavern's
+-- Hall of Thanes guide and warcraft.wiki.gg (Highland Horror 260808); Classic bosses are the standard Classic
+-- creature IDs, cross-checked against another addon's list (facts only). Bosses without an ID (Cinder,
+-- Snowtalon) are learned in game from your target. Zin'aka was dropped from The Drowned City (an early name for
+-- Var'Taka; no current source lists it); Min'loth the Serpent (260274, Wowhead Forever) was added.
+-- alsoReported: further boss names foreverchanges.pro lists for the newest dungeons, not confirmed elsewhere yet
+-- (shown in gray, not counted).
+-- activity: the Group Finder activity ID (as used by another Forever addon; facts only, unconfirmed). The engine
+-- checks the activity's name against the dungeon before trusting its level range, and finds the others by name.
+-- Level ranges: foreverchanges.pro and Warcraft Tavern agree with ours on 9 of the 15 ranges DungeonJournal
+-- lists differently; where they split (Stockade, Dalaran, Drowned City, Krol'dok, Alcaz) ours (Warcraft Tavern,
+-- "as listed in the in-game Looking For Group tool") stay, and the game's own Group Finder range wins at run time.
 
 DungeonsData = {
     {
         name = "Ragefire Chasm", short = "rfc", minLevel = 13, maxLevel = 18, zone = "Orgrimmar", horde = true,
         entrance = { mapID = 85, zone = "Orgrimmar", x = 0.528, y = 0.496, note = "Cleft of Shadow, inside the Horde capital" },
         bosses = { "Oggleflint", "Taragaman the Hungerer", "Jergosh the Invoker", "Bazzalan" },
+        npcs = { ["Oggleflint"] = 11517, ["Taragaman the Hungerer"] = 11520, ["Jergosh the Invoker"] = 11518, ["Bazzalan"] = 11519 },
+        activity = 798,
         quests = {},
         loot = {
             { 14149, "Subterranean Cape", "Taragaman the Hungerer", "Back" },
@@ -37,6 +53,8 @@ DungeonsData = {
         name = "Hall of Thanes", short = "thanes", aliases = { "hot", "hall" }, minLevel = 13, maxLevel = 20, zone = "Ironforge", forever = true,
         entrance = { mapID = 87, zone = "Ironforge", x = 0.435, y = 0.520, note = "Web-covered passage on the left inside the High Seat (King Magni's hall)" },
         bosses = { "Faldrim Anvilmar", "Magmatus", "Plunder", "Durgen Dirgehammer" },
+        npcs = { ["Faldrim Anvilmar"] = 261306, ["Magmatus"] = 261316, ["Plunder"] = 261311, ["Durgen Dirgehammer"] = 261319 },
+        activity = 1984,
         quests = {
             { title = "Old Ironforge Incursion", questIDs = { 96393 }, giver = "Earthseer Farsen (starts from the Dark Iron Map, looted from a Dark Iron Spy)", where = "Dun Morogh", level = 16, min = 9 },
             { title = "The Restless Dead", questIDs = { 96394 }, giver = "Afadra Dunwall", where = "Ironforge, up the stairs from the entrance", level = 15, min = 10 },
@@ -59,6 +77,8 @@ DungeonsData = {
         name = "Ruins of Lordaeron", short = "ruins", aliases = { "lordaeron" }, minLevel = 15, maxLevel = 22, zone = "Tirisfal Glades", forever = true,
         entrance = { mapID = 18, zone = "Tirisfal Glades", x = 0.620, y = 0.720, note = "approx: in the ruined city above the Undercity, left of the front gate, up the stairs" },
         bosses = { "The Baron", "Witherfang", "The Abandoned", "Bjork", "Rath'mael", "Viktor the Vile" },
+        npcs = { ["The Baron"] = 250660, ["Witherfang"] = 250483, ["The Abandoned"] = 250631, ["Bjork"] = 256097, ["Rath'mael"] = 250657, ["Viktor the Vile"] = 256035 },
+        activity = 1982,
         quests = {
             { title = "Abominable Creatures", questIDs = { 95250 }, giver = "Captain Truman", where = "just inside the entrance", level = 21, min = 16 },
             { title = "Remember That I Love You", questIDs = { 92415 }, giver = "Blood-Stained Letter (drop)", where = "inside; turn in to Orphan Matron Nightingale, Stormwind", level = 22, min = 15 },
@@ -80,6 +100,8 @@ DungeonsData = {
         name = "Wailing Caverns", short = "wc", minLevel = 15, maxLevel = 24, zone = "The Barrens",
         entrance = { mapID = 10, zone = "The Barrens", x = 0.460, y = 0.363, note = "Cave mouth at Lushwater Oasis, southwest of the Crossroads; the portal is down the cave" },
         bosses = { "Lady Anacondra", "Lord Cobrahn", "Kresh", "Lord Pythas", "Skum", "Lord Serpentis", "Verdan the Everliving", "Mutanus the Devourer" },
+        npcs = { ["Lady Anacondra"] = 3671, ["Lord Cobrahn"] = 3669, ["Kresh"] = 3653, ["Lord Pythas"] = 3670, ["Skum"] = 3674, ["Lord Serpentis"] = 3673, ["Verdan the Everliving"] = 5775, ["Mutanus the Devourer"] = 3654 },
+        activity = 796,
         quests = {
             { title = "Deviate Hides", questIDs = { 1486 }, giver = "Nalpak", where = "The Barrens, cave above the entrance", level = 17, min = 13 },
             { title = "Deviate Eradication", questIDs = { 1487 }, giver = "Ebru", where = "The Barrens, cave above the entrance", level = 21, min = 15 },
@@ -103,6 +125,8 @@ DungeonsData = {
         name = "The Deadmines", short = "dm", aliases = { "deadmines", "vc" }, minLevel = 17, maxLevel = 26, zone = "Westfall",
         entrance = { mapID = 52, zone = "Westfall", x = 0.426, y = 0.720, note = "Defias hideout building in southwest Moonbrook; follow the mine down" },
         bosses = { "Rhahk'Zor", "Sneed's Shredder", "Gilnid", "Mr. Smite", "Captain Greenskin", "Edwin VanCleef", "Cookie" },
+        npcs = { ["Rhahk'Zor"] = 644, ["Sneed's Shredder"] = 642, ["Gilnid"] = 1763, ["Mr. Smite"] = 646, ["Captain Greenskin"] = 647, ["Edwin VanCleef"] = 639, ["Cookie"] = 645 },
+        activity = 799,
         quests = {
             { title = "Destruction in Deadmines", questIDs = { 92753, 92819 }, giver = "Alba Fairmoon", where = "Westfall", level = 18, min = 9, note = "new on Forever, with a follow-up" },
             { title = "Red Silk Bandanas", questIDs = { 214 }, giver = "Scout Riell", where = "Sentinel Hill tower, Westfall", level = 17, min = 14 },
@@ -129,6 +153,8 @@ DungeonsData = {
         name = "Shadowfang Keep", short = "sfk", minLevel = 20, maxLevel = 30, zone = "Silverpine Forest",
         entrance = { mapID = 21, zone = "Silverpine Forest", x = 0.445, y = 0.680, note = "Up the hill just north of Pyrewood Village" },
         bosses = { "Rethilgore", "Razorclaw the Butcher", "Baron Silverlaine", "Commander Springvale", "Odo the Blindwatcher", "Fenrus the Devourer", "Wolf Master Nandos", "Archmage Arugal" },
+        npcs = { ["Rethilgore"] = 3914, ["Razorclaw the Butcher"] = 3886, ["Baron Silverlaine"] = 3887, ["Commander Springvale"] = 4278, ["Odo the Blindwatcher"] = 4279, ["Fenrus the Devourer"] = 4274, ["Wolf Master Nandos"] = 3927, ["Archmage Arugal"] = 4275 },
+        activity = 800,
         quests = {},
         loot = {
             { 6321, "Silverlaine's Family Seal", "Baron Silverlaine", "Finger" },
@@ -146,6 +172,8 @@ DungeonsData = {
         name = "Blackfathom Deeps", short = "bfd", minLevel = 24, maxLevel = 32, zone = "Ashenvale",
         entrance = { mapID = 63, zone = "Ashenvale", x = 0.145, y = 0.146, note = "Zoram Strand, northwest coast of Ashenvale; the portal is down in the flooded temple" },
         bosses = { "Ghamoo-ra", "Lady Sarevess", "Gelihast", "Lorgus Jett", "Baron Aquanis", "Twilight Lord Kelris", "Old Serra'kis", "Aku'mai" },
+        npcs = { ["Ghamoo-ra"] = 4887, ["Lady Sarevess"] = 4831, ["Gelihast"] = 6243, ["Lorgus Jett"] = 12902, ["Baron Aquanis"] = 12876, ["Twilight Lord Kelris"] = 4832, ["Old Serra'kis"] = 4830, ["Aku'mai"] = 4829 },
+        activity = 801,
         quests = {
             { title = "Knowledge in the Deeps", questIDs = { 971 }, giver = "Gerrig Bonegrip", where = "Forlorn Cavern, Ironforge", level = 23, min = 10, note = "bring the Lorgalis Manuscript" },
             { title = "Researching the Corruption", questIDs = { 1275 }, giver = "Gershala Nightwhisper", where = "Auberdine, Darkshore", level = 24, min = 18, note = "8 Corrupted Brain Stems" },
@@ -168,6 +196,7 @@ DungeonsData = {
         name = "The Stockade", short = "stocks", aliases = { "stockade" }, minLevel = 25, maxLevel = 29, zone = "Stormwind City",
         entrance = { mapID = 84, zone = "Stormwind City", x = 0.420, y = 0.580, note = "The Canals by the Mage Quarter, meeting stone at the door" },
         bosses = { "Targorr the Dread", "Kam Deepfury", "Hamhock", "Dextren Ward", "Bazil Thredd" },
+        npcs = { ["Targorr the Dread"] = 1696, ["Kam Deepfury"] = 1666, ["Hamhock"] = 1717, ["Dextren Ward"] = 1663, ["Bazil Thredd"] = 1716 },
         quests = {
             { title = "What Comes Around...", questIDs = { 386 }, giver = "Guard Berton", where = "Lakeshire, Redridge Mountains", level = 25, min = 22, note = "head of Targorr" },
             { title = "Crime and Punishment", questIDs = { 377 }, giver = "Councilman Millstipe", where = "Darkshire, Duskwood", level = 26, min = 22, note = "hand of Dextren Ward" },
@@ -191,6 +220,8 @@ DungeonsData = {
         name = "Excavation Site: Wetlands", short = "excavation", aliases = { "wetlands", "excav" }, minLevel = 26, maxLevel = 33, zone = "Wetlands", forever = true,
         entrance = { mapID = 56, zone = "Wetlands", x = 0.481, y = 0.565, note = "Up the winding path left of Thelgen Rock; path and meeting stone at 53.9, 65.4" },
         bosses = { "Saltspine", "Shadetooth", "Highland Horror", "Relic Guardian" },
+        npcs = { ["Saltspine"] = 260322, ["Shadetooth"] = 260325, ["Highland Horror"] = 260808, ["Relic Guardian"] = 260326 },
+        activity = 1981,
         quests = {
             { title = "Songblade Search", questIDs = { 95772 }, giver = "Dorin Songblade", where = "Lakeshire, Redridge Mountains", level = 31, min = 24 },
             { title = "Fallen in the Fen", questIDs = { 95795 }, giver = "a dwarf's body", where = "inside; report to Dorin Songblade", level = 31, min = 24 },
@@ -214,6 +245,8 @@ DungeonsData = {
         name = "City of Dalaran", short = "dalaran", minLevel = 28, maxLevel = 35, zone = "Alterac Mountains", forever = true,
         entrance = { mapID = 21, zone = "Silverpine Forest", x = 0.693, y = 0.456, note = "Through the Dalaran sewers to a portal at the end of a long pipe (on the Silverpine map, by Lordamere Lake)" },
         bosses = { "Atrexis the Grave Knight", "Lyn the Ignored", "Arcane Anomaly", "Arcanic Enigma", "Unstable Sentinel", "Mana Devourer", "Fel Ancient", "Shade of the Archmage" },
+        npcs = { ["Atrexis the Grave Knight"] = 247126, ["Lyn the Ignored"] = 247032, ["Arcane Anomaly"] = 245999, ["Arcanic Enigma"] = 246016, ["Unstable Sentinel"] = 246017, ["Mana Devourer"] = 246008, ["Fel Ancient"] = 246003, ["Shade of the Archmage"] = 246020 },
+        activity = 1983,
         quests = {
             { title = "An Alarming Request", questIDs = { 92432 }, giver = "Emissary Jacques", where = "Southshore, Hillsbrad Foothills", level = 33, min = 30, note = "access chain: leads to the Image of Archmage Modera and the Dalaran Sewer Key" },
             { title = "Starving Arcane", questIDs = { 92457 }, giver = "Image of Archmage Modera", where = "outside Dalaran", level = 33, min = 24, note = "after An Alarming Request" },
@@ -237,6 +270,8 @@ DungeonsData = {
         name = "Razorfen Kraul", short = "rfk", minLevel = 29, maxLevel = 38, zone = "The Barrens",
         entrance = { mapID = 10, zone = "The Barrens", x = 0.430, y = 0.900, note = "Southwest corner of The Barrens" },
         bosses = { "Roogug", "Aggem Thorncurse", "Death Speaker Jargba", "Overlord Ramtusk", "Agathelos the Raging", "Charlga Razorflank" },
+        npcs = { ["Roogug"] = 6168, ["Aggem Thorncurse"] = 4424, ["Death Speaker Jargba"] = 4428, ["Overlord Ramtusk"] = 4420, ["Agathelos the Raging"] = 4422, ["Charlga Razorflank"] = 4421 },
+        activity = 804,
         quests = {
             { title = "Blueleaf Tubers", questIDs = { 1221 }, giver = "Mebok Mizzyrix", where = "Ratchet, The Barrens", level = 26, min = 20 },
             { title = "Willix the Importer", questIDs = { 1144 }, giver = "Willix the Importer", where = "inside (escort)", level = 30, min = 23 },
@@ -257,6 +292,8 @@ DungeonsData = {
         name = "Gnomeregan", short = "gnomer", aliases = { "gnome" }, minLevel = 29, maxLevel = 38, zone = "Dun Morogh",
         entrance = { mapID = 27, zone = "Dun Morogh", x = 0.240, y = 0.400, note = "Northwest Dun Morogh, through the front gate and down the elevator" },
         bosses = { "Grubbis", "Viscous Fallout", "Electrocutioner 6000", "Crowd Pummeler 9-60", "Mekgineer Thermaplugg" },
+        npcs = { ["Grubbis"] = 7361, ["Viscous Fallout"] = 7079, ["Electrocutioner 6000"] = 6235, ["Crowd Pummeler 9-60"] = 6229, ["Mekgineer Thermaplugg"] = 7800 },
+        activity = 803,
         quests = {
             { title = "Save Techbot's Brain!", questIDs = { 2922 }, giver = "Tinkmaster Overspark", where = "Tinker Town, Ironforge", level = 26, min = 20 },
             { title = "Gnogaine", questIDs = { 2926 }, giver = "Ozzie Togglevolt", where = "Kharanos, Dun Morogh", level = 27, min = 20, note = "after The Day After" },
@@ -285,6 +322,8 @@ DungeonsData = {
         name = "Scarlet Monastery Graveyard", short = "sm graveyard", aliases = { "sm gy", "graveyard", "gy" }, minLevel = 30, maxLevel = 38, zone = "Tirisfal Glades",
         entrance = { mapID = 18, zone = "Tirisfal Glades", x = 0.840, y = 0.300, note = "approx: the monastery in the northeast corner of Tirisfal; Graveyard is one of the four doors" },
         bosses = { "Interrogator Vishas", "Bloodmage Thalnos" },
+        npcs = { ["Interrogator Vishas"] = 3983, ["Bloodmage Thalnos"] = 4543 },
+        activity = 805,
         quests = {
             { title = "Mythology of the Titans", questIDs = { 1050 }, giver = "Librarian Mae Paledust", where = "Hall of Explorers, Ironforge", level = 38, min = 28, note = "the book is in the Library" },
         },
@@ -301,6 +340,8 @@ DungeonsData = {
         name = "Scarlet Monastery Library", short = "sm library", aliases = { "sm lib", "library", "lib" }, minLevel = 33, maxLevel = 41, zone = "Tirisfal Glades",
         entrance = { mapID = 18, zone = "Tirisfal Glades", x = 0.840, y = 0.300, note = "approx: the monastery in the northeast corner of Tirisfal; Library is the rightmost portal" },
         bosses = { "Houndmaster Loksey", "Arcanist Doan" },
+        npcs = { ["Houndmaster Loksey"] = 3974, ["Arcanist Doan"] = 6487 },
+        activity = 829,
         quests = {
             { title = "Mythology of the Titans", questIDs = { 1050 }, giver = "Librarian Mae Paledust", where = "Hall of Explorers, Ironforge", level = 38, min = 28, note = "reward: Explorers' League Commendation" },
             { title = "Past Due", questIDs = { 96800 }, giver = "Magus Olvek", where = "Alterac Mountains", level = 38, min = 30, note = "new on Forever" },
@@ -319,7 +360,9 @@ DungeonsData = {
     {
         name = "The Drowned City", short = "drowned", minLevel = 35, maxLevel = 42, zone = "Stranglethorn Vale", forever = true,
         entrance = { mapID = 224, zone = "Stranglethorn Vale", x = 0.214, y = 0.279, note = "Underwater off the west coast: swim past the Vile Reef to the Sunken Hollow, cave by a large tablet" },
-        bosses = { "Zul'Alai", "Zin'aka", "Var'Taka", "Captain Dreadrise" },
+        bosses = { "Zul'Alai", "Var'Taka", "Captain Dreadrise", "Min'loth the Serpent" },
+        npcs = { ["Zul'Alai"] = 258905, ["Var'Taka"] = 258924, ["Captain Dreadrise"] = 260042, ["Min'loth the Serpent"] = 260274 },
+        alsoReported = { "Deathless Marrow", "Gill" },
         quests = {},
         loot = {},
         note = "New on Forever. Guides list Alliance quests (Magics of the Drowned City, Take Two With Water) but no IDs or givers yet; details still preliminary.",
@@ -328,6 +371,8 @@ DungeonsData = {
         name = "Scarlet Monastery Armory", short = "sm armory", aliases = { "sm arm", "armory", "arm" }, minLevel = 36, maxLevel = 44, zone = "Tirisfal Glades",
         entrance = { mapID = 18, zone = "Tirisfal Glades", x = 0.840, y = 0.300, note = "approx: the monastery in the northeast corner of Tirisfal; locked door" },
         bosses = { "Herod" },
+        npcs = { ["Herod"] = 3975 },
+        activity = 827,
         quests = {
             { title = "In the Name of the Light", questIDs = { 1053 }, giver = "Raleigh the Devout", where = "Southshore, Hillsbrad Foothills", level = 40, min = 34, note = "Herod is one of the four targets" },
         },
@@ -345,6 +390,8 @@ DungeonsData = {
         -- (https://wow-forever.gg/db/npcs/12866-myriam-moonsinger/, Classic spawn data).
         entrance = { mapID = 10, zone = "The Barrens", x = 0.490, y = 0.949, note = "Far south of The Barrens by the Thousand Needles border, where Myriam Moonsinger stands" },
         bosses = { "Tuten'kash", "Mordresh Fire Eye", "Glutton", "Amnennar the Coldbringer" },
+        npcs = { ["Tuten'kash"] = 7355, ["Mordresh Fire Eye"] = 7357, ["Glutton"] = 8567, ["Amnennar the Coldbringer"] = 7358 },
+        activity = 806,
         quests = {
             { title = "A Host of Evil", questIDs = { 6626 }, giver = "Myriam Moonsinger", where = "outside the entrance, The Barrens", level = 35, min = 28 },
             { title = "Extinguishing the Idol", questIDs = { 3525 }, giver = "Belnistrasz", where = "inside (escort)", level = 37, min = 32, note = "reward: Dragonclaw Ring" },
@@ -366,6 +413,8 @@ DungeonsData = {
         name = "Scarlet Monastery Cathedral", short = "sm cathedral", aliases = { "sm cath", "cathedral", "cath" }, minLevel = 38, maxLevel = 46, zone = "Tirisfal Glades",
         entrance = { mapID = 18, zone = "Tirisfal Glades", x = 0.840, y = 0.300, note = "approx: the monastery in the northeast corner of Tirisfal; locked door" },
         bosses = { "High Inquisitor Fairbanks", "Scarlet Commander Mograine", "High Inquisitor Whitemane" },
+        npcs = { ["High Inquisitor Fairbanks"] = 4542, ["Scarlet Commander Mograine"] = 3976, ["High Inquisitor Whitemane"] = 3977 },
+        activity = 828,
         quests = {
             { title = "In the Name of the Light", questIDs = { 1053 }, giver = "Raleigh the Devout", where = "Southshore, Hillsbrad Foothills", level = 40, min = 34, note = "Sword of Serenity, Bonebiter, Black Menace or Orb of Lorica" },
         },
@@ -384,6 +433,8 @@ DungeonsData = {
         name = "Krol'dok Stronghold", short = "kroldok", minLevel = 40, maxLevel = 47, zone = "Riverglades", forever = true,
         entrance = { zone = "Riverglades", mapID = 2548, x = 0.375, y = 0.375, note = "Cave on the north side, west of the big fortress gates" },
         bosses = { "Overlord Mugg" },
+        npcs = { ["Overlord Mugg"] = 258968 },
+        alsoReported = { "Slavecrusher Grox", "Twilight Commander Zarmok", "Handler Ashka", "Nar'gurk" },
         quests = {},
         loot = {},
         note = "New on Forever, in the new Riverglades zone. Quests and loot not known yet.",
@@ -392,6 +443,7 @@ DungeonsData = {
         name = "Uldaman", short = "ulda", aliases = { "uld" }, minLevel = 41, maxLevel = 51, zone = "Badlands",
         entrance = { mapID = 15, zone = "Badlands", x = 0.440, y = 0.120, note = "North Badlands near the Loch Modan pass, through the excavation tunnels (elites)" },
         bosses = { "Revelosh", "The Lost Dwarves", "Ironaya", "Obsidian Sentinel", "Ancient Stone Keeper", "Galgann Firehammer", "Grimlok", "Archaedas" },
+        npcs = { ["Revelosh"] = 6910, ["The Lost Dwarves"] = 6906, ["Ironaya"] = 7228, ["Obsidian Sentinel"] = 7023, ["Ancient Stone Keeper"] = 7206, ["Galgann Firehammer"] = 7291, ["Grimlok"] = 4854, ["Archaedas"] = 2748 },
         quests = {
             { title = "Agmond's Fate", questIDs = { 704 }, giver = "Prospector Ironband", where = "Loch Modan", level = 38, min = 30 },
             { title = "Solution to Doom", questIDs = { 709 }, giver = "Theldurin the Lost", where = "Badlands", level = 40, min = 30 },
@@ -420,6 +472,7 @@ DungeonsData = {
         name = "Zul'Farrak", short = "zf", minLevel = 44, maxLevel = 54, zone = "Tanaris",
         entrance = { mapID = 71, zone = "Tanaris", x = 0.390, y = 0.200, note = "Northwest Tanaris" },
         bosses = { "Antu'sul", "Theka the Martyr", "Witch Doctor Zum'rah", "Hydromancer Velratha", "Gahz'rilla", "Shadowpriest Sezz'ziz", "Chief Ukorz Sandscalp" },
+        npcs = { ["Antu'sul"] = 8127, ["Theka the Martyr"] = 7272, ["Witch Doctor Zum'rah"] = 7271, ["Hydromancer Velratha"] = 7795, ["Gahz'rilla"] = 7273, ["Shadowpriest Sezz'ziz"] = 7275, ["Chief Ukorz Sandscalp"] = 7267 },
         quests = {
             { title = "Scarab Shells", questIDs = { 2865 }, giver = "Tran'rek", where = "Gadgetzan, Tanaris", level = 45, min = 40 },
             { title = "Troll Temper", questIDs = { 3042 }, giver = "Trenton Lighthammer", where = "Gadgetzan, Tanaris", level = 45, min = 40 },
@@ -445,6 +498,7 @@ DungeonsData = {
         name = "Maraudon", short = "mara", minLevel = 46, maxLevel = 55, zone = "Desolace",
         entrance = { mapID = 66, zone = "Desolace", x = 0.291, y = 0.625, note = "Cave on the west side of the Valley of Spears" },
         bosses = { "Noxxion", "Razorlash", "Lord Vyletongue", "Celebras the Cursed", "Landslide", "Tinkerer Gizlock", "Rotgrip", "Princess Theradras" },
+        npcs = { ["Noxxion"] = 13282, ["Razorlash"] = 12258, ["Lord Vyletongue"] = 12236, ["Celebras the Cursed"] = 12225, ["Landslide"] = 12203, ["Tinkerer Gizlock"] = 13601, ["Rotgrip"] = 13596, ["Princess Theradras"] = 12201 },
         quests = {
             { title = "Shadowshard Fragments", questIDs = { 7070 }, giver = "Archmage Tervosh", where = "Theramore, Dustwallow Marsh", level = 42, min = 38 },
             { title = "The Pariah's Instructions", questIDs = { 7067 }, giver = "Centaur Pariah", where = "Desolace", level = 48, min = 39 },
@@ -471,6 +525,8 @@ DungeonsData = {
         name = "Alcaz Prison", short = "alcaz", minLevel = 48, maxLevel = 55, zone = "Dustwallow Marsh", forever = true,
         entrance = { mapID = 70, zone = "Dustwallow Marsh", x = 0.750, y = 0.150, note = "Alcaz Island: up the hill left of the dock, portal in the big building's basement" },
         bosses = { "Blazeroar" },
+        npcs = { ["Blazeroar"] = 255702 },
+        alsoReported = { "Overseer Wrex", "Tidemistress Ca'zass", "Katerina the Cleaner", "The Questioner" },
         quests = {},
         loot = {},
         note = "New on Forever. Quests and loot not known yet.",
@@ -479,6 +535,7 @@ DungeonsData = {
         name = "Sunken Temple", short = "st", aliases = { "temple", "atal'hakkar" }, minLevel = 50, maxLevel = 60, zone = "Swamp of Sorrows",
         entrance = { mapID = 51, zone = "Swamp of Sorrows", x = 0.696, y = 0.534, note = "approx: the temple in the middle of the lake (Pool of Tears); swim down to the entrance" },
         bosses = { "Atal'alarion", "Dreamscythe", "Weaver", "Jammal'an the Prophet", "Ogom the Wretched", "Morphaz", "Hazzas", "Avatar of Hakkar", "Shade of Eranikus" },
+        npcs = { ["Atal'alarion"] = 8580, ["Dreamscythe"] = 5721, ["Weaver"] = 5720, ["Jammal'an the Prophet"] = 5710, ["Ogom the Wretched"] = 5711, ["Morphaz"] = 5719, ["Hazzas"] = 5722, ["Avatar of Hakkar"] = 8443, ["Shade of Eranikus"] = 5709 },
         quests = {
             { title = "Into the Temple of Atal'Hakkar", questIDs = { 1475 }, giver = "Brohann Caskbelly", where = "Dwarven District, Stormwind", level = 50, min = 41, note = "after Rhapsody's Tale; reward Guardian Talisman" },
             { title = "Jammal'an the Prophet", questIDs = { 1446 }, giver = "Atal'ai Exile", where = "The Hinterlands", level = 53, min = 38 },
@@ -502,6 +559,7 @@ DungeonsData = {
         name = "Blackrock Depths", short = "brd", minLevel = 52, maxLevel = 60, zone = "Blackrock Mountain",
         entrance = { mapID = 36, zone = "Burning Steppes", x = 0.290, y = 0.289, note = "Blackrock Mountain from the Burning Steppes side; down the chains, the portal is in the Masonry" },
         bosses = { "High Interrogator Gerstahn", "Lord Roccor", "Bael'Gar", "Lord Incendius", "General Angerforge", "Golem Lord Argelmach", "Ambassador Flamelash", "Magmus", "Emperor Dagran Thaurissan" },
+        npcs = { ["High Interrogator Gerstahn"] = 9018, ["Lord Roccor"] = 9025, ["Bael'Gar"] = 9016, ["Lord Incendius"] = 9017, ["General Angerforge"] = 9033, ["Golem Lord Argelmach"] = 8983, ["Ambassador Flamelash"] = 9156, ["Magmus"] = 9938, ["Emperor Dagran Thaurissan"] = 9019 },
         quests = {
             { title = "Dark Iron Legacy", questIDs = { 3802 }, giver = "Franclorn Forgewright (ghost)", where = "on the chain inside Blackrock Mountain", level = 52, min = 48, note = "reward: the Shadowforge Key" },
             { title = "Abandoned Hope", questIDs = { 4242 }, giver = "Marshal Windsor", where = "inside the prison", level = 54, min = 48 },
@@ -530,6 +588,7 @@ DungeonsData = {
         name = "Dire Maul East", short = "dme", aliases = { "dm east", "east" }, minLevel = 54, maxLevel = 60, zone = "Feralas",
         entrance = { mapID = 69, zone = "Feralas", x = 0.590, y = 0.450, note = "South side of the Dire Maul compound, through Eldreth Row; back door at Lariss Pavilion needs the Crescent Key" },
         bosses = { "Pusillin", "Zevrim Thornhoof", "Hydrospawn", "Lethtendris", "Alzzin the Wildshaper" },
+        npcs = { ["Pusillin"] = 14354, ["Zevrim Thornhoof"] = 11490, ["Hydrospawn"] = 13280, ["Lethtendris"] = 14327, ["Alzzin the Wildshaper"] = 11492 },
         quests = {
             { title = "Lethtendris's Web", questIDs = { 7488 }, giver = "Latronicus Moonspear", where = "Feathermoon Stronghold, Feralas", level = 57, min = 54, note = "reward: Lorespinner" },
             { title = "Pusillin and the Elder Azj'Tordin", questIDs = { 7441 }, giver = "Azj'Tordin", where = "Lariss Pavilion, Feralas", level = 58, min = 54 },
@@ -549,6 +608,7 @@ DungeonsData = {
         name = "Lower Blackrock Spire", short = "lbrs", minLevel = 55, maxLevel = 60, zone = "Blackrock Mountain",
         entrance = { mapID = 36, zone = "Burning Steppes", x = 0.290, y = 0.289, note = "Blackrock Mountain; the Spire portal is on the east side, past the meeting stone door" },
         bosses = { "Highlord Omokk", "Shadow Hunter Vosh'gajin", "War Master Voone", "Mother Smolderweb", "Urok Doomhowl", "Quartermaster Zigris", "Halycon", "Gizrul the Slavener", "Overlord Wyrmthalak" },
+        npcs = { ["Highlord Omokk"] = 9196, ["Shadow Hunter Vosh'gajin"] = 9236, ["War Master Voone"] = 9237, ["Mother Smolderweb"] = 10596, ["Urok Doomhowl"] = 10584, ["Quartermaster Zigris"] = 9736, ["Halycon"] = 10220, ["Gizrul the Slavener"] = 10268, ["Overlord Wyrmthalak"] = 9568 },
         quests = {
             { title = "Put Her Down", questIDs = { 4701 }, giver = "Helendis Riverhorn", where = "Morgan's Vigil, Burning Steppes", level = 59, min = 55 },
             { title = "Bijou's Belongings", questIDs = { 5001, 5002 }, giver = "Bijou", where = "inside; then Message to Maxwell", level = 59, min = 55 },
@@ -570,6 +630,8 @@ DungeonsData = {
         name = "Blackmaw Hold", short = "blackmaw", minLevel = 55, maxLevel = 60, zone = "Azshara", forever = true,
         entrance = { mapID = 76, zone = "Azshara", x = 0.387, y = 0.334, note = "Furbolg tunnel; the portal itself is deep inside, on the Winterspring map near 66.6, 84.4" },
         bosses = { "Varrox Bleakhoof" },
+        npcs = { ["Varrox Bleakhoof"] = 247234 },
+        alsoReported = { "Withermaw", "Impaan the Imprisoner", "Elder Shaman Bloodmane", "Bonesnout the Unbroken", "Blackmaw Behemoth", "Unbound Spirit" },
         quests = {},
         loot = {},
         note = "New on Forever. Quests and loot not known yet.",
@@ -578,6 +640,7 @@ DungeonsData = {
         name = "Dire Maul West", short = "dmw", aliases = { "dm west", "west" }, minLevel = 56, maxLevel = 60, zone = "Feralas",
         entrance = { mapID = 69, zone = "Feralas", x = 0.590, y = 0.450, note = "Dire Maul compound; door on the inner courtyard (Crescent Key)" },
         bosses = { "Tendris Warpwood", "Illyanna Ravenoak", "Magister Kalendris", "Immol'thar", "Prince Tortheldrin" },
+        npcs = { ["Tendris Warpwood"] = 11489, ["Illyanna Ravenoak"] = 11488, ["Magister Kalendris"] = 11487, ["Immol'thar"] = 11496, ["Prince Tortheldrin"] = 11486 },
         quests = {
             { title = "The Madness Within", questIDs = { 7461 }, giver = "Shen'dralar Ancient", where = "inside", level = 60, min = 56 },
             { title = "The Treasure of the Shen'dralar", questIDs = { 7462 }, giver = "Shen'dralar Ancient", where = "inside", level = 60, min = 56 },
@@ -596,6 +659,7 @@ DungeonsData = {
         name = "Dire Maul North", short = "dmn", aliases = { "dm north", "north", "tribute" }, minLevel = 56, maxLevel = 60, zone = "Feralas",
         entrance = { mapID = 69, zone = "Feralas", x = 0.590, y = 0.450, note = "Dire Maul compound; door on the inner courtyard (Crescent Key)" },
         bosses = { "Guard Mol'dar", "Stomper Kreeg", "Guard Fengus", "Guard Slip'kik", "Captain Kromcrush", "King Gordok" },
+        npcs = { ["Guard Mol'dar"] = 14326, ["Stomper Kreeg"] = 14322, ["Guard Fengus"] = 14321, ["Guard Slip'kik"] = 14323, ["Captain Kromcrush"] = 14325, ["King Gordok"] = 11501 },
         quests = {
             { title = "The Gordok Ogre Suit", questIDs = { 5518 }, giver = "Knot Thimblejack", where = "inside", level = 60, min = 56 },
             { title = "Free Knot!", questIDs = { 5525 }, giver = "Knot Thimblejack", where = "inside", level = 60, min = 57 },
@@ -615,6 +679,8 @@ DungeonsData = {
         name = "Shaper's Terrace", short = "shaper", aliases = { "terrace" }, minLevel = 58, maxLevel = 60, zone = "Un'Goro Crater", forever = true,
         entrance = { mapID = 78, zone = "Un'Goro Crater", x = 0.481, y = 0.061, note = "On the hill above Marshal's Refuge" },
         bosses = { "Bolt", "Cinder", "Snowtalon", "Nanaya" },
+        npcs = { ["Bolt"] = 262081, ["Nanaya"] = 261809 },
+        alsoReported = { "Titanosaur", "Ravasaur Hunters", "Thunderhoof", "Venomridge", "Direhorn Matriarch", "King Op", "Vitrix" },
         quests = {},
         loot = {},
         note = "New on Forever. The four Un'Goro Power Crystals are used at consoles inside. Quests and loot not known yet.",
@@ -627,6 +693,7 @@ DungeonsData = {
         -- that site's 70.9 48.4 / 71.8 50.2 / 11.4 26.6, the door is about 30.4, 14.5 (within ~0.5).
         entrance = { mapID = 23, zone = "Eastern Plaguelands", x = 0.304, y = 0.145, note = "Northwest corner of the zone, across the long bridge" },
         bosses = { "Skul", "Hearthsinger Forresten", "The Unforgiven", "Timmy the Cruel", "Cannon Master Willey", "Archivist Galford", "Balnazzar" },
+        npcs = { ["Skul"] = 10393, ["Hearthsinger Forresten"] = 10558, ["The Unforgiven"] = 10516, ["Timmy the Cruel"] = 10808, ["Cannon Master Willey"] = 10997, ["Archivist Galford"] = 10811, ["Balnazzar"] = 10813 },
         quests = {
             { title = "Of Love and Family", questIDs = { 5848 }, giver = "Artist Renfray", where = "Caer Darrow, Western Plaguelands", level = 60, min = 52 },
             { title = "The Great Fras Siabi", questIDs = { 5214 }, giver = "Smokey LaRue", where = "Light's Hope Chapel, Eastern Plaguelands", level = 60, min = 55 },
@@ -650,6 +717,7 @@ DungeonsData = {
         name = "Stratholme Service Gate", short = "strat ud", aliases = { "undead", "service gate", "baron" }, minLevel = 58, maxLevel = 60, zone = "Eastern Plaguelands",
         entrance = { mapID = 23, zone = "Eastern Plaguelands", x = 0.435, y = 0.193, note = "approx: Eastwall Gate, a little east of the main gate (Forever redrew this map)" },
         bosses = { "Magistrate Barthilas", "Baroness Anastari", "Nerub'enkan", "Maleki the Pallid", "Ramstein the Gorger", "Baron Rivendare" },
+        npcs = { ["Magistrate Barthilas"] = 10435, ["Baroness Anastari"] = 10436, ["Nerub'enkan"] = 10437, ["Maleki the Pallid"] = 10438, ["Ramstein the Gorger"] = 10439, ["Baron Rivendare"] = 10440 },
         quests = {
             { title = "Of Love and Family", questIDs = { 5848 }, giver = "Artist Renfray", where = "Caer Darrow, Western Plaguelands", level = 60, min = 52 },
             { title = "The Flesh Does Not Lie", questIDs = { 5212 }, giver = "Betina Bigglezink", where = "Light's Hope Chapel, Eastern Plaguelands", level = 60, min = 55 },
@@ -671,6 +739,7 @@ DungeonsData = {
         name = "Scholomance", short = "scholo", aliases = { "scholomance" }, minLevel = 58, maxLevel = 60, zone = "Western Plaguelands",
         entrance = { mapID = 22, zone = "Western Plaguelands", x = 0.697, y = 0.733, note = "approx: Caer Darrow island in southeast Western Plaguelands" },
         bosses = { "Kirtonos the Herald", "Jandice Barov", "Rattlegore", "Ras Frostwhisper", "Instructor Malicia", "Doctor Theolen Krastinov", "Lorekeeper Polkelt", "The Ravenian", "Lord Alexei Barov", "Lady Illucia Barov", "Darkmaster Gandling" },
+        npcs = { ["Kirtonos the Herald"] = 10506, ["Jandice Barov"] = 10503, ["Rattlegore"] = 11622, ["Ras Frostwhisper"] = 10508, ["Instructor Malicia"] = 10505, ["Doctor Theolen Krastinov"] = 11261, ["Lorekeeper Polkelt"] = 10901, ["The Ravenian"] = 10507, ["Lord Alexei Barov"] = 10504, ["Lady Illucia Barov"] = 10502, ["Darkmaster Gandling"] = 1853 },
         quests = {
             { title = "Barov Family Fortune", questIDs = { 5343, 5344 }, giver = "Weldon Barov", where = "Chillwind Camp, Western Plaguelands", level = 60, min = 52, note = "then The Last Barov" },
             { title = "Doctor Theolen Krastinov, the Butcher", questIDs = { 5382 }, giver = "Eva Sarkhoff", where = "Caer Darrow, Western Plaguelands", level = 60, min = 55 },
@@ -693,6 +762,7 @@ DungeonsData = {
         name = "Upper Blackrock Spire", short = "ubrs", minLevel = 59, maxLevel = 60, zone = "Blackrock Mountain",
         entrance = { mapID = 36, zone = "Burning Steppes", x = 0.290, y = 0.289, note = "Blackrock Mountain; same portal as Lower Blackrock Spire" },
         bosses = { "Pyroguard Emberseer", "Solakar Flamewreath", "Goraluk Anvilcrack", "Warchief Rend Blackhand", "The Beast", "General Drakkisath" },
+        npcs = { ["Pyroguard Emberseer"] = 9816, ["Solakar Flamewreath"] = 10264, ["Goraluk Anvilcrack"] = 10899, ["Warchief Rend Blackhand"] = 10429, ["The Beast"] = 10430, ["General Drakkisath"] = 10363 },
         quests = {
             { title = "General Drakkisath's Demise", questIDs = { 5102 }, giver = "Marshal Maxwell", where = "Morgan's Vigil, Burning Steppes", level = 60, min = 55 },
             { title = "Drakefire Amulet", questIDs = { 6502 }, giver = "Haleh", where = "Mazthoril, Winterspring", level = 60, min = 50, note = "last step of the Onyxia attunement" },

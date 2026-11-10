@@ -641,13 +641,113 @@ local function Tags(dungeon)
     return tags
 end
 
+-- Level ranges from the game ------------------------------------------------------------------------
+-- The Group Finder knows each dungeon's range: C_LFGList.GetActivityInfoTable(activityID) gives minLevel
+-- (to enter) and minLevelSuggestion / maxLevelSuggestion. Activity IDs come from Data.lua, or are found
+-- by name in the activities the game lists. An activity is only trusted when its name is the dungeon's.
+-- Read once per session (again after a login), never in a loop.
+
+local function NameKey(text)
+    return (tostring(text or ""):lower():gsub("^the%s+", ""):gsub("[^%w]", ""))
+end
+
+local function SameDungeon(dungeon, fullName)
+    fullName = Safe(fullName)
+    if type(fullName) ~= "string" or fullName == "" then
+        return false
+    end
+    local key = NameKey(fullName)
+    if key == NameKey(dungeon.name) then
+        return true
+    end
+    for _, alias in ipairs(dungeon.aliases or {}) do
+        if key == NameKey(alias) then
+            return true
+        end
+    end
+    return false
+end
+
+local function ActivityInfo(id)
+    if not (C_LFGList and C_LFGList.GetActivityInfoTable and type(id) == "number") then
+        return nil
+    end
+    local ok, info = pcall(C_LFGList.GetActivityInfoTable, id)
+    return ok and type(info) == "table" and info or nil
+end
+
+local gameRanges          -- dungeon -> { enter, lo, hi } or false; nil = not read this session
+local function ReadGameRanges()
+    gameRanges = {}
+    -- Activities the game lists (undocumented call; pcall), for dungeons without an ID of ours.
+    local available = {}
+    if C_LFGList and C_LFGList.GetAvailableActivities then
+        local ok, list = pcall(C_LFGList.GetAvailableActivities)
+        if ok and type(list) == "table" then
+            for _, id in ipairs(list) do
+                id = Safe(id)
+                if type(id) == "number" then
+                    available[#available + 1] = { id = id, info = ActivityInfo(id) }
+                end
+            end
+        end
+    end
+    for _, dungeon in ipairs(List()) do
+        local info = ActivityInfo(dungeon.activity)
+        if info and not SameDungeon(dungeon, info.fullName) then
+            info = nil
+        end
+        if not info then
+            for _, entry in ipairs(available) do
+                if entry.info and SameDungeon(dungeon, entry.info.fullName) then
+                    info = entry.info
+                    break
+                end
+            end
+        end
+        local enter = info and Safe(info.minLevel)
+        local lo, hi = info and Safe(info.minLevelSuggestion), info and Safe(info.maxLevelSuggestion)
+        if type(lo) == "number" and type(hi) == "number" and lo > 0 and hi >= lo then
+            gameRanges[dungeon] = { enter = type(enter) == "number" and enter > 0 and enter or nil, lo = lo, hi = hi }
+        else
+            gameRanges[dungeon] = false
+        end
+    end
+end
+
+-- The game's range for a dungeon, or nil.
+local function GameRange(dungeon)
+    if not gameRanges then
+        ReadGameRanges()
+    end
+    return gameRanges[dungeon] or nil
+end
+
+-- The range used for "suits you": the game's when it has one, else ours.
+local function Range(dungeon)
+    local game = GameRange(dungeon)
+    if game then
+        return game.lo, game.hi
+    end
+    return dungeon.minLevel or 0, dungeon.maxLevel or 0
+end
+
 local function Suits(dungeon, level)
-    return level >= (dungeon.minLevel or 0) - BELOW_MIN and level <= (dungeon.maxLevel or 0)
+    local lo, hi = Range(dungeon)
+    return level >= lo - BELOW_MIN and level <= hi
+end
+
+local function GameRangeText(dungeon)
+    local game = GameRange(dungeon)
+    if game and (game.lo ~= dungeon.minLevel or game.hi ~= dungeon.maxLevel) then
+        return string.format(" %s(game: %d-%d)|r", ORANGE, game.lo, game.hi)
+    end
+    return ""
 end
 
 local function ShortLine(index, dungeon, level)
-    return string.format("%s%d.|r %s%s %s(%d-%d, %s)|r %s", GOLD, index, dungeon.name, Tags(dungeon), GRAY,
-        dungeon.minLevel or 0, dungeon.maxLevel or 0, dungeon.zone or "?", CountsText(dungeon, level))
+    return string.format("%s%d.|r %s%s %s(%d-%d, %s)|r%s %s", GOLD, index, dungeon.name, Tags(dungeon), GRAY,
+        dungeon.minLevel or 0, dungeon.maxLevel or 0, dungeon.zone or "?", GameRangeText(dungeon), CountsText(dungeon, level))
 end
 
 local STATE_TEXT = {
@@ -729,9 +829,14 @@ local function ShowDetails(index, dungeon, level)
     if dungeon.note then
         Print(dungeon.note)
     end
-    if level < (dungeon.minLevel or 0) - BELOW_MIN then
+    local game = GameRange(dungeon)
+    if game then
+        Print(GRAY .. string.format("Group Finder: from level %s, suggested %d-%d", tostring(game.enter or "?"), game.lo, game.hi) .. "|r")
+    end
+    local lo, hi = Range(dungeon)
+    if level < lo - BELOW_MIN then
         Print(GRAY .. string.format("You're level %d: this one is for later.", level) .. "|r")
-    elseif level > (dungeon.maxLevel or 0) then
+    elseif level > hi then
         Print(GRAY .. string.format("You're level %d: above this dungeon's range.", level) .. "|r")
     end
     Print(GOLD .. "Entrance:|r " .. EntranceText(dungeon))
@@ -745,6 +850,9 @@ local function ShowDetails(index, dungeon, level)
                 Print(line)
             end
         end
+    end
+    if dungeon.alsoReported and #dungeon.alsoReported > 0 then
+        Print(GRAY .. "Also reported (not confirmed yet): " .. table.concat(dungeon.alsoReported, ", ") .. "|r")
     end
     if #(dungeon.quests or {}) > 0 then
         Print(GOLD .. "Quests|r " .. GRAY .. "(" .. CountsText(dungeon, level) .. ")|r")
@@ -793,8 +901,9 @@ local function ShowSuited(level)
     end
     local coming = {}
     for index, dungeon in ipairs(list) do
-        if (dungeon.minLevel or 0) - BELOW_MIN > level and #coming < COMING_UP then
-            coming[#coming + 1] = string.format("%d. %s (%d-%d)", index, dungeon.name, dungeon.minLevel or 0, dungeon.maxLevel or 0)
+        local lo, hi = Range(dungeon)
+        if lo - BELOW_MIN > level and #coming < COMING_UP then
+            coming[#coming + 1] = string.format("%d. %s (%d-%d)", index, dungeon.name, lo, hi)
         end
     end
     if #coming > 0 then
@@ -905,8 +1014,9 @@ events:SetScript("OnEvent", function(_, event, ...)
         RecordKill(encounterName)
         return
     elseif event == "PLAYER_LOGIN" then
-        -- Saved variables are read by now; pick up this character's kills on next use.
-        charKills = nil
+        -- Saved variables are read by now; pick up this character's kills on next use. The game's
+        -- dungeon ranges are read again on next use too.
+        charKills, gameRanges = nil, nil
     end
     statusDirty = true
 end)
