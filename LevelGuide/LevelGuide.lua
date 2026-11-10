@@ -3477,6 +3477,31 @@ local function ReadyShare(list)
     return maxXP and total > 0 and math.floor(total * 100 / maxXP) or nil, total
 end
 
+-- Where a quest from your log is, for a step made from it alone: its spot on the map you're on (or the game's
+-- next leg there), and its goal anywhere for the travel planner (X.ApplyTravel). Review 3, finding 1.
+function X.QuestSpot(step, questID)
+    if not (C_QuestLog.GetNextWaypoint and questID) then
+        return
+    end
+    local map, x, y = C_QuestLog.GetNextWaypoint(questID)
+    map, x, y = Safe(map), Safe(x), Safe(y)
+    if not (map and x and y) then
+        return
+    end
+    step.goalMap, step.goalX, step.goalY = map, x * 100, y * 100
+    local here = PlayerPosition()
+    if map == here then
+        step.mapID, step.x, step.y = map, x, y
+    elseif here and C_QuestLog.GetNextWaypointForMap then
+        local legX, legY = C_QuestLog.GetNextWaypointForMap(questID, here)
+        legX, legY = Safe(legX), Safe(legY)
+        if legX and legY then
+            step.mapID, step.x, step.y = here, legX, legY
+            step.goalMap = nil
+        end
+    end
+end
+
 -- A running timed quest goes to the top, whatever the route says; a failed one asks to be redone.
 local function PutTimedFirst(list)
     for index = 1, Safe(C_QuestLog.GetNumQuestLogEntries()) or 0 do
@@ -3502,7 +3527,10 @@ local function PutTimedFirst(list)
                     end
                 end
                 local ready = Safe(C_QuestLog.IsComplete(id)) or Safe(C_QuestLog.ReadyForTurnIn(id))
-                step = step or { kind = ready and "turnin" or "work", title = title, id = id }
+                if not step then
+                    step = { kind = ready and "turnin" or "work", title = title, id = id }
+                    X.QuestSpot(step, id)
+                end
                 if failed then
                     step.kind = "work"
                     step.detail = COLOR_ALERT .. "Failed.|r Abandon it in your quest log, then pick it up again"
