@@ -16,6 +16,9 @@ C:\Users\you\AppData\Local\Temp\claude\cb2f3a55e03b1ab7\c31d37c7-e117-4d9f-bde3-
 
 ## The owner's rules (violations are findings)
 1. Read-only: never automate sell, buy, equip, accept, turn-in, repair, abandon, or any gameplay action.
+   One exception, asked for by the owner: AutoQuest may accept and turn in quests (AcceptQuest, CompleteQuest,
+   GetQuestReward, C_GossipInfo.SelectActiveQuest/SelectAvailableQuest and the greeting window's SelectActiveQuest/
+   SelectAvailableQuest), only in a quest window the player opened. Any other helper doing so is still a finding.
 2. UI only: windows, panels, tooltips, pop-ups. No slash commands as the only way to use a feature, no chat-frame output (print/DEFAULT_CHAT_FRAME:AddMessage) except maybe a single load message.
 3. No Blizzard frame manipulation, no hooks of Blizzard functions, no writes into Blizzard tables.
 4. Each addon must be clean on load and over time: no nil indexing, no leaks of OnUpdate work every frame, no unbounded SavedVariables growth.

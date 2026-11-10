@@ -301,6 +301,29 @@ do
     assert(#handled == 0, "settings clean: " .. table.concat(handled, "|"))
 end
 
+-- 4b. A helper's own switches (ForeverHubOptions, e.g. AutoQuest's) show on the Options page too.
+do
+    local value = { accept = true }
+    ForeverHubOptions = { AutoQuest = { title = "Auto quest", rows = {
+        { label = "Accept quests", about = "a", get = function() return value.accept end, set = function(on) value.accept = on end },
+        { label = "Broken", about = "b", get = function() error("boom") end, set = function() end },
+        "not a row",
+    } } }
+    local hub = Setup({ settings = true })
+    local state = hub.extrasState()
+    local acceptRow, brokenRow
+    for _, row in ipairs(state.canvasRows) do
+        if row.get and row.text == "Accept quests" then acceptRow = row end
+        if row.get and row.text == "Broken" then brokenRow = row end
+    end
+    assert(acceptRow and acceptRow.button.text:find("On"), "option row shows on")
+    acceptRow.button.scripts.OnClick(acceptRow.button)
+    assert(value.accept == false and acceptRow.button.text:find("Off"), "option row toggles")
+    assert(brokenRow and brokenRow.button.text:find("Off"), "a failing getter reads as off")
+    ForeverHubOptions = nil
+    handled = {}
+end
+
 ------------------------------------------------------------------------------------------------
 -- 5. Alerts: only the chosen pop-ups, at most one sound and flash per 10 s, switches respected.
 ------------------------------------------------------------------------------------------------

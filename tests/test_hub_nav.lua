@@ -118,7 +118,7 @@ assert(has("How to use the hub"), "home shown on open")
 local helpers = { "LevelGuide", "ProfessionCap", "ProfessionGuide", "GoldGoal", "GoldGuide", "Dungeons", "QuestTracker", "QuestCheck",
     "ZoneLevels", "ItemAdvisor", "BagCheck", "ItemFinder", "PriceMemory", "FoodCheck", "SupplyWatch", "DurabilityWatch", "TalentNudge",
     "TrainerNotes", "WeaponSkillWatch", "RestGuard", "RepWatch", "LevelLog", "SpellReady", "Landmarks", "DeathNotes", "RareWatch",
-    "MapPins", "ForeverHelper", "ErrorLog", "QuestMobs", "WindowBadges", "Builds" }
+    "MapPins", "ForeverHelper", "ErrorLog", "QuestMobs", "WindowBadges", "Builds", "AutoQuest" }
 for _, name in ipairs(helpers) do
     assert(has("|cffffffff" .. name .. "|r"), "home lists " .. name)
 end

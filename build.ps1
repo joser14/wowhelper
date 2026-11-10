@@ -29,8 +29,10 @@ $Bundles = [ordered]@{
                             Modules = @('!ErrorLog', 'ForeverHub', 'ForeverHelper') }
     'ForeverGuides'    = @{ Title = 'Forever Guides'; Notes = 'Leveling, profession, gold and dungeon guides.'
                             Modules = @('LevelGuide', 'ProfessionCap', 'ProfessionGuide', 'GoldGoal', 'GoldGuide', 'Dungeons') }
-    'ForeverQuests'    = @{ Title = 'Forever Quests'; Notes = 'Quest tracker, quest log checks and zone levels.'
-                            Modules = @('QuestTracker', 'QuestCheck', 'ZoneLevels', 'QuestMobs') }
+    # Acts: holds a helper that does something in game (AutoQuest), so its notes don't say "Only gives information."
+    'ForeverQuests'    = @{ Title = 'Forever Quests'; Acts = $true
+                            Notes = 'Quest tracker, quest log checks, zone levels, and accepting and turning in quests at NPCs you talk to (AutoQuest; hold Shift to pause).'
+                            Modules = @('QuestTracker', 'QuestCheck', 'ZoneLevels', 'QuestMobs', 'AutoQuest') }
     'ForeverBags'      = @{ Title = 'Forever Bags'; Notes = 'Item advice, bag space, item search, prices, food and supplies, repairs.'
                             Modules = @('ItemAdvisor', 'BagCheck', 'ItemFinder', 'PriceMemory', 'FoodCheck', 'SupplyWatch', 'DurabilityWatch', 'Tooltips', 'WindowBadges') }
     'ForeverCharacter' = @{ Title = 'Forever Character'; Notes = 'Talents, trainer, weapon skills, rested XP, level log, reputation, spell ranks and buffs.'
@@ -82,7 +84,8 @@ foreach ($name in $Bundles.Keys) {
         $sv += $info.SV; $svChar += $info.SVChar; $extra += $info.Extra; $included += $module
     }
     $deps = if ($name -eq '!ForeverHub') { '' } else { "## OptionalDeps: !ForeverHub`r`n" }
-    $toc = "## Interface: 16001`r`n## Title: $($bundle.Title)`r`n## Notes: $($bundle.Notes) Only gives information.`r`n## Version: 1.0.0`r`n$deps"
+    $notes = if ($bundle.Acts) { $bundle.Notes } else { "$($bundle.Notes) Only gives information." }
+    $toc = "## Interface: 16001`r`n## Title: $($bundle.Title)`r`n## Notes: $notes`r`n## Version: 1.0.0`r`n$deps"
     if ($sv.Count) { $toc += "## SavedVariables: $($sv -join ', ')`r`n" }
     if ($svChar.Count) { $toc += "## SavedVariablesPerCharacter: $($svChar -join ', ')`r`n" }
     foreach ($line in $extra) { $toc += "$line`r`n" }

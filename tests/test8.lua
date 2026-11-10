@@ -3,7 +3,7 @@
 local base = ADDON_PATH
 local names = { "!ErrorLog", "BagCheck", "DurabilityWatch", "FoodCheck", "ForeverHelper", "ForeverHub", "GoldGoal", "ItemAdvisor", "ItemFinder",
     "LevelLog", "PriceMemory", "ProfessionCap", "QuestCheck", "RepWatch", "RestGuard", "SupplyWatch", "TalentNudge",
-    "TrainerNotes", "WeaponSkillWatch", "ZoneLevels" }
+    "TrainerNotes", "WeaponSkillWatch", "ZoneLevels", "AutoQuest" }
 
 local SECRET = setmetatable({}, { __tostring = function() return "SECRET" end })
 local mode = "nil"

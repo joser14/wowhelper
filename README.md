@@ -4,8 +4,10 @@ A suite of helper addons for **World of Warcraft: Forever** (client 1.60.1, inte
 leveling player. Everything is gathered in one window, the **Forever Hub**, with a small side panel that only shows
 what needs doing right now.
 
-The helpers **only show information**. They never play for you: no auto-selling, auto-buying, auto-accepting or
-turning in quests, auto-equipping, auto-training or casting. That keeps them within Blizzard's terms of service.
+The helpers **only show information**, with one exception you can switch off: **AutoQuest** accepts quests and turns
+in finished ones, but only inside a quest giver's window you opened yourself (hold Shift to pause; it never picks
+between several rewards, pays gold, acts in combat or takes quests shared by players). Nothing else plays for you:
+no auto-selling, auto-buying, auto-equipping, auto-training, targeting, moving or casting.
 
 > Status: early. Every helper is covered by automated tests, but the suite has only just been installed in game.
 > Expect rough edges, and check the hub's **Errors** page if something looks wrong.
@@ -18,7 +20,7 @@ The 30-odd helpers are installed as six addons:
 |---|---|---|
 | **Forever Hub** | ForeverHub, ForeverHelper, ErrorLog | The main window: a Home page explaining every helper, a Manage page to switch helpers or whole addons on and off, a side panel (XP and gold rates, time to level, XP waiting in finished quests), pop-up history, an error log, keybindings, an entry in the minimap's addon menu, an Options page, alerts and a hearthstone button. |
 | **Forever Guides** | LevelGuide, ProfessionGuide, ProfessionCap, GoldGuide, GoldGoal, Dungeons | A step-by-step leveling route with an arrow, built from Forever quest data; profession guides from 1 to 300 for all 12 professions; gold farms for your level and professions; a riding or custom gold goal; a guide to the 35 dungeons, Forever's new ones included. |
-| **Forever Quests** | QuestTracker, QuestCheck, ZoneLevels, QuestMobs | A cleaner quest tracker, quest log checks, zone level warnings, and markers with progress (like 3/8) beside enemies you still need. |
+| **Forever Quests** | QuestTracker, QuestCheck, ZoneLevels, QuestMobs, AutoQuest | A cleaner quest tracker, quest log checks, zone level warnings, markers with progress (like 3/8) beside enemies you still need, and quests accepted and turned in for you at NPCs you talk to (hold Shift to pause). |
 | **Forever Bags** | ItemAdvisor, BagCheck, ItemFinder, PriceMemory, FoodCheck, SupplyWatch, DurabilityWatch, Tooltips, WindowBadges | Equip, keep, sell or auction advice on every item; item search across all your characters; auction prices remembered from your own searches; extra tooltip lines (vendor price, last auction price, how many you own, where it drops, which quest needs it); badges on vendor, trainer and quest-reward windows; food, supplies and repair warnings. |
 | **Forever Character** | Builds, TalentNudge, TrainerNotes, ReadyCheck, WeaponSkillWatch, RestGuard, LevelLog, RepWatch | Talent builds for all nine classes (leveling, PvP, tank, healer, damage) with the next talent to take; old spell ranks on your bars and missing buffs; trainer reminders; weapon skill, rested XP, level times and reputation. |
 | **Forever World** | Landmarks, MapPins, DeathNotes, RareWatch | Remembers vendors, inns, flight masters, mailboxes, banks and trainers you visit and finds the nearest; pins on the world map and minimap; remembers where you died and warns when you walk back; rare sightings and a layer estimate. |
@@ -45,7 +47,8 @@ The 30-odd helpers are installed as six addons:
 ## How it's built
 
 - **Read-only, by design.** The test suite fails if any helper calls a buy, sell, train, choose-reward or targeting
-  function.
+  function. The single exception is AutoQuest, which may call the quest window's accept, complete and reward
+  functions (`tests\test_autoquest.lua` checks its rules, and that no other helper calls them).
 - **Safe with Blizzard's interface.** Helpers use Blizzard's official extension points: tooltip lines, minimap
   markers, the Settings panel, the addon menu and keybindings. They never replace or rewrite Blizzard's frames,
   functions or global tables, which is what causes "action blocked" (taint) errors.
