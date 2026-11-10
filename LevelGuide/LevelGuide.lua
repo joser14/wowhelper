@@ -2620,6 +2620,7 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
             logLevel = info and (Safe(info.difficultyLevel) or Safe(info.level))
         end
         shown.questLevel = X.QuestLevel(questID, logLevel)
+        X.FlagStep(shown, questID)
         local full = (step.t == "accept" or step.t == "turnin") and LevelGuidePlanner and questID and LevelGuidePlanner.QuestXP(questID)
         shown.xpValue = (step.t == "turnin" and shown.xp and shown.xp > 0 and shown.xp)
             or (full and level and math.floor(full * LevelGuidePlanner.Share(level, shown.questLevel) + 0.5)) or nil
@@ -3047,6 +3048,10 @@ local function RouteSteps(level)
             end
             local shown = RouteDisplay(route, index, step, byTitle, zoneMap)
             local actionable = RouteStepActionable(step, byTitle, level, busyNpcs) and shown.x
+            -- A group quest you haven't answered for waits; a card asks (X.AskGroup).
+            if actionable and X.AskGroup(route, index, step, shown) then
+                actionable = false
+            end
             -- A pick-up you can't take yet isn't shown at all: it would only send you to someone
             -- with nothing to give you. Only what's shown uses up the window.
             local visible = actionable or step.t ~= "accept"
@@ -3220,12 +3225,14 @@ local function PutTimedFirst(list)
             and not Recent(recentTurnins, id, TURNIN_GRACE) then
             local failed = C_QuestLog.IsFailed and Safe(C_QuestLog.IsFailed(id))
             local ends = not failed and TimerEnds(id)
+            -- QuestDB knows it's timed even when the game gives no timer: it goes first all the same.
+            local timed = not failed and not ends and X.QuestFlags(id).t
             if failed then
                 -- Abandoned after failing, it simply goes back (no "lost" card).
                 X.failedSeen = X.failedSeen or {}
                 X.failedSeen[id] = true
             end
-            if failed or ends then
+            if failed or ends or timed then
                 local step
                 for position = #list, 1, -1 do
                     local other = list[position]
@@ -3239,7 +3246,11 @@ local function PutTimedFirst(list)
                     step.kind = "work"
                     step.detail = COLOR_ALERT .. "Failed.|r Abandon it in your quest log, then pick it up again"
                     step.mapID, step.x, step.y = nil, nil, nil
+                elseif timed then
+                    step.timed = true
+                    step.detail = COLOR_ALERT .. "Timed: go straight on, don't stop on the way.|r " .. (step.detail or "")
                 else
+                    step.timed = true
                     step.timerEnds = ends
                     step.detail = COLOR_ALERT .. "Timed, don't stop on the way.|r " .. (step.detail or "")
                     if not timedWarned[id] then
@@ -3284,6 +3295,7 @@ local function BuildSteps()
     local routed
     sideSteps = {}
     X.projection = nil
+    X.groupAsk = nil
     routed, activeRoute = RouteSteps(level)
     if routed then
         PutFocusFirst(routed, level)
@@ -3357,6 +3369,19 @@ local function StepLine(step)
     end
     if step.hard then
         tags = tags .. string.format(" |cffff4040Hard (level %d)|r", step.hard)
+    end
+    -- QuestDB flags (X.FlagStep): group, elite mobs, timed, escort.
+    if step.groupQuest then
+        tags = tags .. " |cffff8040Group|r"
+    end
+    if step.elite then
+        tags = tags .. " |cffff4040(!) Elite|r"
+    end
+    if step.timedQuest then
+        tags = tags .. " |cffff3333Timed|r"
+    end
+    if step.escort then
+        tags = tags .. " |cffff8040Escort|r"
     end
     -- A travel leg (X.ApplyTravel) reads "Travel: Take the boat at ...", not "Go to: Take ...".
     return kind.color .. (step.leg and step.kind == "travel" and "Travel" or kind.label) .. ":|r " .. tostring(step.title) .. tags
@@ -3734,6 +3759,126 @@ function X.RenderLost()
 end
 end -- lost and extra quests
 
+-- Timed, group and elite quests (research\guides_deep_re.md 12.12; our own code after the idea of Polestar's
+-- per-character group answer). QuestDB's flags (forever-db's quest type and mechanic table: g group, e
+-- group/elite, t timed, s escort) and QuestXP's elite kills tag the steps. A group or group/elite quest you
+-- haven't answered for is left out of the next steps while it can be taken: a card asks "I'll do it" / "Skip
+-- it", kept per character (charData.groupAnswers). Skipping skips it and its follow-ups like a lost quest
+-- (undone from the header). Timed quests go first once taken (PutTimedFirst), with or without a game timer.
+do
+local NO_FLAGS = {}
+
+function X.QuestFlags(id)
+    local facts = LevelGuideQuestFacts
+    local q = id and facts and facts.Quest and facts.Quest(id)
+    return q and type(q.flags) == "table" and q.flags or NO_FLAGS
+end
+
+function X.FlagStep(shown, questID)
+    if not questID then
+        return
+    end
+    local flags = X.QuestFlags(questID)
+    shown.groupQuest = (flags.g or flags.e) and true or nil
+    shown.timedQuest = flags.t and true or nil
+    shown.escort = flags.s and true or nil
+    local elite = flags.e and true or nil
+    local P = LevelGuidePlanner
+    if not elite and P and P.QuestXP then
+        for _, kill in ipairs(select(2, P.QuestXP(questID))) do
+            elite = elite or (kill.elite and true or nil)
+        end
+    end
+    shown.elite = elite
+end
+
+local function AnswerKey(step)
+    local id = X.QuestIDFor(step, nil)
+    return id or (tostring(step.q) .. "#" .. (tonumber(step.part) or 1))
+end
+
+-- True when this pick-up is a group quest you haven't answered for (the first one becomes the card's).
+function X.AskGroup(route, index, step, shown)
+    if step.t ~= "accept" or not shown.groupQuest or not charData then
+        return false
+    end
+    local key = AnswerKey(step)
+    if charData.groupAnswers and charData.groupAnswers[key] then
+        return false
+    end
+    shown.detail = "Group quest: answer below. " .. (shown.detail or "")
+    if not X.groupAsk then
+        X.groupAsk = { route = route, index = index, key = key, q = step.q, part = step.part, elite = shown.elite }
+    end
+    return true
+end
+
+function X.AnswerGroup(answer)
+    local ask = X.groupAsk
+    if not (ask and charData) then
+        return
+    end
+    charData.groupAnswers = charData.groupAnswers or {}
+    charData.groupAnswers[ask.key] = answer
+    if answer == "skip" then
+        local more = X.SkipQuest(ask.route, ask.q, ask.part)
+        skipNotice = { text = string.format("Skipped %s%s. Right-click here to undo.", ask.q,
+            more > 0 and string.format(" and %d follow-up(s)", more) or ""), until_ = GetTime() + SKIP_NOTICE_SECONDS }
+    end
+    X.groupAsk = nil
+    dirty = true
+end
+
+-- The card under the guide (under the lost-quest card when that shows). Our own frame.
+function X.RenderGroup()
+    local ask = X.groupAsk
+    local card = X.groupCard
+    if not card then
+        if not ask then
+            return
+        end
+        card = CreateFrame("Frame", "LevelGuideGroupCard", frame, "BackdropTemplate")
+        card:SetSize(K.WIDTH, 52)
+        if card.SetBackdrop then
+            card:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+            card:SetBackdropColor(0.1, 0.07, 0.02, 0.9)
+        end
+        local text = card:CreateFontString("LevelGuideGroupCardText", "OVERLAY", "GameFontHighlightSmall")
+        text:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -8)
+        text:SetPoint("RIGHT", card, "RIGHT", -10, 0)
+        text:SetJustifyH("LEFT")
+        card.message = text
+        for _, spec in ipairs({ { "LevelGuideGroupDo", "I'll do it", "do", -96 }, { "LevelGuideGroupSkip", "Skip it", "skip", -10 } }) do
+            local button = CreateFrame("Button", spec[1], card, "UIPanelButtonTemplate")
+            button:SetSize(80, 20)
+            button:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", spec[4], 6)
+            button:SetText(spec[2])
+            local answer = spec[3]
+            button:SetScript("OnClick", function()
+                X.AnswerGroup(answer)
+                card:Hide()
+            end)
+        end
+        X.groupCard = card
+    end
+    if not ask then
+        card:Hide()
+        return
+    end
+    card:ClearAllPoints()
+    local lost = X.lostCard
+    if lost and lost:IsShown() then
+        card:SetPoint("TOPLEFT", lost, "BOTTOMLEFT", 0, -2)
+    else
+        card:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -2)
+    end
+    card.message:SetText(string.format("|cffffd100%s|r is a group quest%s. Do it (with a group, or if you can handle it), or skip it and what follows it?",
+        tostring(ask.q), ask.elite and " with elite enemies" or ""))
+    card:Show()
+end
+end -- timed, group and elite quests
+
 -- The guide's own tooltip, so it never changes Blizzard's shared one.
 local tooltip
 local function Tip()
@@ -3834,7 +3979,7 @@ local function Paused(current)
     if IsInInstance and Safe((IsInInstance())) then
         return true
     end
-    return current ~= nil and current.timerEnds ~= nil
+    return current ~= nil and (current.timerEnds ~= nil or current.timed == true)
 end
 
 -- A quest's spawn camps on this map from QuestDB, as { x, y (0-1), r (yards), n }; obj (an objective index
@@ -4636,6 +4781,7 @@ local function Rebuild()
     X.WhileHere(steps)
     Render(mapID, playerX, playerY, later)
     X.RenderLost()
+    X.RenderGroup()
     UpdateArrow()
     RefreshList()
 end
