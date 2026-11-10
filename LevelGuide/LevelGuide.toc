@@ -15,6 +15,7 @@ QuestXP.lua
 Travel.lua
 HostileTowns.lua
 Boats.lua
+SkyborneSpots.lua
 Planner.lua
 TravelPlan.lua
 LevelGuide.lua

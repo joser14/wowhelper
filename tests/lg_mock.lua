@@ -122,7 +122,7 @@ function M.load(base, setup)
     if setup then setup() end
     -- Travel.lua, Planner.lua and TravelPlan.lua (the guide's data and arithmetic) load before LevelGuide.lua,
     -- as in the .toc.
-    for _, name in ipairs({ "QuestRules.lua", "Travel.lua", "HostileTowns.lua", "Boats.lua", "Planner.lua", "TravelPlan.lua" }) do
+    for _, name in ipairs({ "QuestRules.lua", "Travel.lua", "HostileTowns.lua", "Boats.lua", "SkyborneSpots.lua", "Planner.lua", "TravelPlan.lua" }) do
         local chunk = loadfile(base .. "/" .. name)
         if chunk then chunk("LevelGuide", {}) end
     end

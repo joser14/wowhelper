@@ -87,6 +87,31 @@ these sources:
   flight-map nodes (`Data\Taxi.lua`, from Blizzard's TaxiNodes) that have no Alliance flight master within 400 yd,
   and `TravelPlan.lua` follows its hazard rule (`Journey\Hazards.lua`: a 150 yd circle costing 6x, notes on the
   leg) in our own code.
+- **Skyborne Leyline & Convergence Marker** 0.5.0 (https://www.curseforge.com/wow/addons/sllcm), by tr0tsky, MIT
+  licence, as listed in **OneForAll - Forever** (`Data\SkyborneSpots.lua`). `LevelGuide\SkyborneSpots.lua` uses its
+  ley line locations (map ID and coordinates) only:
+
+        MIT License
+
+        Copyright (c) 2026 tr0tsky
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
 - **MacQuest / SpeedLevel** (https://github.com/Methodologist, by Methodologist), GPL-3.0.
   `LevelGuide\TravelPlan.lua` `P.DeathSkip` uses its death-skip numbers (`tools\tricks.py`): 45 s plus 21 s per
   level above 10 for dying, the walk from the spirit healer, and the 75 s / 135 s thresholds up to level 20.

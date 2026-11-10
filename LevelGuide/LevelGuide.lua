@@ -4694,13 +4694,40 @@ local function RidingHint(level)
     return string.format("|cffccccffRiding at 40: about %d g with a mount%s (not checked in game).|r", RIDING_GOLD, have)
 end
 
+-- Skyborne (re_round3 rank 16; SkyborneSpots.lua, tr0tsky, MIT): the nearest ley line on the map you're on within
+-- 400 yd, where Read Leyline gives an hour of faster regeneration.
+function X.LeyHint()
+    local P, S = LevelGuidePlanner, LevelGuideSkyborne
+    local race = UnitRace and Safe(select(2, UnitRace("player")))
+    if not (P and P.TravelYards and S and S.ley and race == "Skyborne") then
+        return nil
+    end
+    local mapID, px, py = PlayerPosition()
+    if not (mapID and px and py) then
+        return nil
+    end
+    local here, best = { map = mapID, x = px * 100, y = py * 100 }, nil
+    for _, spot in ipairs(S.ley) do
+        if spot[1] == mapID then
+            local yards = P.TravelYards(here, { map = spot[1], x = spot[2], y = spot[3] })
+            if yards and yards <= 400 and (not best or yards < best[1]) then
+                best = { yards, spot[2], spot[3] }
+            end
+        end
+    end
+    if best then
+        return string.format("|cffccccffLey line about %d yd away (%.1f, %.1f): Read Leyline there for an hour of faster regeneration.|r",
+            math.floor(best[1] + 0.5), best[2], best[3])
+    end
+end
+
 function X.HintParts()
     local parts = {}
     local level = Safe(UnitLevel("player"))
     if type(level) ~= "number" then
         return parts
     end
-    for _, hint in ipairs({ HealerHint() or false, DeathHint(level) or false, RidingHint(level) or false }) do
+    for _, hint in ipairs({ HealerHint() or false, DeathHint(level) or false, RidingHint(level) or false, X.LeyHint() or false }) do
         if hint then
             parts[#parts + 1] = hint
         end
