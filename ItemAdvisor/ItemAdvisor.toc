@@ -5,4 +5,5 @@
 ## Version: 0.2.9
 ## SavedVariables: ItemAdvisorDB
 
+GearCurves.lua
 ItemAdvisor.lua

@@ -347,6 +347,7 @@ local SLOTS = {
     INVTYPE_RANGED = { 18 }, INVTYPE_RANGEDRIGHT = { 18 }, INVTYPE_THROWN = { 18 },
 }
 local RANGED_SLOTS = { INVTYPE_RANGED = true, INVTYPE_RANGEDRIGHT = true, INVTYPE_THROWN = true }
+local PAIRED_SLOTS = { INVTYPE_FINGER = true, INVTYPE_TRINKET = true }
 
 local OTHER_ITEMS = {
     [1] = "Bag: equip it if it's bigger",
@@ -582,6 +583,7 @@ local function ReadPercents(link)
     return percents
 end
 
+local CurvesActive -- Defined with the leveling curves below.
 local function ReadStats(link)
     local stats = C_Item.GetItemStats(link)
     local percents = ReadPercents(link)
@@ -598,7 +600,8 @@ local function ReadStats(link)
     local read, unknown = {}, false
     local isSpell = charData and SPELL_PROFILES[charData.profile] and true or false
     local level = Safe(UnitLevel("player")) or MAX_LEVEL
-    local levelScale = math.min(math.max(level, MIN_PERCENT_LEVEL), MAX_LEVEL) / MAX_LEVEL
+    -- The leveling curves already price a rating at your level; the fixed weights are level-60 values.
+    local levelScale = CurvesActive() and 1 or math.min(math.max(level, MIN_PERCENT_LEVEL), MAX_LEVEL) / MAX_LEVEL
     local fromGame = {}
     for key, amount in pairs(stats or {}) do
         key, amount = Safe(key), Safe(amount)
@@ -645,12 +648,152 @@ local function LevelingBiasActive()
     return charData.levelingBias ~= false and type(level) == "number" and level < MAX_LEVEL
 end
 
--- The role's stat weights, with Stamina and Armor raised while the leveling bias applies.
+-- ---- Leveling curves (research\re_round3.md rank 6) ---------------------------------------------------------
+-- Below the level cap, with the leveling bias on, the weights follow your level: Gear Judge's leveling curves
+-- (ItemAdvisorCurves in GearCurves.lua, MIT, Supersharpie; see NOTICE.md), interpolated at your level and put
+-- in our scale (the role's anchor stat keeps our weight). Without that file, the fixed weights below are used.
+local CURVE_FOR = {
+    WARRIOR = { warrior = "Leveling", tank = "Leveling_Tank" },
+    PALADIN = { retribution = "Leveling", healer = "Leveling_Healer", tank = "Leveling_Tank" },
+    HUNTER = { hunter = "Leveling", survival = "Leveling" },
+    ROGUE = { rogue = "Leveling" },
+    PRIEST = { shadow = "Leveling", healer = "Leveling_Healer" },
+    SHAMAN = { enhancement = "Leveling", caster = "Leveling_Caster", healer = "Leveling_Healer" },
+    MAGE = { mage = "Leveling" },
+    WARLOCK = { warlock = "Leveling" },
+    DRUID = { feral = "Leveling", tank = "Leveling_Bear", caster = "Leveling_Caster", healer = "Leveling_Healer" },
+}
+-- Gear Judge key -> ours, for stats weighted per point.
+local CURVE_KEYS = {
+    agi = "agi", str = "str", sta = "sta", int = "int", spi = "spi", ap = "ap", rap = "rap", fap = "feralap",
+    armor = "armor", mp5 = "mp5", def = "defense", bv = "blockvalue", heal = "heal", sp = "dmg",
+}
+-- Per-1 % weights, divided by our rating per 1 %. Forever has one hit, crit and haste rating for melee and
+-- spells, so each counts at the higher of the two.
+local CURVE_RATINGS = { hit = { "hit", "shit" }, crit = { "crit", "scrit" }, haste = { "haste", "shaste" },
+    exp = { "exp" }, dodge = { "dodge" }, parry = { "parry" }, block = { "block" } }
+local CURVE_SCHOOLS = { "arcane", "fire", "frost", "nature", "shadow", "holy" }
+local MIN_CURVE_WEIGHT = 0.02
+
+local function CurveFor(profile, class)
+    local curves = type(ItemAdvisorCurves) == "table" and ItemAdvisorCurves[class]
+    local name = CURVE_FOR[class] and CURVE_FOR[class][profile]
+    return curves and name and curves[name]
+end
+
+-- The curve's weights at a level, keyframes linear between, clamped at both ends.
+local function CurveAt(curve, level)
+    local lower, upper = curve[1], curve[#curve]
+    for _, frame in ipairs(curve) do
+        if frame[1] <= level then
+            lower = frame
+        end
+        if frame[1] >= level then
+            upper = frame
+            break
+        end
+    end
+    local span = upper[1] - lower[1]
+    local t = span > 0 and (level - lower[1]) / span or 0
+    t = math.min(math.max(t, 0), 1)
+    local out = {}
+    for key, value in pairs(lower[2]) do
+        out[key] = value * (1 - t)
+    end
+    for key, value in pairs(upper[2]) do
+        out[key] = (out[key] or 0) + value * t
+    end
+    for key, value in pairs(out) do
+        if value < MIN_CURVE_WEIGHT then
+            out[key] = nil
+        end
+    end
+    return out
+end
+
+local function AnchorStat(profile)
+    if profile == "healer" then
+        return "heal"
+    elseif SPELL_PROFILES[profile] then
+        return "dmg"
+    end
+    return "ap"
+end
+
+-- Our weights for a profile at a level from its curve, or nil without one.
+local function CurveWeights(profile, class, level, base)
+    local curve = CurveFor(profile, class)
+    if not curve then
+        return nil
+    end
+    local at = CurveAt(curve, level)
+    local weights = {}
+    for key, stat in pairs(CURVE_KEYS) do
+        if at[key] then
+            weights[stat] = math.max(weights[stat] or 0, at[key])
+        end
+    end
+    for stat, keys in pairs(CURVE_RATINGS) do
+        local best = 0
+        for _, key in ipairs(keys) do
+            best = math.max(best, at[key] or 0)
+        end
+        if best > 0 then
+            weights[stat] = best / (RATING_PER_PERCENT[stat] or 1)
+        end
+    end
+    local school = 0
+    for _, key in ipairs(CURVE_SCHOOLS) do
+        school = math.max(school, at[key] or 0)
+    end
+    weights.school = school > 0 and school or nil
+    -- Weapon DPS: melee, ranged and wand each take their own weight when the curve has one, else "dps".
+    weights.melee = at.dpsmelee or at.dps
+    weights.ranged = at.dpsranged or at.dps
+    weights.wand = at.dpswand or at.dps
+    -- Into our scale: the anchor stat keeps the fixed profile's weight.
+    local anchor = AnchorStat(profile)
+    if anchor == "ap" and not weights.ap then
+        anchor = "rap"
+    end
+    local scale = (base[anchor] and weights[anchor] and weights[anchor] > 0) and base[anchor] / weights[anchor] or 1
+    for stat, value in pairs(weights) do
+        weights[stat] = value * scale
+    end
+    -- A stat the curve doesn't mention keeps the fixed weight.
+    for stat, value in pairs(base) do
+        if weights[stat] == nil then
+            weights[stat] = value
+        end
+    end
+    return weights
+end
+
+-- Whether the leveling curves are in use now (ReadStats then counts ratings at face value: the curve
+-- already says what they're worth at your level).
+CurvesActive = function()
+    return charData ~= nil and LevelingBiasActive() and CurveFor(charData.profile, playerClass) ~= nil
+end
+
+-- The role's stat weights: the leveling curve at your level while the leveling bias applies (when the curve
+-- data is loaded), else Stamina and Armor raised; the fixed weights at the level cap or with the bias off.
 local biasedWeights = {}
 local function Weights()
     local base = ProfileWeights(charData.profile, playerClass)
     if not LevelingBiasActive() then
         return base
+    end
+    local level = Safe(UnitLevel("player"))
+    if type(level) == "number" and CurveFor(charData.profile, playerClass) then
+        local curveKey = charData.profile .. "/" .. tostring(playerClass) .. "/L" .. level
+        local weights = biasedWeights[curveKey]
+        if not weights then
+            weights = CurveWeights(charData.profile, playerClass, level, base)
+            biasedWeights[curveKey] = weights
+        end
+        if weights then
+            return weights
+        end
     end
     local cacheKey = charData.profile .. "/" .. tostring(playerClass)
     local weights = biasedWeights[cacheKey]
@@ -886,7 +1029,7 @@ local function BestGain(link, equipLoc, classID, slots)
         end
         local gain = score - base
         if not best or gain > best.gain then
-            best = { gain = gain, base = base, unknown = unknown, isEmpty = isEmpty }
+            best = { gain = gain, base = base, unknown = unknown, isEmpty = isEmpty, slot = target.slot, wornLink = wornLink }
             comparedTo = replacesOneItem and wornLink or nil
         end
     end
@@ -1143,7 +1286,15 @@ local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quali
         end
         local action = charData.profile
         local suffix = changes ~= "" and (": " .. changes) or ""
-        return "EQUIP", string.format("Upgrade for %s (%s)%s", action, amount, suffix)
+        -- Two rings, two trinkets: say which one it replaces (the one it beats by the most, the weaker).
+        local replaces = ""
+        if PAIRED_SLOTS[equipLoc] and not best.isEmpty and best.wornLink then
+            local wornName = Safe((C_Item.GetItemInfo(best.wornLink)))
+            if type(wornName) == "string" and wornName ~= "" then
+                replaces = ", replaces " .. wornName
+            end
+        end
+        return "EQUIP", string.format("Upgrade for %s (%s)%s%s", action, amount, replaces, suffix)
     end
     if halfOfPair then
         local pairVerdict, pairReason = JudgePair(link, equipLoc, classID, inBags)
@@ -1488,6 +1639,9 @@ local function ShowSettings()
     local state = charData.levelingBias == false and "off" or "on"
     Print(string.format("|cffffd100Leveling bias:|r %s. Below level %d, Stamina and Armor count 50%% more, because staying alive matters most while leveling.%s",
         state, MAX_LEVEL, LevelingBiasActive() and "" or " (Not in use right now.)"))
+    if CurvesActive() then
+        Print(string.format("  Weights follow your level (%d) with Gear Judge's leveling curves (by Supersharpie, MIT).", Safe(UnitLevel("player")) or 0))
+    end
     Print("  Type: leveling " .. (state == "on" and "off" or "on"))
 end
 

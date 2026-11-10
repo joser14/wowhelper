@@ -81,6 +81,32 @@ these sources:
   table was copied. HandyNotes_WoWForever (no licence) only told us the names to look up.
 - `ZoneLevels\ZoneLevels.lua` zone level ranges are the usual Classic quest ranges written by us; the
   Forever-only zones (Zephras Isle, Riverglades, Shen'dralas, Mount Hyjal) come from our own research notes.
+- `ItemAdvisor\GearCurves.lua`: the leveling stat-weight curves of **Sharpie's Gear Judge (Forever Edition)**
+  3.2.13 by Supersharpie, MIT licence, as converted by **OneForAll - Forever** (`Data\GearWeights.lua`,
+  GPL-3.0-or-later). Data only; ItemAdvisor's interpolation and scaling are our own code.
+
+        MIT License
+
+        Copyright (c) 2025 Supersharpie
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+
 - Ideas only, no code: MapPins' pin spacing and minimap fade and QuestTracker's "1/1 but unfinished counts as
   0/1" rule follow behaviour described in Questie; DeathNotes' "risky / very risky" fight wording follows
   Quest Triage (GPL-3.0).
