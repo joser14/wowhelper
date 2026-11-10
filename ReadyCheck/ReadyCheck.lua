@@ -294,6 +294,61 @@ local function ActionSpell(slot)
     return nil
 end
 
+-- Rank groups by spell ID (TrainerNotesData, generated from What's Training's Forever data, MIT;
+-- credit in NOTICE.md): lowest rank first. They handle ranks Forever renumbered (Slam starts at
+-- 1240193) and spellbooks that show no rank text, in any language. Read when a scan runs, so it
+-- works whichever of the two helpers loads first; without TrainerNotes the name check below is used.
+local groupsFor, groupIndex = nil, nil
+local function RankGroup(id)
+    local data = type(TrainerNotesData) == "table" and type(TrainerNotesData.classes) == "table" and TrainerNotesData.classes
+    local class = PlayerClass()
+    local groups = data and class and data[class] and data[class].ranks
+    if type(groups) ~= "table" then
+        return nil
+    end
+    if groupsFor ~= groups then
+        groupsFor, groupIndex = groups, {}
+        for _, group in ipairs(groups) do
+            for position, spellID in ipairs(group) do
+                groupIndex[spellID] = { group = group, position = position }
+            end
+        end
+    end
+    return groupIndex[id]
+end
+
+local function KnowsID(id)
+    local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
+    if C_SpellBook and C_SpellBook.IsSpellKnown then
+        return SafeCall(C_SpellBook.IsSpellKnown, id, bank) == true
+    end
+    return SafeCall(IsSpellKnown, id) == true or SafeCall(IsPlayerSpell, id) == true
+end
+
+-- For a spell in a rank group: its rank and the best rank you know (positions in the group), or
+-- nil when the group can't tell. The best known rank must have the same name as the bar's spell.
+local function RankByID(id, name)
+    local entry = RankGroup(id)
+    if not entry then
+        return nil
+    end
+    local group = entry.group
+    for position = #group, entry.position + 1, -1 do
+        local other = group[position]
+        if KnowsID(other) then
+            if not SpellLoaded(other) then
+                return nil
+            end
+            local otherName = SafeCall(C_Spell.GetSpellName, other)
+            if otherName ~= name then
+                return nil
+            end
+            return entry.position, position
+        end
+    end
+    return entry.position, entry.position
+end
+
 local function ScanRanks()
     -- Whatever is still unloaded is asked for again below.
     waitingSpells = {}
@@ -310,9 +365,19 @@ local function ScanRanks()
         local name = id and SpellLoaded(id) and SafeCall(C_Spell.GetSpellName, id)
         if type(name) == "string" and name ~= "" then
             local rank = RankOf(SafeCall(C_Spell.GetSpellSubtext, id))
-            Remember(onBars, name, rank)
+            local idRank, idBest = nil, nil
+            if RankGroup(id) then
+                idRank, idBest = RankByID(id, name)
+            end
+            Remember(onBars, name, idRank or rank)
             local best = known[name:lower()]
-            if rank and best and best.rank and best.rank > rank and not ignored[name:lower()] then
+            if ignored[name:lower()] then
+                -- Not checked on purpose.
+            elseif RankGroup(id) then
+                if idRank and idBest > idRank then
+                    ranks[#ranks + 1] = { name = name, slot = slot, rank = idRank, best = idBest, macro = macro }
+                end
+            elseif rank and best and best.rank and best.rank > rank then
                 ranks[#ranks + 1] = { name = name, slot = slot, rank = rank, best = best.rank, macro = macro }
             end
         end
