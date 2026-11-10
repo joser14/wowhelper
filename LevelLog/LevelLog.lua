@@ -137,11 +137,13 @@ local function ShowLog(showAll)
     local totalSeconds, totalDeaths = 0, 0
     for level = 1, currentLevel do
         local entry = levels[level]
-        if entry then
-            totalSeconds = totalSeconds + entry.seconds
-            totalDeaths = totalDeaths + entry.deaths
+        if type(entry) == "table" then
+            -- Older saves may lack a field; count it as nothing rather than stop the whole page.
+            local seconds, deaths = tonumber(entry.seconds) or 0, tonumber(entry.deaths) or 0
+            totalSeconds = totalSeconds + seconds
+            totalDeaths = totalDeaths + deaths
             if level >= first then
-                Print(string.format("Level %d: %s, %d death(s)", level, FormatDuration(entry.seconds), entry.deaths))
+                Print(string.format("Level %d: %s, %d death(s)", level, FormatDuration(seconds), deaths))
             end
         end
     end
@@ -161,6 +163,9 @@ events:SetScript("OnEvent", function(_, event, arg1)
         levels = ForeverCharacterStamp(LevelLogDB[key])
         currentLevel = Safe(UnitLevel("player")) or 1
         lastMark = GetTime()
+    elseif not levels then
+        -- Saved data isn't set up until PLAYER_LOGIN.
+        return
     elseif event == "PLAYER_LEVEL_UP" then
         BankTime()
         Print(string.format("Level %d took %s.", currentLevel, FormatDuration(levels[currentLevel].seconds)))

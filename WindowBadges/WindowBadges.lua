@@ -381,12 +381,14 @@ local function PaintMerchant()
     end
     local perPage = tonumber(Safe(MERCHANT_ITEMS_PER_PAGE)) or MERCHANT_PAGE_SIZE
     local page = tonumber(Safe(frame.page))
-    local count = SafeCall(GetMerchantNumItems) or 0
+    -- When the count can't be read, a shown button is enough (an empty index just gives no link).
+    local count = tonumber(SafeCall(GetMerchantNumItems))
     for i = 1, perPage do
         local button = _G["MerchantItem" .. i .. "ItemButton"]
         if Visible(button) then
             local index = page and ((page - 1) * perPage + i) or SafeCall(button.GetID, button)
-            local link = type(index) == "number" and index >= 1 and index <= count and SafeCall(GetMerchantItemLink, index) or nil
+            local inRange = type(index) == "number" and index >= 1 and (not count or index <= count)
+            local link = inRange and SafeCall(GetMerchantItemLink, index) or nil
             if type(link) == "string" then
                 if not ItemInfo(link) then
                     RequestItem(link)

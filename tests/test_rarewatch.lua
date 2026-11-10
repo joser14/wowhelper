@@ -192,6 +192,14 @@ plate("nameplate11", { guid = guid(5000, 111, 71, 11), class = "rareelite", name
 check(RareWatchDB.R.rares["name:Lone Raptor"] == nil and RareWatchDB.R.rares[71] and RareWatchDB.R.rares[71].count == 1, "merged into the NPC ID record")
 markers.v2 = nil
 fire("VIGNETTES_UPDATED")
+-- Review 2026-11-10: the same rare's marker later comes without an ID (hidden in combat). It's the
+-- record already kept under its ID, not a second one by name.
+clock = clock + 600
+markers.v3 = { name = "Lone Raptor", atlasName = "VignetteKillElite", onMinimap = true, objectGUID = SECRET }
+fire("VIGNETTE_MINIMAP_UPDATED", "v3", true)
+check(RareWatchDB.R.rares["name:Lone Raptor"] == nil and RareWatchDB.R.rares[71] ~= nil, "no second record by name")
+markers.v3 = nil
+fire("VIGNETTES_UPDATED")
 
 -- Page: newest first, numbered, distance; old ones only on "all".
 RareWatchDB.R.rares[99] = { name = "Ancient One", level = 30, seen = clock - 200000, count = 1, mapID = 37, x = 0.1, y = 0.1, continent = 13, wx = 1000, wy = 1000, where = "Far Away" }

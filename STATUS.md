@@ -19,6 +19,12 @@ Start here when resuming.
   - RestGuard no longer errors when the hearthstone cooldown API is missing.
   - RestedXP v4.11.35 was re-checked. The correction to the Skyborne exit is in `research\rxp_forever_guides.md` 6.1.
 
+- 2026-11-10: full review of every helper (`research\review_2026-11-10.md`). 19 bugs were fixed, with new or
+  extended tests:
+  - `test_itemadvisor_spellpower.lua`, `test_hub_xp.lua`, `test_tooltips.lua`, `test_rarewatch.lua`,
+    `test_landmarks.lua`.
+  - The comparison with other addons is in `research\compare_2026-11-10.md`, with a ranked "build next" list.
+
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
   Exception asked for by the owner (2026-11-09): AutoQuest accepts and turns in quests, only in a quest window the player opened
@@ -40,6 +46,11 @@ Start here when resuming.
   old per-helper folders to a dated backup and carrying their saved data over once.
 
 ## In-game checks still needed
+- After the 2026-11-10 fixes:
+  - ItemAdvisor in a dungeon should say it can't read worn gear rather than "fills an empty slot", if gear links
+    are hidden there.
+  - Three trainers on Craftsmen's Terrace should be three Landmarks entries.
+  - MapPins switched off and on in the hub should bring minimap pins back at once.
 - Fight with the world map open and closed: no "blocked from an action" pop-up, no new Blocked action line on the Errors page.
 - Map pins line up when the map is zoomed, panned, windowed and maximised; hover and click work; gamepad mode has no errors.
 - /reload in combat, leave combat: Forever Hub page appears in Options.

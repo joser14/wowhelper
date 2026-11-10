@@ -57,8 +57,9 @@ UnitName = function(unit) if unit == "player" then return me end end
 GetRealmName = function() return "R" end
 local xp, money = 100, 10000
 UnitLevel = function() return 10 end
-UnitXP = function() return xp end
-UnitXPMax = function() return 1000 end
+local maxXP, xpHidden = 1000, false
+UnitXP = function() if xpHidden then return SECRET end return xp end
+UnitXPMax = function() return maxXP end
 GetXPExhaustion = function() return 0 end
 GetMoney = function() return money end
 -- Finished quests: questID -> reward XP.
@@ -178,6 +179,17 @@ assert(ForeverHubDB.session.start == now and #ForeverHubDB.session.samples == 0,
 need("Next level time appears once you earn XP", "restarted")
 now = now + 10; gain(20); tick()
 need("warming up (110s)", "restart warms up again")
+
+----- A level-up while XP was hidden (an instance): the new bar size shows it even when the XP after
+----- it is higher than the last reading. Before, only the difference (+50 here) was counted.
+local before = xp
+xpHidden = true
+now = now + 5; gain(400)
+xpHidden = false
+maxXP, xp = 1200, before + 50
+now = now + 5; hub.scripts.OnEvent(hub, "PLAYER_XP_UPDATE", "player")
+local samples = ForeverHubDB.session.samples
+assert(samples[#samples].amount == (1000 - before) + before + 50, "level-up counted whole: " .. tostring(samples[#samples].amount))
 
 assert(#chat == 0, "no chat")
 assert(#handled == 0, "no errors: " .. table.concat(handled, "|"))

@@ -154,6 +154,11 @@ fire(lm, "BANKFRAME_OPENED")
 at(0.5, 0.5); npc = "Innkeeper Farley"
 fire(lm, "CONFIRM_BINDER", "Goldshire")
 assert(count("trainer") == 1 and count("profession") == 1 and count("bank") == 1 and count("inn") == 1, "trainer/profession/bank/inn saved")
+----- Review 2026-11-10: a second profession trainer 10 yards from the first is another person, not
+----- the same record renamed and moved.
+at(0.531, 0.53); npc = "Alanna"; tradeskill = true
+fire(lm, "TRAINER_SHOW")
+check(count("profession") == 2, "two trainers side by side are two records (count=" .. count("profession") .. ")")
 
 ----- Innkeeper via gossip: only when an option mentions home
 at(0.8, 0.8); npc = "Innkeeper Brianna"

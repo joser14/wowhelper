@@ -353,17 +353,20 @@ local function SameSpot(spot, place)
     if yards then
         return yards < SAME_SPOT_YARDS
     end
-    return spot.mapID == place.mapID and math.abs(spot.x - (place.x or 2)) < 0.003 and math.abs(spot.y - (place.y or 2)) < 0.003
+    -- About 30 yards on a zone map, so a record saved without a world position (an older one, or one
+    -- read while it was hidden) still matches the same NPC a few steps away.
+    return spot.mapID == place.mapID and math.abs(spot.x - (place.x or 2)) < 0.01 and math.abs(spot.y - (place.y or 2)) < 0.01
 end
 
 -- One record per kind and spot: a vendor you visit every day is still one line. Names alone don't
 -- merge, since every mailbox is "Mailbox" and two towns can each have an innkeeper of the same name.
+-- Nor does the spot alone: three trainers on one terrace are three people. Mailboxes have no name.
 local function Remember(kind, name, spot)
     if not (db and spot) then
         return
     end
     for _, place in ipairs(db.places) do
-        if place.kind == kind and SameSpot(spot, place) then
+        if place.kind == kind and (kind == "mail" or place.name == name) and SameSpot(spot, place) then
             place.name, place.seen = name, time()
             place.mapID, place.x, place.y = spot.mapID, spot.x, spot.y
             place.continent, place.wx, place.wy = spot.continent, spot.wx, spot.wy

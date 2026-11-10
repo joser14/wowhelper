@@ -411,11 +411,21 @@ local function Record(npcID, name, info)
         return nil
     end
     local now = Now()
-    local key = npcID or ("name:" .. name)
+    local nameKey = "name:" .. name
+    local key = npcID or nameKey
     local rare = db.rares[key]
-    if not rare and npcID and db.rares["name:" .. name] then
-        rare = db.rares["name:" .. name]
-        db.rares["name:" .. name] = nil
+    if npcID and db.rares[nameKey] then
+        -- Seen first by name only: that record is this NPC. Keep one, never both.
+        rare = rare or db.rares[nameKey]
+        db.rares[nameKey] = nil
+    elseif not npcID and not rare then
+        -- No ID this time (hidden in combat, say): a record already kept under its ID is this one.
+        for id, other in pairs(db.rares) do
+            if type(id) == "number" and type(other) == "table" and other.name == name then
+                key, rare = id, other
+                break
+            end
+        end
     end
     if not rare then
         rare = { first = now, count = 0 }

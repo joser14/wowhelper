@@ -1580,10 +1580,12 @@ local function TrackXP()
     end
     local gained = 0
     if session.lastXP then
-        if xp >= session.lastXP then
+        -- A new level is seen by its new XP bar size too: when XP was unreadable (instances, combat)
+        -- at the level-up, the XP after it can be higher than the last reading.
+        if session.lastMax and (maxXP ~= session.lastMax or xp < session.lastXP) then
+            gained = math.max(session.lastMax - session.lastXP, 0) + xp
+        elseif xp >= session.lastXP then
             gained = xp - session.lastXP
-        elseif session.lastMax then
-            gained = session.lastMax - session.lastXP + xp
         end
     end
     if gained > 0 then
@@ -1693,6 +1695,10 @@ events:SetScript("OnEvent", function(_, event, ...)
     else
         if event == "PLAYER_REGEN_ENABLED" and narrationPending then
             NarrationOff()
+        end
+        if event == "QUEST_LOG_UPDATE" then
+            -- A turn-in's XP is already yours: read the finished quests again on the next refresh.
+            questXPAt = -QUEST_XP_SECONDS
         end
         if event == "PLAYER_ENTERING_WORLD" then
             local isInitialLogin, isReloadingUi = ...

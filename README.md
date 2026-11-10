@@ -11,6 +11,28 @@ no auto-selling, auto-buying, auto-equipping, auto-training, targeting, moving o
 
 > Status: early. Every helper is covered by automated tests, but the suite has only just been installed in game.
 > Expect rough edges, and check the hub's **Errors** page if something looks wrong.
+>
+> Last full review: 10 November 2026. It found and fixed 19 bugs; see `research\review_2026-11-10.md`. The most
+> important fixes:
+> - ItemAdvisor could call a worse item an upgrade when it lost spell power.
+> - The XP rate missed level-ups gained while XP was hidden.
+
+## Compared with other addons
+
+`research\compare_2026-11-10.md` puts every helper next to the addons people use for the same job:
+RestedXP, Questie, Auctionator, Pawn, Baganator, TomTom and others. For each one it lists what those addons
+have that we don't, and where ours does better. The biggest gaps:
+
+- **Horde leveling routes.** Ours are Alliance only.
+- **A step-by-step Skyborne route** for levels 1-13. Today the guide only names the zone.
+- **Questie-style markers** for every quest giver on the map.
+- **Smaller missing features:**
+  - a drowning warning;
+  - XP split between quests and kills;
+  - flight times;
+  - a `/way` command.
+
+Features that would play for you (auto-sell, auto-train and the like) are left out on purpose.
 
 ## What's in it
 

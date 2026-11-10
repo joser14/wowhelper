@@ -430,10 +430,23 @@ local function ObjectiveItemName(text)
     return name and name ~= "" and name or nil
 end
 
+-- What the verdicts depend on (item names and quest titles, not the counts), to tell a real change
+-- from a loot or kill updating a count.
+local questItemsKey = ""
+local function QuestItemsKey()
+    local parts = {}
+    for _, entry in ipairs(questItems) do
+        parts[#parts + 1] = (entry.item or entry.text) .. "\1" .. entry.title
+    end
+    table.sort(parts)
+    return table.concat(parts, "\2")
+end
+
+-- Returns true when the list of items your quests want changed.
 local function RebuildQuestItems()
     questItems = {}
     if not (C_QuestLog and C_QuestLog.GetNumQuestLogEntries) then
-        return
+        return false
     end
     local entries = C_QuestLog.GetNumQuestLogEntries()
     for index = 1, Safe(entries) or 0 do
@@ -448,6 +461,10 @@ local function RebuildQuestItems()
             end
         end
     end
+    local key = QuestItemsKey()
+    local changed = key ~= questItemsKey
+    questItemsKey = key
+    return changed
 end
 
 local function QuestNeeding(name)
@@ -765,8 +782,21 @@ local function FormatChange(amount, label)
     return (amount > 0 and "+" or "-") .. shown .. " " .. label
 end
 
+-- Whether a stat changes your score (Score above), so gaining or losing it counts.
+local function StatCounts(stat, weights, equipLoc, subClassID)
+    if stat == "armor" then
+        return true
+    elseif stat == "dps" then
+        return DpsWeight(weights, equipLoc, subClassID) > 0
+    elseif stat == "sp" or stat == "heal" then
+        -- Spell power is damage and healing; bonus healing also gives a third as damage.
+        return (weights.dmg or 0) > 0 or (weights.heal or 0) > 0
+    end
+    return (weights[stat] or 0) > 0
+end
+
 -- What changes for your role if you swap: stats you gain and lose, or nil if either item can't be read.
--- Stats your role doesn't use are left out, but armor and weapon damage always count.
+-- Only stats that change your score are listed (armor always), so a lost stat can't be missed.
 local function StatChanges(link, wornLink)
     local new, newUnknown = ReadStats(link)
     local worn, wornUnknown = ReadStats(wornLink)
@@ -774,11 +804,12 @@ local function StatChanges(link, wornLink)
         return nil
     end
     local weights = Weights()
+    local _, _, _, _, _, _, _, _, equipLoc, _, _, _, subClassID = C_Item.GetItemInfo(link)
     local gains, losses = {}, {}
     for _, entry in ipairs(STAT_ORDER) do
         local stat, label = entry[1], entry[2]
         local difference = (new[stat] or 0) - (worn[stat] or 0)
-        if difference ~= 0 and ((weights[stat] or 0) > 0 or stat == "armor" or stat == "dps") then
+        if difference ~= 0 and StatCounts(stat, weights, Safe(equipLoc), Safe(subClassID)) then
             local list = difference > 0 and gains or losses
             list[#list + 1] = FormatChange(difference, label)
         end
@@ -979,8 +1010,29 @@ local function JudgePair(link, equipLoc, classID, inBags)
     return "CHECK", "You wear a two-hander; even paired with " .. partner .. " from your bags, it scores lower"
 end
 
+-- Set while evaluating when the answer rests on data that may still arrive (Evaluate won't cache it).
+local dontCache = false
+local noStatsTries, NO_STATS_TRIES = {}, 3
+
+-- Worn gear the game hides right now (combat, some instances) would read as empty slots, so every item
+-- would look like an upgrade.
+local function WornGearHidden()
+    if not issecretvalue then
+        return false
+    end
+    for slot = 1, 19 do
+        if issecretvalue(GetInventoryItemLink("player", slot)) then
+            return true
+        end
+    end
+    return false
+end
+
 local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quality, sellPrice, bindType, isBound, inBags)
     local slots = SLOTS[equipLoc]
+    if WornGearHidden() then
+        return "CHECK", "Can't read your worn gear right now (combat or instance); hover again later"
+    end
     -- A copy in your bags has the same link as the one you're wearing, but it's a spare.
     if not inBags then
         for _, target in ipairs(SlotTargets(equipLoc, classID, slots)) do
@@ -993,7 +1045,8 @@ local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quali
         return "KEEP", "In one of your equipment sets"
     end
     -- Equipping a second unique copy is impossible, and swapping it for the worn one changes nothing.
-    if IsWorn(link) and IsUnique(link) then
+    -- Only a copy you own is a spare: a vendor's or a quest reward's copy isn't yours to sell.
+    if inBags and IsWorn(link) and IsUnique(link) then
         return NotNeeded("Spare copy; it's unique and you already wear one", classID, quality, sellPrice, bindType, isBound)
     end
 
@@ -1017,6 +1070,13 @@ local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quali
     local halfOfPair = equipLoc ~= "INVTYPE_2HWEAPON" and (slots[1] == MAIN_HAND or slots[1] == OFF_HAND)
         and MainHandIsTwoHanded()
     local noStats = select(3, ReadStats(link))
+    -- Stats can load after the name: ask again and don't remember this answer, a few times; an item that
+    -- really has no stats (an on-use trinket) is then remembered like any other.
+    if noStats and (noStatsTries[link] or 0) < NO_STATS_TRIES then
+        noStatsTries[link] = (noStatsTries[link] or 0) + 1
+        RequestItem(link)
+        dontCache = true
+    end
 
     local gain = best.gain
     local margin = math.max(MIN_GAIN, best.base * CLOSE_CALL_PERCENT / 100)
@@ -1136,9 +1196,10 @@ local function Evaluate(link, isBound, inBags)
     if cached then
         return cached[1], cached[2]
     end
+    dontCache = false
     local verdict, reason = EvaluateNow(link, isBound, inBags)
     -- An answer that depends on data still loading isn't worth keeping.
-    if not (reason:find("loading", 1, true) or reason:find("Can't read", 1, true)) then
+    if not (dontCache or reason:find("loading", 1, true) or reason:find("Can't read", 1, true)) then
         if verdictCount >= VERDICT_CACHE_LIMIT then
             ForgetVerdicts()
         end
@@ -1952,9 +2013,9 @@ events:SetScript("OnEvent", function(_, event, arg1)
         return
     end
     if event == "QUEST_LOG_UPDATE" then
-        RebuildQuestItems()
-        -- Picking up or finishing a quest can change whether an item is safe to sell.
-        if charData then
+        -- Picking up or finishing a quest can change whether an item is safe to sell. A count going up
+        -- (a loot, a kill) changes nothing here, and this event fires for every one of them.
+        if RebuildQuestItems() and charData then
             ScheduleRepaint()
         end
         return

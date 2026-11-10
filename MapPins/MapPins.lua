@@ -579,9 +579,18 @@ local function Signature()
         parts[#parts + 1] = IsOff(layer.helper) and "x" or "o"
     end
     if type(LevelGuide_UpcomingStops) == "function" then
+        -- Every stop, not just the first: finishing point 2 of 3 changes only a later one.
         local ok, stops = pcall(LevelGuide_UpcomingStops)
-        local first = ok and type(stops) == "table" and type(stops[1]) == "table" and stops[1] or nil
-        parts[#parts + 1] = first and tostring(Text(first.label)) .. tostring(Safe(first.x)) .. tostring(Safe(first.y)) or "-"
+        if ok and type(stops) == "table" then
+            parts[#parts + 1] = #stops
+            for _, stop in ipairs(stops) do
+                if type(stop) == "table" then
+                    parts[#parts + 1] = tostring(Text(stop.label)) .. tostring(Safe(stop.mapID)) .. tostring(Safe(stop.x)) .. tostring(Safe(stop.y))
+                end
+            end
+        else
+            parts[#parts + 1] = "-"
+        end
     end
     return table.concat(parts, ":")
 end
@@ -628,7 +637,7 @@ local function SetWaypoint(mapID, record)
     if not (record and mapID and C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
         return false
     end
-    return (ForeverWaypoint_Set(mapID, record.x, record.y, record.name))
+    return (ForeverWaypoint_Set(mapID, record.x, record.y, record.title))
 end
 
 local function ApplyIcon(texture, icon, size)
@@ -953,12 +962,16 @@ local function Axes(mapID)
 end
 
 local function UpdateMinimap(force)
+    -- Every way out that hides the pins also forgets the last state, so they come back as soon as
+    -- they may, not only once you move.
     if not (db and db.minimap and Minimap and not IsOff("MapPins")) then
         HideMiniPins(1)
+        lastState = nil
         return
     end
     if not (C_Map and C_Map.GetPlayerMapPosition and C_Map.GetWorldPosFromMapPos and CreateVector2D) then
         HideMiniPins(1)
+        lastState = nil
         return
     end
     local mapID = PlayerMap()
@@ -980,6 +993,7 @@ local function UpdateMinimap(force)
     local facing = rotate and GetPlayerFacing and Safe(GetPlayerFacing()) or nil
     if rotate and not facing then
         HideMiniPins(1)
+        lastState = nil
         return
     end
     local radius = MapPins_MinimapRadius()
