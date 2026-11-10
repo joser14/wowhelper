@@ -3198,6 +3198,127 @@ local function MakeStepButton(height, font)
     return button
 end
 
+-- "While you're here" (after Polestar's WhileHere, research\guides_deep_re.md 1.6 and 12.5; our own code):
+-- later steps of the route you can do now on the way. A ready turn-in shows when you're at its NPC (30 yd),
+-- or within 250 yd when the detour (yards there and on to the current step, minus the direct way, at
+-- 7 yd/s with 1.25 winding) costs at most 20 s, twice that when waiting for the route's own turn-in would
+-- cost XP (a lower share at the level the route has you then), or when resting within 100 yd. Work on a
+-- quest you hold shows within 180 yd of its nearest spawn camp (QuestDB) or its spot, for mobs at most
+-- 2 levels above you. At most 3 lines, nearest first; none in combat, on a taxi, in an instance or during
+-- a timed quest. Right-click a line: not now (120 s and until you've moved 100 yd; again: this zone stay).
+do
+local function Paused(current)
+    if UnitAffectingCombat and Safe(UnitAffectingCombat("player")) then
+        return true
+    end
+    if UnitOnTaxi and Safe(UnitOnTaxi("player")) then
+        return true
+    end
+    if IsInInstance and Safe((IsInInstance())) then
+        return true
+    end
+    return current ~= nil and current.timerEnds ~= nil
+end
+
+-- A quest's spawn camps on this map from QuestDB, as { x, y (0-1), r (yards), n }.
+function X.Camps(questID, zoneMap)
+    local facts = LevelGuideQuestFacts
+    local q = questID and facts and facts.Quest and facts.Quest(questID)
+    local list = {}
+    for _, objective in ipairs(q and q.objectives or {}) do
+        for _, spot in ipairs(objective.spots or {}) do
+            if spot.map == zoneMap and spot.x and spot.y then
+                list[#list + 1] = { x = spot.x / 100, y = spot.y / 100, r = spot.r, n = spot.n }
+            end
+        end
+    end
+    return list
+end
+
+local function Yards(mapID, ax, ay, bx, by)
+    local yards, isYards = Distance(mapID, ax, ay, bx, by)
+    return isYards and yards or nil
+end
+
+function X.WhileHere(list)
+    X.hereLines = {}
+    local P = LevelGuidePlanner
+    local route, byTitle, zoneMap = activeRoute, lastByTitle, lastZoneMap
+    if not (P and route and byTitle and zoneMap and charData) or Paused(list[1]) then
+        return
+    end
+    local px, py = PositionOn(zoneMap)
+    if not (px and py) then
+        return
+    end
+    local level = Safe(UnitLevel("player"))
+    local shown = {}
+    for position = 1, math.min(#list, K.MAX_NEXT + 1) do
+        local step = list[position]
+        shown[step.routeKey or ""], shown[step.id or ""] = true, true
+    end
+    local current = list[1]
+    local wx, wy
+    if current and current.mapID == zoneMap then
+        wx, wy = current.x, current.y
+    end
+    local dPW = wx and Yards(zoneMap, px, py, wx, wy)
+    local resting = IsResting and Safe(IsResting()) or false
+    X.hereMutes = X.hereMutes or {}
+    local candidates, found = {}, {}
+    for index, step in ipairs(route.steps) do
+        local routeKey = RouteKey(route, index)
+        local entry = step.q and not step.side and (step.t == "turnin" or step.t == "do") and ClassMatches(step.cls)
+            and not charData.skips[routeKey] and not shown[routeKey] and HeldPart(byTitle, step)
+        local key = entry and (step.t .. "|" .. step.q .. "#" .. (tonumber(step.part) or 1))
+        if entry and not found[key] and not shown[entry.id] then
+            local turnin = step.t == "turnin" and entry.ready
+            local work = step.t == "do" and not entry.ready and not (step.obj ~= nil and ObjectivesDone(entry.id, step.obj, step.objMax))
+            local spot = (turnin or work) and RouteDisplay(route, index, step, byTitle, zoneMap)
+            local d = spot and spot.mapID == zoneMap and spot.x and Yards(zoneMap, px, py, spot.x, spot.y)
+            local ok = false
+            if d and work then
+                for _, camp in ipairs(X.Camps(entry.id, zoneMap)) do
+                    d = math.min(d, Yards(zoneMap, px, py, camp.x, camp.y) or d)
+                end
+                ok = d <= P.HERE.radius and not (spot.questLevel and level and spot.questLevel > level + 2)
+            elseif d and turnin then
+                local dNW = wx and Yards(zoneMap, spot.x, spot.y, wx, wy)
+                local planned = X.projection and X.projection.at[index]
+                local q = spot.questLevel
+                local losesXP = q and planned and level and P.Share(level, q) > P.Share(math.floor(planned), q) or false
+                ok = P.TurninShows(d, P.DetourSeconds(d, dNW, dPW), losesXP, resting)
+            end
+            if ok then
+                local mute = X.hereMutes[key]
+                local moved = mute and mute.x and Yards(zoneMap, px, py, mute.x, mute.y) or 0
+                if not P.Muted(X.hereMutes, key, Now(), moved, route.zone) then
+                    found[key] = true
+                    spot.hereKey, spot.hereYards = key, d
+                    candidates[#candidates + 1] = spot
+                end
+            end
+        end
+    end
+    table.sort(candidates, function(a, b) return a.hereYards < b.hereYards end)
+    for position = 1, math.min(#candidates, P.HERE.maxLines) do
+        X.hereLines[position] = candidates[position]
+    end
+end
+
+-- Right-click on a line: not now.
+function X.DismissHere(step)
+    local P = LevelGuidePlanner
+    if not (P and step and step.hereKey and activeRoute and lastZoneMap) then
+        return
+    end
+    local px, py = PositionOn(lastZoneMap)
+    X.hereMutes = X.hereMutes or {}
+    P.Mute(X.hereMutes, step.hereKey, Now(), px, py, activeRoute.zone)
+    dirty = true
+end
+end -- while you're here
+
 local function Render(mapID, playerX, playerY, later)
     local current = steps[1]
     local y = -K.HEADER_HEIGHT
@@ -3297,6 +3418,22 @@ local function Render(mapID, playerX, playerY, later)
     for index = sideShown + 1, #nextRows.side do
         nextRows.side[index]:Hide()
         nextRows.side[index].step = nil
+    end
+    -- While you're here (X.WhileHere): shown collapsed too, it's something to do now.
+    for index, row in ipairs(X.hereRows or {}) do
+        local step = X.hereLines and X.hereLines[index]
+        row.step = step
+        if step then
+            row.left:SetText("|cff33ff33While you're here:|r " .. StepLine(step))
+            row.right:SetText(DistanceText(step, mapID, playerX, playerY))
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, y)
+            row:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+            row:Show()
+            y = y - 16
+        else
+            row:Hide()
+        end
     end
     local also = not db.collapsed and ChoresText(later)
     alsoText:SetShown(also and true or false)
@@ -3622,6 +3759,7 @@ local function Rebuild()
     local mapID, playerX, playerY, later
     steps, mapID, playerX, playerY, later = BuildSteps()
     currentKey = StepKey(steps[1])
+    X.WhileHere(steps)
     Render(mapID, playerX, playerY, later)
     UpdateArrow()
     RefreshList()
@@ -3801,6 +3939,26 @@ local function Build()
     for index = 1, MAX_SIDE do
         nextRows.side[index] = MakeStepButton(16, "GameFontHighlightSmall")
         nextRows.side[index]:Hide()
+    end
+    X.hereRows = {}
+    for index = 1, 3 do
+        local row = MakeStepButton(16, "GameFontHighlightSmall")
+        row:SetScript("OnClick", function(self, mouseButton)
+            if mouseButton == "RightButton" then
+                X.DismissHere(self.step)
+            else
+                MarkStep(self.step)
+            end
+        end)
+        row:SetScript("OnEnter", function(self)
+            if self.step then
+                StepTooltip(self, self.step)
+                Tip():AddLine("Right-click: not now.", 0.6, 0.6, 0.6)
+                Tip():Show()
+            end
+        end)
+        row:Hide()
+        X.hereRows[index] = row
     end
     alsoText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     alsoText:SetJustifyH("LEFT")
