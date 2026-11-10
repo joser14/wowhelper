@@ -223,7 +223,7 @@ local TABS = {
     { label = "Places", key = "LANDMARKS", helper = "Landmarks", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer, arrows, bullets, bags, reagents" },
     { label = "Deaths", key = "DEATHNOTES", helper = "DeathNotes", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
     -- "Rares" exactly: RareWatch's side panel line opens this page by that name.
-    { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: all   Or: forget all" },
+    { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: all   forget all   watch <name or NPC ID>   unwatch <name>" },
     { label = "Map pins", key = "MAPPINS", helper = "MapPins", hint = "Type: off deaths   Or: on farms   Or: minimap off" },
     { label = "Characters", key = "FOREVERHELPER", helper = "ForeverHelper", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
     { label = "Pop-up history", alerts = true, section = "hub", about = "Every pop-up from this session, newest first." },

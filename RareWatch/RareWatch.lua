@@ -532,12 +532,118 @@ local function MarkerSpot(guid, here)
     return WorldSpot(here.mapID, x, y)
 end
 
+---------------------------------------------------------------------------- watch list
+-- Your own watch list (research\re_round4.md R20): NPCs by name or NPC ID, account-wide, any classification.
+-- A name match stores the NPC ID, so the entry keeps matching when the name changes (another client language,
+-- a renamed Forever mob). The idea is from MobSpot by Archydude (MIT, see NOTICE.md); our own code. Only what
+-- the game shows you is read (nameplates, target, mouseover, minimap markers); never TargetUnit, which Forever
+-- refuses from addons anyway.
+local Watch = { MAX = 50, markers = {}, alerted = {} }
+
+function Watch.List()
+    RareWatchDB = type(RareWatchDB) == "table" and RareWatchDB or {}
+    RareWatchDB.watch = type(RareWatchDB.watch) == "table" and RareWatchDB.watch or {}
+    return RareWatchDB.watch
+end
+
+function Watch.Label(entry)
+    return entry.name or ("NPC " .. tostring(entry.id))
+end
+
+-- The entry for this NPC (by ID first, then by name, learning the ID), or nil.
+function Watch.Match(npcID, name)
+    local list = Watch.List()
+    if #list == 0 then
+        return nil
+    end
+    local lower = type(name) == "string" and name:lower() or nil
+    for _, entry in ipairs(list) do
+        if npcID and entry.id == npcID then
+            if name and not entry.name then
+                entry.name = name
+            end
+            return entry
+        end
+    end
+    for _, entry in ipairs(list) do
+        if lower and not entry.id and type(entry.name) == "string" and entry.name:lower() == lower then
+            entry.id = npcID
+            return entry
+        end
+    end
+end
+
+function Watch.Alert(entry, text)
+    local key = tostring(entry.id or entry.name)
+    local now = GetTime()
+    if Watch.alerted[key] and now - Watch.alerted[key] < UNIT_REPEAT_SECONDS then
+        return
+    end
+    Watch.alerted[key] = now
+    Alert("Watched: " .. text)
+    PlayAlertSound()
+end
+
+-- "watch <name or NPC ID>" / "unwatch <name or NPC ID>" from the page.
+function Watch.Command(verb, rest)
+    local list = Watch.List()
+    local id = tonumber(rest:match("^(%d+)$"))
+    local lower = rest:lower()
+    local found
+    for index, entry in ipairs(list) do
+        if (id and entry.id == id) or (not id and type(entry.name) == "string" and entry.name:lower() == lower) then
+            found = index
+            break
+        end
+    end
+    if verb == "unwatch" then
+        if found then
+            local entry = table.remove(list, found)
+            Print("Stopped watching " .. Watch.Label(entry) .. ".")
+        else
+            Print("Not on your watch list: " .. rest .. ".")
+        end
+        return
+    end
+    if found then
+        Print("Already watching " .. Watch.Label(list[found]) .. ".")
+    elseif #list >= Watch.MAX then
+        Print(string.format("Your watch list is full (%d). Type unwatch <name> to make room.", Watch.MAX))
+    else
+        list[#list + 1] = id and { id = id } or { name = rest }
+        Print("Watching " .. Watch.Label(list[#list]) .. ". You'll get a pop-up and a sound when it's near.")
+    end
+end
+
+-- A minimap marker of a watched NPC (that isn't a rare's, which alerts on its own), once per marker.
+function Watch.Marker(guid, info, name, kind)
+    if kind == "rare" or Watch.markers[guid] or Safe(info.isDead) or Safe(info.onMinimap) == false then
+        return
+    end
+    local parsed = ParseGUID(Safe(info.objectGUID))
+    local entry = Watch.Match(parsed and parsed.npcID, name)
+    if not entry then
+        return
+    end
+    Watch.markers[guid] = true
+    local here = Here()
+    local yards = Yards(MarkerSpot(guid, here), here)
+    local distance = ""
+    if yards then
+        distance = yards >= 1000 and (", about " .. YardsText(yards)) or string.format(", about %d yd", math.floor(yards + 0.5))
+    end
+    Watch.Alert(entry, name .. " on your minimap" .. distance .. ".")
+end
+
 local function ReadMarker(guid)
     local info = C_VignetteInfo.GetVignetteInfo(guid)
     local name = info and Safe(info.name)
     local kind = info and KindOf(info)
     local dead = info and Safe(info.isDead)
     local bearing
+    if db and name then
+        Watch.Marker(guid, info, name, kind)
+    end
     if db and name and kind == "rare" and (dead or Safe(info.onMinimap) ~= false) then
         local parsed = ParseGUID(Safe(info.objectGUID))
         local here = Here()
@@ -570,6 +676,11 @@ local function ReadAllMarkers()
     for guid in pairs(active) do
         if not listed[guid] then
             active[guid] = nil
+        end
+    end
+    for guid in pairs(Watch.markers) do
+        if not listed[guid] then
+            Watch.markers[guid] = nil
         end
     end
 end
@@ -614,6 +725,16 @@ local function SeeUnit(unit, deathOnly)
     -- A verified Forever rare counts even when the game hides its classification.
     if known and class == nil then
         class = known.class
+    end
+    -- Your watch list: any classification, never a player; a rare's own alert covers a watched rare.
+    if not deathOnly and not RARE_CLASSES[class] and not (UnitIsPlayer and Safe(UnitIsPlayer(unit))) then
+        local name = UnitName and Safe(UnitName(unit))
+        local entry = Watch.Match(parsed.npcID, name)
+        if entry and not (UnitIsDead and Safe(UnitIsDead(unit))) then
+            local level = UnitLevel and Safe(UnitLevel(unit))
+            Watch.Alert(entry, string.format("%s%s, near you.", name or Watch.Label(entry),
+                type(level) == "number" and level > 0 and (" (" .. level .. ")") or ""))
+        end
     end
     if not RARE_CLASSES[class] or (UnitIsPlayer and Safe(UnitIsPlayer(unit))) then
         return
@@ -742,6 +863,14 @@ local function ShowPage(arg)
         return
     end
     local want = (arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    -- "watch <name or NPC ID>" / "unwatch ...": the name keeps the case you typed.
+    local raw = (arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    local verb, rest = raw:match("^(%a+)%s+(.+)$")
+    verb = verb and verb:lower()
+    if verb == "watch" or verb == "unwatch" then
+        Watch.Command(verb, rest)
+        want = ""
+    end
     local list = Ordered()
     local showAll = false
     if want == "forget all" or want == "forget everything" then
@@ -764,9 +893,18 @@ local function ShowPage(arg)
             Print("That spot can't be pinned from this map.")
         end
     elseif want ~= "" then
-        Print("Type a number to pin that rare on your map, or: all, or: forget all.")
+        Print("Type a number to pin that rare on your map, or: all, or: forget all, or: watch <name or NPC ID>.")
     end
     ShowLayer()
+    local watched = {}
+    for _, entry in ipairs(Watch.List()) do
+        watched[#watched + 1] = Watch.Label(entry)
+    end
+    if #watched > 0 then
+        Print("|cffffd100Watch list:|r " .. table.concat(watched, ", ") .. " |cff999999(unwatch <name> to remove)|r")
+    else
+        Print("|cff999999Watch list: empty. Type watch <name or NPC ID> to be told when any NPC is near.|r")
+    end
     local spot = Here()
     local now = Now()
     local shown = 0

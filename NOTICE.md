@@ -208,6 +208,8 @@ these sources:
   (`Regen.lua`, MIT License); written in our own code.
 - Ideas only, no code: MapPins' world-map info line (zone and level range under the cursor, coordinates) follows
   behaviour described in Leatrix Maps (no licence), and its minimap edge arrow follows TomTom's.
+- `RareWatch\RareWatch.lua` (watch list): matching by NPC ID with a name fallback that learns the NPC ID follows
+  MobSpot by Archydude (https://github.com/Archydude/MobSpot, MIT License); written in our own code.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.
