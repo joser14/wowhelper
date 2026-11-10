@@ -4370,10 +4370,18 @@ function X.RouteFork(candidates, byTitle, level)
         for order, route in ipairs(candidates) do
             list[#list + 1] = Stats(route, byTitle, level, order)
         end
+        local old = X.forkCache
         cache = { key = key, at = Now(), ranked = P.RankRoutes(list) }
+        -- Until you pick, the route followed stays the one first offered this session (no flip as you move).
+        cache.default = old and old.key == key and old.default or cache.ranked[1].id
         X.forkCache = cache
     end
     X.routeFork = cache
+    for _, entry in ipairs(cache.ranked) do
+        if entry.id == cache.default then
+            return entry.route
+        end
+    end
     return cache.ranked[1].route
 end
 
@@ -4450,12 +4458,12 @@ function X.RenderFork()
         end
     end
     card:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -2)
-    card.message:SetText("Where next? Pick a route (the first is followed until you do):")
+    card.message:SetText("Where next? Pick a route (the marked one is followed until you do):")
     for i, button in ipairs(card.buttons) do
         local entry = fork.ranked[i]
         button.entry = entry
         if entry then
-            button.label:SetText((i == 1 and "|cff33ff33> |r" or "   ") .. Line(entry))
+            button.label:SetText((entry.id == fork.default and "|cff33ff33> |r" or "   ") .. Line(entry))
             button:Show()
         else
             button:Hide()

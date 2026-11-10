@@ -71,6 +71,21 @@ Start here when resuming.
     Darkshore/Teldrassil, Auberdine boat and tram `ways` were removed; the Dun Morogh pass, Elwynn road and
     Zephras zeppelin Way()s stay and win. Tests `test_lg_travel_data`, `test_lg_travel`, `test_lg_travel_guide`.
 
+- 2026-11-10, night, later still: LevelGuide items 11-18 of `research\guides_deep_re.md` section 12 (19-20, the
+  walking router, not built), one commit and one `tests\test_lg_*.lua` each:
+  - exact in-hub order (Held-Karp over up to 7 NPC groups, `Planner.HubOrder`) — `test_lg_hub`;
+  - group/elite quests ask "do it / skip it" (card, per character), Group / (!) Elite / Timed / Escort tags from
+    QuestDB flags, timed quests first without a game timer — `test_lg_flags`;
+  - secret-safe objective counts (last "N/M" of the text, from Ding!) and Obj() by name — `test_lg_objectives`;
+  - skips, visits, points, marks and spots follow their steps across Routes.lua edits (LCS) — `test_lg_remap`;
+  - "About N kills to level" and XP/h on the plan line — `test_lg_kills`;
+  - personal spot corrections (Ctrl+right-click a step) — `test_lg_spots`;
+  - route-choice card at forks — `test_lg_fork`;
+  - death-skip hint below 10 (84 spirit healers in `Travel.lua`) and riding money from 38 — `test_lg_hints`.
+  - Not yet seen in game: the three cards' layout under the guide; group cards on real routes (e.g. elite
+    quests in Darkshore); riding cost 120 g and the class-quest wording for paladins/warlocks (unverified);
+    spirit-healer spots and which one the game really sends you to; "kills to level" against real kills.
+
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
   Exception asked for by the owner (2026-11-09): AutoQuest accepts and turns in quests, only in a quest window the player opened

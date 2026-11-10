@@ -64,9 +64,10 @@ these sources:
   for "your target gives ~N XP" when LevelGuide isn't loaded.
   Because this code is GPL-3.0-only, the combined work is distributed under the GPL version 3 only.
   Other LevelGuide features (placement from the quest log, "not offered" marks, while-you're-here, arrow
-  damping, spawn-camp circuit, server quest levels, lost quests, the travel planner in `LevelGuide\TravelPlan.lua`)
-  are our own code written after the ideas
-  described in `research\guides_deep_re.md`.
+  damping, spawn-camp circuit, server quest levels, lost quests, the travel planner in `LevelGuide\TravelPlan.lua`,
+  in-hub ordering, group-quest answers, personal spot corrections (an idea from ForeverQuest, GPL-3.0), the
+  route-choice card and the death-skip / riding hints (ideas from Leveldon, no licence: ideas only)) are our
+  own code written after the ideas described in `research\guides_deep_re.md`.
 - **Ding!** (https://www.curseforge.com/wow/addons/ding-xp-and-leveling-guide), by moust4ki, GPL-3.0.
   `LevelGuide\Planner.lua` ports two small pieces: reading the last "N/M" of an objective's text when the
   game keeps its counts secret (`Core\Compat.lua`), and the rested-aware kills-left formula (`Core\Grind.lua`).
