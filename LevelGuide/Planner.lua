@@ -419,6 +419,67 @@ function P.Fit(points, camps, ender, yards)
     return doAfter, nil
 end
 
+-- ---- route edits (research\guides_deep_re.md 12.14) --------------------------------------------------------
+
+-- A step key's hash (djb2), so a route's key list is cheap to keep. KeyHash and the longest-common-subsequence
+-- part of MatchSteps are ported from Polestar (addon\Polestar\Core\Engine.lua Own.hash / Own.matchSteps,
+-- GPL-3.0-only); pairing a changed step in place between two kept ones is ours.
+function P.KeyHash(text)
+    local h = 5381
+    for i = 1, #text do
+        h = (h * 33 + text:byte(i)) % 4294967296
+    end
+    return h
+end
+
+-- Old position -> new position for the steps of an edited route, from two key (or hash) lists: the steps both
+-- have, in order (longest common subsequence); then, between two such steps, a stretch of the same length on
+-- both sides is the same steps changed in place.
+function P.MatchSteps(old, new)
+    local n, m = #old, #new
+    local len = {}
+    len[n + 1] = {}
+    for j = 1, m + 1 do
+        len[n + 1][j] = 0
+    end
+    for i = n, 1, -1 do
+        local row, below = {}, len[i + 1]
+        row[m + 1] = 0
+        for j = m, 1, -1 do
+            if old[i] == new[j] then
+                row[j] = below[j + 1] + 1
+            else
+                row[j] = max(below[j], row[j + 1])
+            end
+        end
+        len[i] = row
+    end
+    local map, kept, i, j = {}, {}, 1, 1
+    while i <= n and j <= m do
+        if old[i] == new[j] then
+            map[i] = j
+            kept[#kept + 1] = { i, j }
+            i, j = i + 1, j + 1
+        elseif len[i + 1][j] >= len[i][j + 1] then
+            i = i + 1
+        else
+            j = j + 1
+        end
+    end
+    kept[#kept + 1] = { n + 1, m + 1 }
+    local pi_, pj = 0, 0
+    for _, pair in ipairs(kept) do
+        local gapOld, gapNew = pair[1] - pi_ - 1, pair[2] - pj - 1
+        if gapOld > 0 and gapOld == gapNew then
+            for k = 1, gapOld do
+                map[pi_ + k] = pj + k
+            end
+        end
+        pi_, pj = pair[1], pair[2]
+    end
+    return map
+end
+
 -- ---- objective text (research\guides_deep_re.md 12.13) -----------------------------------------------------
 
 -- The counts in an objective's text, for when the game keeps the numbers secret: the last "N/M" (so

@@ -1070,6 +1070,102 @@ local function MigrateCharacter(data)
     MigrateKeys(data.visited)
 end
 
+-- Route edits (research\guides_deep_re.md 12.14; Planner.KeyHash / MatchSteps): per character, the hashes of
+-- each route's step keys in order (charData.routeShapes[prefix], all routes sharing a key prefix together, in
+-- chain order). When the route's steps change (a new Routes.lua), the old and new lists are matched and every
+-- saved entry keyed by a step (skips, visits, points, marks, spot corrections) moves to that step's new key.
+-- A route's steps are checked once per session (and again whenever they're replaced).
+do
+local seen = setmetatable({}, { __mode = "k" })
+local SETS = { "skips", "visited", "points", "marks", "spots" }
+
+-- A step changed in place is the same kind of step with the same quest (or text) or the same person: a
+-- whole stretch replaced by other steps isn't (keys are "prefix|type|quest|part|who", BaseKey).
+local function Alike(oldKey, newKey, prefix)
+    local a = { (oldKey:sub(#prefix + 1):gsub("#%d+$", "") .. "|"):match("^([^|]*)|([^|]*)|([^|]*)|([^|]*)|") }
+    local b = { (newKey:sub(#prefix + 1):gsub("#%d+$", "") .. "|"):match("^([^|]*)|([^|]*)|([^|]*)|([^|]*)|") }
+    if not (a[1] and b[1]) then
+        return oldKey:gsub("#%d+$", "") == newKey:gsub("#%d+$", "")
+    end
+    return a[1] == b[1] and (a[2] == b[2] or (a[4] ~= "" and a[4] == b[4]))
+end
+
+function X.RemapRoutes()
+    local P = LevelGuidePlanner
+    local chains = LevelGuideRoutes and LevelGuideRoutes.chains
+    local race = UnitRace and Safe(select(2, UnitRace("player")))
+    if not (P and P.MatchSteps and charData and chains and race and chains[race]) then
+        return
+    end
+    local fresh, order, byBase = false, {}, {}
+    for _, route in ipairs(chains[race]) do
+        local list = rawget(route, "steps")
+        if type(list) == "table" and not seen[list] then
+            fresh = true
+            seen[list] = true
+        end
+    end
+    if not fresh then
+        return
+    end
+    for _, route in ipairs(chains[race]) do
+        if type(rawget(route, "steps")) == "table" then
+            local base = route.key or route.zone
+            if not byBase[base] then
+                byBase[base] = {}
+                order[#order + 1] = base
+            end
+            for _, key in ipairs(RouteKeys(route)) do
+                byBase[base][#byBase[base] + 1] = key
+            end
+        end
+    end
+    charData.routeShapes = charData.routeShapes or {}
+    for _, base in ipairs(order) do
+        local keys, hashes = byBase[base], {}
+        for i, key in ipairs(keys) do
+            hashes[i] = P.KeyHash(key)
+        end
+        local old = charData.routeShapes[base]
+        local same = type(old) == "table" and #old == #hashes
+        for i = 1, same and #hashes or 0 do
+            same = same and old[i] == hashes[i]
+        end
+        if type(old) == "table" and not same then
+            local map, oldAt = P.MatchSteps(old, hashes), {}
+            for i, h in ipairs(old) do
+                oldAt[h] = i
+            end
+            local prefix = base .. "|"
+            for _, name in ipairs(SETS) do
+                local set = charData[name]
+                if type(set) == "table" then
+                    local moves = {}
+                    for key, value in pairs(set) do
+                        if type(key) == "string" and key:sub(1, #prefix) == prefix then
+                            local at = oldAt[P.KeyHash(key)]
+                            local newKey = at and map[at] and keys[map[at]]
+                            if newKey and newKey ~= key and (old[at] == hashes[map[at]] or Alike(key, newKey, prefix)) then
+                                moves[#moves + 1] = { key, newKey, value }
+                            end
+                        end
+                    end
+                    for _, move in ipairs(moves) do
+                        set[move[1]] = nil
+                    end
+                    for _, move in ipairs(moves) do
+                        if set[move[2]] == nil then
+                            set[move[2]] = move[3]
+                        end
+                    end
+                end
+            end
+        end
+        charData.routeShapes[base] = hashes
+    end
+end
+end -- route edits
+
 local function Outleveled(step, level)
     -- step.outlevel (Routes.lua Outlevel()) overrides the usual "this far below you counts as done".
     return level and step.lvl and level >= step.lvl + (step.outlevel or K.OUTLEVELED) or false
@@ -3001,6 +3097,8 @@ local function RouteSteps(level)
     -- Old index keys written while this session runs (or left from before) move to stable keys.
     MigrateCharacter(charData)
     FillFromDB()
+    -- Routes.lua edited since last time: saved progress follows its steps to their new keys.
+    X.RemapRoutes()
     local byTitle = LogByTitle()
     lastByTitle = byTitle
     local route, stuckHere = FindRoute(level, byTitle)
