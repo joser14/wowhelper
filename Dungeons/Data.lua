@@ -13,7 +13,7 @@
 -- entrance.mapID is the Mainline uiMapID of the zone the point is on; x and y are fractions of that zone's
 -- map as drawn on Forever (the Classic-era map, so The Barrens and Stranglethorn Vale are single zones).
 -- entrance.zone is that zone's name; the engine checks the map by this name at run time and looks it up
--- by name when the client numbers its maps differently. A Forever-only zone (Riverglades) has no mapID.
+-- by name when the client numbers its maps differently. Forever-only zones: Riverglades is uiMapID 2548 (Adventure Guide Forever's map table; checked by name in game).
 --
 -- quests: Alliance quests (and quests both factions can do), { title, questIDs, giver, where, level, min, note }.
 -- loot: { itemID, name, boss, slot, note }; slot text names the armor type so the engine can tell plate from cloth.
@@ -382,7 +382,7 @@ DungeonsData = {
     },
     {
         name = "Krol'dok Stronghold", short = "kroldok", minLevel = 40, maxLevel = 47, zone = "Riverglades", forever = true,
-        entrance = { zone = "Riverglades", x = 0.375, y = 0.375, note = "Cave on the north side, west of the big fortress gates" },
+        entrance = { zone = "Riverglades", mapID = 2548, x = 0.375, y = 0.375, note = "Cave on the north side, west of the big fortress gates" },
         bosses = { "Overlord Mugg" },
         quests = {},
         loot = {},

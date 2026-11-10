@@ -1,4 +1,4 @@
-﻿# Forever addon suite: status (2026-11-09)
+# Forever addon suite: status (2026-11-09)
 
 Start here when resuming.
 
@@ -39,6 +39,19 @@ Start here when resuming.
   - `research\builds\gen_data.js` can't run: it reads `research\builds\data_header.lua`, which was never
     committed. `Builds\Data.lua` was edited by hand to match `research\builds\WARLOCK.lua`.
 
+- 2026-11-10, evening:
+  - LevelGuide review: 12 fixes (`research\review_2026-11-10.md` third round).
+  - Forever research: 22 more addons studied, 21 Forever facts and 25 ranked improvements
+    (`research\forever_improvements_2026-11-10.md`). Built from it:
+    - a Classic-preset notice (QuestCheck);
+    - a profession fallback by skill line (ProfessionCap, ProfessionGuide, GoldGuide, ItemAdvisor);
+    - Waylaid Crates never sold (ItemAdvisor);
+    - Riverglades 2548 and Zephras Isle 2521 map IDs (Dungeons, MapPins);
+    - the error-cap warning (ErrorLog).
+  - Next from that list: an XP boosters block (camp, sleeping bag, XP food), Legacy challenges and perks, vendor
+    price from the tooltip, spirit-healer arrow and dungeon entrances from the client, server checks of route
+    quests, library books.
+
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
   Exception asked for by the owner (2026-11-09): AutoQuest accepts and turns in quests, only in a quest window the player opened
@@ -65,6 +78,10 @@ Start here when resuming.
     are hidden there.
   - Three trainers on Craftsmen's Terrace should be three Landmarks entries.
   - MapPins switched off and on in the hub should bring minimap pins back at once.
+- Forever facts to settle in game (from the research):
+  - `/dump GetProfessionInfo`: if it's nil, the new skill-line fallback is what reads your professions.
+  - Does `C_Item.GetItemInfo`'s vendor price match the tooltip's? If not, take it from the tooltip.
+  - Does the Classic preset really hide quest markers (QuestCheck now says so once)?
 - New features (2026-11-10), not yet seen in game:
   - Quest-giver "!" and "?" icons: check the atlases QuestNormal/QuestTurnin exist, else the gossip icons show.
   - Flight times: the flight map's node positions are on the continent map (GetTaxiMapID), and landing within

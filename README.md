@@ -12,12 +12,14 @@ no auto-selling, auto-buying, auto-equipping, auto-training, targeting, moving o
 > Status: early. Every helper is covered by automated tests, but the suite has only just been installed in game.
 > Expect rough edges, and check the hub's **Errors** page if something looks wrong.
 >
-> Last full review: 10 November 2026. Every helper was read; 31 bugs were found and fixed, each listed in
-> `research\review_2026-11-10.md`. The most important fixes:
+> Last full review: 10 November 2026. Every helper was read, the leveling guide included; 43 bugs were found and
+> fixed, each listed in `research\review_2026-11-10.md`. The most important fixes:
 > - ItemAdvisor could call a worse item an upgrade when it lost spell power.
 > - The XP rate missed level-ups gained while XP was hidden.
 > - At 60, Builds switched to a raid build for your last leveling talent point.
-> - ProfessionGuide asked for stock you already had.
+> - The leveling guide skipped Hillsbrad's inn, flight path and Alterac trip.
+> - Skyborne were sent off Zephras Isle at level 8.
+> - The guide counted an unrelated quest with the same title as done.
 
 ## New on 10 November 2026
 
@@ -28,6 +30,17 @@ no auto-selling, auto-buying, auto-equipping, auto-training, targeting, moving o
 | **XP from quests and from kills** | LevelLog | Each level shows how much XP came from turn-ins and how much from kills and exploring, plus a running total. Counting starts with this version. |
 | **Flight times** | Landmarks | Learned from your own flights, averaged, and shown at the flight master ("Flight times from here: ...") and on the Places page. |
 | **`/way`** | MapPins | `/way 45.2 58.5`, `/way Darkshore 45.2 58.5` or `/way clear`. Uses the game's own map pin, so its on-screen marker points you there, and the pin clears when you arrive. |
+| **Forever's Classic preset** | QuestCheck | Forever's Classic preset hides quest markers on the map, and the guide and quest-mob markers use them. QuestCheck says so once per character, and on its Quests page. |
+| **Waylaid Crates** | ItemAdvisor | Never advised as vendor trash: fill one and turn it in at Three Corners (Redridge), or auction it empty. |
+| **Professions, read another way** | ProfessionCap, ProfessionGuide, GoldGuide, ItemAdvisor | If the game's profession list isn't available, each profession's skill line is read directly instead. |
+| **Riverglades and Zephras Isle** | Dungeons, MapPins | The two new Forever zones' map numbers, so their pins land on the right map. |
+
+### Researched for WoW Forever
+
+`research\forever_improvements_2026-11-10.md` studies 22 more addons Forever players use and lists 21 Forever game
+changes that affect the helpers, each with a source. Examples: Legacy challenges and perks, camp tents and XP foods,
+Waylaid Crates and Merchant's Favor, library books, Riverglades and the new boats, and the dungeon XP hotfix.
+It ranks 25 improvements; the ones above are built, and the rest are listed in `STATUS.md` under next steps.
 
 ## Compared with other addons
 

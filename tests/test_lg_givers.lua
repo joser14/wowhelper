@@ -20,9 +20,10 @@ M.load(ADDON_PATH, function()
         A("City Quest", "Sentinel, Darnassus", 40.6, 89.6, 10),
         { t = "accept", q = "Priests Only", npc = "Priestess", x = 46, y = 46, lvl = 10, cls = "PRIEST" },
         { t = "accept", q = "Mages Only", npc = "Mage", x = 47, y = 47, lvl = 10, cls = "MAGE" },
+        A("Encrypted Letter", "Magistrate", 48, 48, 10),
     } }
     LevelGuideRoutes.chains = { NightElf = { R } }
-    LevelGuideQuestIDs = { ids = { Chain = { 501, 502 }, Gate = { 600 } }, renamed = {} }
+    LevelGuideQuestIDs = { ids = { Chain = { 501, 502 }, Gate = { 600 } }, renamed = {}, unrelated = { [3102] = true } }
     LevelGuidePrereqs = { ["Needs Prereq"] = { all = { 600 } } }
 end)
 M.update()
@@ -58,6 +59,19 @@ assert(g["turnin:Held"], "ready to hand in")
 assert(g["accept:Chain"] and g["accept:Chain"].level == 10, "chain: part 2 now")
 assert(g["accept:Needs Prereq"], "prerequisite done")
 print("2 ok")
+
+-- 2b. Review 2026-11-10: turning in an unrelated quest with the same title (the Elwynn Encrypted Letter,
+-- 3102) doesn't count as the route's.
+M.titles[3102] = "Encrypted Letter"
+M.fire("QUEST_TURNED_IN", 3102)
+M.update()
+g = givers()
+assert(g["accept:Encrypted Letter"], "unrelated turn-in didn't count")
+M.titles[3200] = "Encrypted Letter"
+M.fire("QUEST_TURNED_IN", 3200)
+M.update()
+g = givers()
+assert(not g["accept:Encrypted Letter"], "the route's own turn-in counts")
 
 -- 3. A level later: the level 12 quest shows. Horde: nothing.
 M.level = 11

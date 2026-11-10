@@ -31,6 +31,15 @@ assert(step and step.kind == "travel" and step.title == "Zephras Isle", "plan fo
 M.best, M.pos = 2521, { [2521] = { 0.43, 0.24 } }
 print("1 ok")
 
+-- 2b. Review 2026-11-10: at 8-12 on the isle the plan still holds; Westfall (from 10) doesn't pull you
+-- away two levels early.
+M.level = 8
+M.update()
+assert(not rows():find("Zeppelin to Dalaran", 1, true), "level 8 Skyborne stays on the isle: " .. rows())
+M.level = 12
+M.update()
+assert(not rows():find("Zeppelin to Dalaran", 1, true), "level 12 too: " .. rows())
+
 -- 3. At 13 on the isle: the Human chain's Westfall route, reached by the zeppelin on the isle.
 M.level = 13
 M.update()

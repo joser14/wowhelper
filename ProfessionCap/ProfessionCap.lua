@@ -1,3 +1,28 @@
+-- Shared Forever profession fallback (the same copy is in every helper that reads professions; whichever
+-- loads first defines it). Used only when GetProfessions/GetProfessionInfo are missing, which a third-party
+-- measurement found on a Forever beta build: the twelve Classic profession skill lines, read by ID.
+-- Returns { { name, rank, maxRank, skillLine, secondary } }.
+ForeverSkillProfessions = ForeverSkillProfessions or function()
+    local list = {}
+    if not (C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID) then
+        return list
+    end
+    local function Hidden(value)
+        return issecretvalue and issecretvalue(value)
+    end
+    for _, line in ipairs({ 164, 165, 171, 182, 186, 197, 202, 333, 393, 129, 185, 356 }) do
+        local ok, info = pcall(C_SkillInfo.GetSkillLineInfoByID, line)
+        if ok and type(info) == "table" and not Hidden(info) then
+            local name, rank, maxRank = info.name, info.rank, info.maxRank
+            if not (Hidden(name) or Hidden(rank) or Hidden(maxRank)) and type(name) == "string" and name ~= ""
+                and type(rank) == "number" and type(maxRank) == "number" and maxRank > 0 then
+                list[#list + 1] = { name = name, rank = rank, maxRank = maxRank, skillLine = line,
+                    secondary = line == 129 or line == 185 or line == 356 }
+            end
+        end
+    end
+    return list
+end
 -- Current cap = the next rank, the level it needs, and the skill a trainer wants before teaching it
 -- (same as Classic, per Forever's profession guides). Other caps have no next rank here.
 local NEXT_RANK = {
@@ -38,6 +63,10 @@ end
 local function ReadProfessions()
     local list, seen = {}, {}
     if not (GetProfessions and GetProfessionInfo) then
+        for _, entry in ipairs(ForeverSkillProfessions()) do
+            list[#list + 1] = { name = entry.name, rank = entry.rank, maxRank = entry.maxRank, secondary = entry.secondary,
+                skillLine = EXPERT_BOOK[entry.skillLine] and entry.skillLine or nil }
+        end
         return list
     end
     local slots = { GetProfessions() }

@@ -1619,6 +1619,9 @@ local HILLSBRAD = { zone = "Hillsbrad Foothills", min = 28, max = 32, steps = {
     G("Road north into the Alterac Mountains", 47.4, 5.4, 31, "Lions roam the southern Alterac hills; the Syndicate camps are at Corrahn's Dagger, Sofera's Naze and Gallows' Corner"),
     D("Costly Menace", "Kill 8 Mountain Lions and 10 Hulking Mountain Lions in the hills north-west of Hillsbrad Fields", 38.8, 24.6, 31),
     D("Syndicate Assassins", "Kill 12 Syndicate Footpads and 8 Syndicate Thieves at the Syndicate camps (Alterac Mountains); keep the Syndicate Documents drops: Foreboding Plans and Encrypted Letter", 47.4, 5.4, 31),
+    -- Both start from the Syndicate Documents the Footpads and Thieves drop (Strahnbrad, Alterac Mountains).
+    New(On("Alterac Mountains", A("Foreboding Plans", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 31))),
+    New(On("Alterac Mountains", A("Encrypted Letter", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 31))),
     -- Back to Southshore
     G("Return to Southshore", 49.9, 56.4, 32),
     T("Bartolo's Yeti Fur Cloak", "Bartolo Ginsetti", 49.4, 55.5, 32),
@@ -3564,21 +3567,11 @@ do
         New(On("Silverpine Forest", A("Friend of the Kirin Tor", "Image of Archmage Modera (Lordamere Lake shore)", 68.5, 45.3, 30))),
         New(On("Alterac Mountains", T("Friend of the Kirin Tor", "Archmage Celindra (City of Dalaran)", 14.2, 60.0, 30))),
         New(A("Crushridge Bounty", "Marshal Redpath, Southshore", 49.5, 58.7, 31)),
-        New(A("Syndicate Assassins", "Magistrate Henry Maleb, Southshore", 48.1, 59.1, 31)),
-        New(On("Alterac Mountains", D("Syndicate Assassins", "12 Syndicate Footpads and 8 Thieves at Strahnbrad", 57.7, 68.0, 31))),
-        New(On("Alterac Mountains", A("Foreboding Plans", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 32))),
-        New(On("Alterac Mountains", A("Encrypted Letter", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 32))),
         New(Later(Keep(3668, "Assassin's Contract", "Assassin's Contract", 32, "From a Shadowy Assassin; it leads to Baron Vardus."))),
         New(On("Alterac Mountains", D("Crushridge Bounty", "9 Dirty Knucklebones from the Crushridge ogres", 45.6, 48.0, 33))),
-        New(T("Syndicate Assassins", "Magistrate Henry Maleb (U)", 48.1, 59.1, 33)),
         New(T("Crushridge Bounty", "Marshal Redpath", 49.5, 58.7, 33)),
         New(A("Crushridge Warmongers", "Marshal Redpath (its wand reward suits a priest)", 49.5, 58.7, 33)),
-        New(T("Foreboding Plans", "Magistrate Henry Maleb", 48.1, 59.1, 33)),
-        New(A("Noble Deaths", "Magistrate Henry Maleb", 48.1, 59.1, 33)),
-        New(T("Encrypted Letter", "Loremaster Dibbs", 50.6, 57.1, 33)),
-        New(On("Alterac Mountains", D("Noble Deaths", "7 Alterac Signet Rings from the Syndicate at the Lordamere internment camp and the Ruins of Alterac", 55.7, 27.8, 34))),
         New(On("Alterac Mountains", D("Crushridge Warmongers", "15 Crushridge Warmongers", 36.3, 53.8, 34))),
-        New(T("Noble Deaths", "Magistrate Henry Maleb (U)", 48.1, 59.1, 34)),
         New(T("Crushridge Warmongers", "Marshal Redpath (U)", 49.5, 58.7, 34)),
     })
     -- Arathi: the Refuge Pointe flight path, training, the greater wand from the auction house.

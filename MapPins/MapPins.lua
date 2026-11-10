@@ -227,6 +227,8 @@ local CLASSIC_ZONE = {
     ["Azshara"] = 1447, ["Felwood"] = 1448, ["Un'Goro Crater"] = 1449, ["Moonglade"] = 1450,
     ["Silithus"] = 1451, ["Winterspring"] = 1452, ["Stormwind City"] = 1453, ["Orgrimmar"] = 1454,
     ["Ironforge"] = 1455, ["Thunder Bluff"] = 1456, ["Darnassus"] = 1457, ["Undercity"] = 1458,
+    -- Forever-only zones (research\forever_improvements, Adventure Guide Forever's map table).
+    ["Zephras Isle"] = 2521, ["Riverglades"] = 2548,
 }
 
 local LAYERS = {

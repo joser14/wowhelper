@@ -20,7 +20,16 @@ local function Print(text)
     -- No hub window to show it in: stay quiet rather than fill the chat.
 end
 
+-- The client is reported to stop passing Lua errors to addons after about 100 in one session
+-- (forever-addon-kit's measurement on Forever), so later ones would go unseen. Warned once, before that.
+local SESSION_WARN_AT = 80
+local sessionErrors = 0
+
 local function Record(kind, message, stack)
+    sessionErrors = sessionErrors + 1
+    if sessionErrors == SESSION_WARN_AT then
+        Print(string.format("%d errors this session. The game may stop reporting errors after about 100, so /reload to keep catching new ones.", SESSION_WARN_AT))
+    end
     message = Safe(message)
     if type(message) ~= "string" then
         message = "(the game hid this error's text)"
