@@ -559,8 +559,8 @@ local function ResolveMap(entrance)
             end
         end
     end
-    -- Names in another language won't match: then trust the stored number.
-    found = found or entrance.mapID
+    -- Names in another language won't match: then trust the stored number, in Forever's Classic form.
+    found = found or CLASSIC_MAP[entrance.mapID or 0] or entrance.mapID
     resolvedMaps[key] = found or false
     return found
 end
@@ -820,6 +820,12 @@ local function ShowPage(arg)
     local level = MyLevel()
     local list = List()
     if want == "" then
+        -- Hidden (in an instance, say): "dungeons for level 1" would be wrong, so say so instead.
+        local readable = UnitLevel and tonumber(Safe(UnitLevel("player")))
+        if not readable then
+            Print("Your level can't be read right now (it's hidden in some instances). Type all to see every dungeon.")
+            return
+        end
         ShowSuited(level)
         return
     end

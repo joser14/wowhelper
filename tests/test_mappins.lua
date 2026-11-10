@@ -207,6 +207,12 @@ DungeonsData = {
 }
 local stops = { { mapID = 1429, x = 0.45, y = 0.55, label = "Hogger", kind = "kill" } }
 LevelGuide_UpcomingStops = function() return stops end
+-- Quest givers (2026-11-10): a pick-up and a hand-in on Elwynn, matched by zone name.
+local givers = {
+    { kind = "accept", title = "Wolves Across the Border", npc = "Eagan Peltskinner", level = 2, zone = "Elwynn Forest", x = 0.48, y = 0.40 },
+    { kind = "turnin", title = "Kobold Camp Cleanup", npc = "Marshal McBride", level = 2, zone = "Elwynn Forest", x = 0.49, y = 0.41 },
+}
+LevelGuide_QuestGivers = function() return givers, "k" .. #givers end
 
 ---------------------------------------------------------------------------- load
 local ok, err = pcall(function() assert(loadfile(base .. "/MapPins/MapPins.lua"))("MapPins", {}) end)
@@ -303,6 +309,15 @@ check(by.deaths == 1, "one death on Elwynn")
 check(by.rares == 1, "rare with a spot on Elwynn; one without a spot skipped")
 check(by.farms == 1, "level-10 farm matched to Elwynn by name, not by Mainline ID 37")
 check(by.dungeons == nil, "no dungeon on Elwynn")
+check(by.givers == 2, "quest giver and hand-in on Elwynn: " .. tostring(by.givers))
+for _, pin in ipairs(shownPins()) do
+    if pin.record.layer == "givers" then
+        local turnin = pin.record.title:find("Hand in", 1, true) ~= nil
+        check(pin.record.title == (turnin and "Hand in: Kobold Camp Cleanup" or "Quest: Wolves Across the Border"), "giver title: " .. pin.record.title)
+        check(pin.Icon.file == (turnin and "Interface\\GossipFrame\\ActiveQuestIcon" or "Interface\\GossipFrame\\AvailableQuestIcon")
+            or pin.Icon.atlas == (turnin and "QuestTurnin" or "QuestNormal"), "! and ? icons")
+    end
+end
 for _, pin in ipairs(shownPins()) do
     local ex, ey = expected(pin.record.x, pin.record.y)
     check(pin.point and pin.point[1] == "CENTER" and pin.point[2] == overlay and pin.point[3] == "BOTTOMLEFT"
@@ -352,7 +367,7 @@ local okRect = pcall(tick, 0.1)
 check(okRect and #shownPins() == 0, "secret canvas size: pins hidden, no error")
 canvas.w = 800
 tick(0.1)
-check(#shownPins() == 5, "rectangle back: pins back")
+check(#shownPins() == 7, "rectangle back: pins back (5 + 2 quest givers): " .. #shownPins())
 
 by = show(1453)
 check(by.places == 1 and by.dungeons == 1, "Stormwind: mailbox and Stockade (Mainline 84 resolved by name)")

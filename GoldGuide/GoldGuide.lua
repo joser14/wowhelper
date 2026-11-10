@@ -1,3 +1,28 @@
+-- Shared Forever profession fallback (the same copy is in every helper that reads professions; whichever
+-- loads first defines it). Used only when GetProfessions/GetProfessionInfo are missing, which a third-party
+-- measurement found on a Forever beta build: the twelve Classic profession skill lines, read by ID.
+-- Returns { { name, rank, maxRank, skillLine, secondary } }.
+ForeverSkillProfessions = ForeverSkillProfessions or function()
+    local list = {}
+    if not (C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID) then
+        return list
+    end
+    local function Hidden(value)
+        return issecretvalue and issecretvalue(value)
+    end
+    for _, line in ipairs({ 164, 165, 171, 182, 186, 197, 202, 333, 393, 129, 185, 356 }) do
+        local ok, info = pcall(C_SkillInfo.GetSkillLineInfoByID, line)
+        if ok and type(info) == "table" and not Hidden(info) then
+            local name, rank, maxRank = info.name, info.rank, info.maxRank
+            if not (Hidden(name) or Hidden(rank) or Hidden(maxRank)) and type(name) == "string" and name ~= ""
+                and type(rank) == "number" and type(maxRank) == "number" and maxRank > 0 then
+                list[#list + 1] = { name = name, rank = rank, maxRank = maxRank, skillLine = line,
+                    secondary = line == 129 or line == 185 or line == 356 }
+            end
+        end
+    end
+    return list
+end
 -- GoldGuide: where to farm gold at your level, money tips, and what in your bags is worth more at the
 -- auction house than at a vendor. Read-only: it reads your level, professions and bags, and the auction
 -- prices PriceMemory saved from your own searches. It never buys, sells, posts or searches.
@@ -246,17 +271,25 @@ end
 local function Professions()
     local have = {}
     if not (GetProfessions and GetProfessionInfo) then
+        -- The game's profession list isn't there: read the skill lines by ID instead.
+        for _, entry in ipairs(ForeverSkillProfessions()) do
+            local line = PROFESSION_NAME[entry.skillLine] and entry.skillLine or GATHERING_BY_NAME[entry.name]
+            if line then
+                have[line] = entry.rank
+            end
+        end
         return have
     end
     local slots = { GetProfessions() }
     for position = 1, MAX_PROFESSION_SLOTS do
         local index = Safe(slots[position])
         if index then
-            local name, _, _, _, _, _, skillLine = GetProfessionInfo(index)
-            name, skillLine = Safe(name), Safe(skillLine)
+            local name, _, rank, _, _, _, skillLine = GetProfessionInfo(index)
+            name, rank, skillLine = Safe(name), Safe(rank), Safe(skillLine)
             local line = PROFESSION_NAME[skillLine] and skillLine or GATHERING_BY_NAME[name]
             if line then
-                have[line] = true
+                -- Your skill when the game says, else just "you have it".
+                have[line] = type(rank) == "number" and rank or true
             end
         end
     end
@@ -420,8 +453,13 @@ local function BestFarms(level)
     local mine, open, other = {}, {}, {}
     for _, farm in ipairs(farms) do
         if Matches(farm, level) then
-            if farm.profession and have[farm.profession] then
+            local skill = farm.profession and have[farm.profession]
+            -- A vein or herb your skill can't gather yet is no farm for you (yet).
+            local tooLow = type(skill) == "number" and farm.minSkill and skill < farm.minSkill
+            if skill and not tooLow then
                 mine[#mine + 1] = farm
+            elseif tooLow then
+                other[#other + 1] = farm
             elseif not farm.profession then
                 open[#open + 1] = farm
             else
@@ -527,7 +565,13 @@ end
 local function FarmLine(number, farm, mine)
     local tag = ""
     if farm.profession then
-        tag = string.format(" |cff88bbee[%s%s]|r", PROFESSION_NAME[farm.profession] or "Gathering", mine and "" or ", you don't have it")
+        local why = ""
+        if not mine then
+            why = ", you don't have it"
+        elseif type(mine) == "number" and farm.minSkill and mine < farm.minSkill then
+            why = string.format(", needs skill %d (you have %d)", farm.minSkill, mine)
+        end
+        tag = string.format(" |cff88bbee[%s%s]|r", PROFESSION_NAME[farm.profession] or "Gathering", why)
     end
     return string.format("|cffffd100%d.|r %s |cff999999- %s, level %d-%d|r%s", number, farm.name, farm.zone, farm.minLevel, farm.maxLevel, tag)
 end
@@ -545,6 +589,12 @@ end
 local function MapName(mapID)
     local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
     return type(info) == "table" and Safe(info.name) or nil
+end
+
+-- Zone names in the data are English.
+local function EnglishClient()
+    local locale = GetLocale and Safe(GetLocale())
+    return locale == nil or locale == "enUS" or locale == "enGB"
 end
 
 -- The map to pin on: the first of the zone's map IDs the game takes a waypoint on, preferring one whose
@@ -568,8 +618,9 @@ local function PinMap(farm)
             if name and name:lower() == farm.zone:lower() then
                 return id
             end
-            -- With no name to compare, take the first map that accepts a waypoint.
-            if not name and not fallback then
+            -- With no name to compare, take the first map that accepts a waypoint. On a client in
+            -- another language the names never match, so the farm's own (Classic) map is used.
+            if not fallback and (not name or not EnglishClient()) then
                 fallback = id
             end
         end

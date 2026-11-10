@@ -353,17 +353,20 @@ local function SameSpot(spot, place)
     if yards then
         return yards < SAME_SPOT_YARDS
     end
-    return spot.mapID == place.mapID and math.abs(spot.x - (place.x or 2)) < 0.003 and math.abs(spot.y - (place.y or 2)) < 0.003
+    -- About 30 yards on a zone map, so a record saved without a world position (an older one, or one
+    -- read while it was hidden) still matches the same NPC a few steps away.
+    return spot.mapID == place.mapID and math.abs(spot.x - (place.x or 2)) < 0.01 and math.abs(spot.y - (place.y or 2)) < 0.01
 end
 
 -- One record per kind and spot: a vendor you visit every day is still one line. Names alone don't
 -- merge, since every mailbox is "Mailbox" and two towns can each have an innkeeper of the same name.
+-- Nor does the spot alone: three trainers on one terrace are three people. Mailboxes have no name.
 local function Remember(kind, name, spot)
     if not (db and spot) then
         return
     end
     for _, place in ipairs(db.places) do
-        if place.kind == kind and SameSpot(spot, place) then
+        if place.kind == kind and (kind == "mail" or place.name == name) and SameSpot(spot, place) then
             place.name, place.seen = name, time()
             place.mapID, place.x, place.y = spot.mapID, spot.x, spot.y
             place.continent, place.wx, place.wy = spot.continent, spot.wx, spot.wy
@@ -527,6 +530,132 @@ local function FlightKnownLine(place)
     return "|cffff6633This character hasn't learned that flight point yet: talk to the flight master there.|r"
 end
 
+-- Flight times, learned from your own flights (the taxi button can't be watched, and must not be hooked):
+-- the flight map says which node you're at; losing control onto a taxi soon after starts the clock;
+-- landing stops it, and the known node nearest to where you land is the destination. Kept per realm,
+-- since every character flies at the same speed.
+local function Now()
+    return GetTime and GetTime() or 0
+end
+
+local TAXI_START_SECONDS = 120     -- a flight must start this soon after the flight map was open
+local LANDING_RANGE = 0.02         -- on the flight map's own (continent) map, about a few hundred yards
+local lastTaxi, flight
+
+local function NodeName(node)
+    local name = node and node.name
+    return type(name) == "string" and (name:match("^([^,]+)") or name) or "?"
+end
+
+local function FlightTimes()
+    db.flightTimes = type(db.flightTimes) == "table" and db.flightTimes or {}
+    return db.flightTimes
+end
+
+local function FlightKey(from, to)
+    return tostring(from) .. ">" .. tostring(to)
+end
+
+local function DurationText(seconds)
+    seconds = math.floor(seconds + 0.5)
+    return string.format("%dm %02ds", math.floor(seconds / 60), seconds % 60)
+end
+
+-- The known node nearest to where you stand on its own map, or nil when none is close enough.
+local function LandedAt()
+    local saved = KnownFlights(false)
+    if not (saved and saved.nodes and C_Map and C_Map.GetPlayerMapPosition) then
+        return nil
+    end
+    local best, bestDistance
+    local positions = {}
+    for nodeID, node in pairs(saved.nodes) do
+        if node.mapID and node.x and node.y then
+            if positions[node.mapID] == nil then
+                local position = C_Map.GetPlayerMapPosition(node.mapID, "player")
+                local x, y
+                if position and position.GetXY then
+                    x, y = position:GetXY()
+                end
+                x, y = Safe(x), Safe(y)
+                positions[node.mapID] = (x and y) and { x, y } or false
+            end
+            local here = positions[node.mapID]
+            if here then
+                local distance = math.sqrt((here[1] - node.x) ^ 2 + (here[2] - node.y) ^ 2)
+                if distance <= LANDING_RANGE and (not bestDistance or distance < bestDistance) then
+                    best, bestDistance = nodeID, distance
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function OnTaxi()
+    return UnitOnTaxi and Safe(UnitOnTaxi("player")) == true
+end
+
+local function StartFlight()
+    if flight or not lastTaxi or not lastTaxi.node then
+        return
+    end
+    local now = Now()
+    if now - lastTaxi.at <= TAXI_START_SECONDS and OnTaxi() then
+        flight = { from = lastTaxi.node, start = now }
+    end
+end
+
+local function EndFlight()
+    if not flight or OnTaxi() then
+        return
+    end
+    local seconds = Now() - flight.start
+    local to = LandedAt()
+    local from = flight.from
+    flight, lastTaxi = nil, nil
+    if not to or to == from or seconds < 5 then
+        return
+    end
+    local times = FlightTimes()
+    local key = FlightKey(from, to)
+    local known = times[key]
+    if type(known) == "table" and tonumber(known.seconds) then
+        -- Average the flights so far, so one odd flight doesn't set it.
+        local count = (tonumber(known.count) or 1) + 1
+        known.seconds = known.seconds + (seconds - known.seconds) / count
+        known.count = count
+    else
+        times[key] = { seconds = seconds, count = 1 }
+        local saved = KnownFlights(false)
+        local nodes = saved and saved.nodes or {}
+        Print(string.format("Flight time learned: %s to %s, %s.", NodeName(nodes[from]), NodeName(nodes[to]), DurationText(seconds)))
+    end
+end
+
+-- Known times from one node, fastest first: { name, seconds }.
+local function TimesFrom(from)
+    local list = {}
+    local saved = KnownFlights(false)
+    local nodes = saved and saved.nodes or {}
+    for key, entry in pairs(db and FlightTimes() or {}) do
+        local a, b = key:match("^(%d+)>(%d+)$")
+        if tonumber(a) == from and type(entry) == "table" and tonumber(entry.seconds) then
+            list[#list + 1] = { name = NodeName(nodes[tonumber(b)]), seconds = entry.seconds }
+        end
+    end
+    table.sort(list, function(x, y) return x.seconds < y.seconds end)
+    return list
+end
+
+local function TimesText(from)
+    local parts = {}
+    for _, entry in ipairs(TimesFrom(from)) do
+        parts[#parts + 1] = entry.name .. " " .. DurationText(entry.seconds)
+    end
+    return #parts > 0 and table.concat(parts, ", ") or nil
+end
+
 local function NpcName(fallback)
     return (UnitName and Safe(UnitName("npc"))) or fallback
 end
@@ -645,6 +774,20 @@ local function ShowPage(arg)
     end
     Print(string.format("|cff999999%d places remembered.|r", #db.places))
     Print(flightLine)
+    -- Flight times: from where this flight started, else from the nearest flight master you know.
+    local from = flight and flight.from
+    if flight then
+        Print(string.format("|cffffd100In flight:|r %s so far.", DurationText(Now() - flight.start)))
+    else
+        local master = Nearest(spot, "flight")
+        from = master and master.nodeID
+    end
+    local times = from and TimesText(from)
+    if times then
+        Print("|cffffd100Flight times from " .. NodeName((KnownFlights(false) or { nodes = {} }).nodes[from]) .. ":|r " .. times)
+    else
+        Print("|cff999999Flight times: learned as you fly, then shown here and at the flight master.|r")
+    end
 end
 
 local events = CreateFrame("Frame")
@@ -656,6 +799,8 @@ events:RegisterEvent("TRAINER_SHOW")
 events:RegisterEvent("BANKFRAME_OPENED")
 events:RegisterEvent("CONFIRM_BINDER")
 events:RegisterEvent("GOSSIP_SHOW")
+events:RegisterEvent("PLAYER_CONTROL_LOST")
+events:RegisterEvent("PLAYER_CONTROL_GAINED")
 events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         LandmarksDB = LandmarksDB or {}
@@ -668,6 +813,17 @@ events:SetScript("OnEvent", function(_, event)
     if not db then
         return
     end
+    if event == "PLAYER_CONTROL_LOST" then
+        -- The taxi flag can follow a moment after control is lost.
+        StartFlight()
+        if not flight and C_Timer and C_Timer.After then
+            C_Timer.After(1, StartFlight)
+        end
+        return
+    elseif event == "PLAYER_CONTROL_GAINED" then
+        EndFlight()
+        return
+    end
     -- Known flight points don't need your position, so they're saved even when it can't be read.
     local flightNode
     if event == "TAXIMAP_OPENED" then
@@ -676,6 +832,13 @@ events:SetScript("OnEvent", function(_, event)
         -- A problem here still lets the flight master's spot be remembered below.
         if not ok and geterrorhandler then
             geterrorhandler()(result)
+        end
+        if flightNode then
+            lastTaxi = { node = flightNode, at = Now() }
+            local times = TimesText(flightNode)
+            if times then
+                Print("Flight times from here: " .. times .. ".")
+            end
         end
     end
     local spot = Here()

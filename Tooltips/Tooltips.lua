@@ -749,7 +749,10 @@ local function AddQuestItemLine(tooltip, itemName, texts)
     local name = itemName:lower()
     local rows, seen = {}, {}
     for _, objective in ipairs(QuestLog().objectives) do
-        local matches = objective.name == name or (objective.isItem and objective.name:find(name, 1, true) ~= nil)
+        -- With a count stripped the name is exact ("Wolf Meat" isn't "Tender Wolf Meat"); only text with
+        -- no count to strip is matched loosely (ItemAdvisor's rule too).
+        local matches = objective.name == name
+            or (objective.isItem and not objective.need and objective.name:find(name, 1, true) ~= nil)
         if matches and not objective.finished and not seen[objective.title] and not MentionedIn(texts, objective.title) then
             seen[objective.title] = true
             local text = "Needed for: " .. objective.title

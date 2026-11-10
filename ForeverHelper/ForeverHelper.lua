@@ -135,9 +135,15 @@ local function FormatNumber(value)
     return string.format("%d", math.floor(value))
 end
 
+-- No rate for the first ten minutes (the hub's panel waits as long): one sale or kill right after a
+-- login or /reload would read as hundreds of gold or thousands of XP an hour.
+local RATE_MIN_SECONDS = 600
 local function PerHour(amount)
-    -- The 60s floor keeps the first few seconds of a session from showing absurd rates.
-    return amount * 3600 / math.max(GetTime() - session.start, 60)
+    local elapsed = GetTime() - session.start
+    if elapsed < RATE_MIN_SECONDS then
+        return nil
+    end
+    return amount * 3600 / elapsed
 end
 
 local function ResetSession()
@@ -155,10 +161,11 @@ local function TrackXP()
         return
     end
     if session.lastXP then
-        if xp >= session.lastXP then
+        -- A new level also shows as a new XP bar size (XP may have been unreadable at the level-up).
+        if session.lastMax and (max ~= session.lastMax or xp < session.lastXP) then
+            session.xpGained = session.xpGained + math.max(session.lastMax - session.lastXP, 0) + xp
+        elseif xp >= session.lastXP then
             session.xpGained = session.xpGained + xp - session.lastXP
-        else
-            session.xpGained = session.xpGained + session.lastMax - session.lastXP + xp
         end
     end
     session.lastXP, session.lastMax = xp, max
@@ -176,8 +183,9 @@ local function RefreshStats()
     statLines[1]:SetText("Session: " .. FormatDuration(GetTime() - session.start))
     if current and session.startMoney then
         local money = current - session.startMoney
-        statLines[2]:SetText(string.format("Gold: %s (%s, %s/hr)",
-            FormatMoney(current), FormatMoney(money), FormatMoney(PerHour(money))))
+        local rate = PerHour(money)
+        statLines[2]:SetText(string.format("Gold: %s (%s%s)",
+            FormatMoney(current), FormatMoney(money), rate and (", " .. FormatMoney(rate) .. "/hr") or ""))
     else
         statLines[2]:SetText("Gold: n/a")
     end
@@ -193,7 +201,9 @@ local function RefreshStats()
         FormatNumber(xp), FormatNumber(max), math.floor(xp * 100 / max), FormatNumber(rested)))
 
     local rate = PerHour(session.xpGained)
-    if rate > 0 then
+    if not rate then
+        statLines[4]:SetText("Rate: shown after 10 minutes")
+    elseif rate > 0 then
         statLines[4]:SetText(string.format("Rate: %s/hr, next level in %s",
             FormatNumber(rate), FormatDuration((max - xp) * 3600 / rate)))
     else

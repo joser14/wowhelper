@@ -6,11 +6,12 @@ if (-not (Test-Path (Join-Path $t 'node_modules\fengari'))) { throw "Run 'npm in
 # Most tests load the whole repo; these take one file or folder instead.
 $map = @{
   'test_itemadvisor_extra.lua' = "$w\ItemAdvisor\ItemAdvisor.lua"; 'test_itemadvisor_review.lua' = "$w\ItemAdvisor\ItemAdvisor.lua"
-  'test_itemadvisor_roles.lua' = "$w\ItemAdvisor\ItemAdvisor.lua"
+  'test_itemadvisor_roles.lua' = "$w\ItemAdvisor\ItemAdvisor.lua"; 'test_itemadvisor_spellpower.lua' = "$w\ItemAdvisor\ItemAdvisor.lua"
   'test_tracker_extra.lua' = "$w\QuestTracker\QuestTracker.lua"
   'test14.lua' = "$w\LevelGuide\LevelGuide.lua"
   'test_lg_teldrassil.lua' = "$w\LevelGuide"; 'test_lg_side.lua' = "$w\LevelGuide"; 'test_lg_engine.lua' = "$w\LevelGuide"; 'test_lg_route_data.lua' = "$w\LevelGuide"
   'test_lg_legs.lua' = "$w\LevelGuide"; 'test_lg_ne_route.lua' = "$w\LevelGuide"; 'test_lg_20_60.lua' = "$w\LevelGuide"; 'test_lg_db.lua' = "$w\LevelGuide"; 'test_lg_db_guide.lua' = "$w\LevelGuide"
+  'test_lg_faction.lua' = "$w\LevelGuide"; 'test_lg_givers.lua' = "$w\LevelGuide"
   'test16.lua' = "$w\LevelGuide";'test16_pre.lua' = "$w\LevelGuide"; 'test17.lua' = "$w\LevelGuide"; 'test18.lua' = "$w\LevelGuide"
 }
 Push-Location $t

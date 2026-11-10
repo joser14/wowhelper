@@ -227,10 +227,13 @@ local CLASSIC_ZONE = {
     ["Azshara"] = 1447, ["Felwood"] = 1448, ["Un'Goro Crater"] = 1449, ["Moonglade"] = 1450,
     ["Silithus"] = 1451, ["Winterspring"] = 1452, ["Stormwind City"] = 1453, ["Orgrimmar"] = 1454,
     ["Ironforge"] = 1455, ["Thunder Bluff"] = 1456, ["Darnassus"] = 1457, ["Undercity"] = 1458,
+    -- Forever-only zones (research\forever_improvements, Adventure Guide Forever's map table).
+    ["Zephras Isle"] = 2521, ["Riverglades"] = 2548,
 }
 
 local LAYERS = {
     { key = "guide", label = "Guide stops", helper = "LevelGuide" },
+    { key = "givers", label = "Quest givers", helper = "LevelGuide" },
     { key = "places", label = "Places", helper = "Landmarks" },
     { key = "deaths", label = "Deaths", helper = "DeathNotes" },
     { key = "rares", label = "Rares", helper = "RareWatch" },
@@ -245,6 +248,8 @@ end
 -- Icons: an atlas when this client has it, else a plain texture. Icon textures get their border trimmed.
 local ICONS = {
     guide = { atlas = "Waypoint-MapPin-Tracked", file = "Interface\\Icons\\INV_Misc_Map_01", size = 20 },
+    accept = { atlas = "QuestNormal", file = "Interface\\GossipFrame\\AvailableQuestIcon" },
+    turnin = { atlas = "QuestTurnin", file = "Interface\\GossipFrame\\ActiveQuestIcon" },
     repair = { file = "Interface\\Minimap\\Tracking\\Repair" },
     vendor = { file = "Interface\\Minimap\\Tracking\\Reagents" },
     food = { file = "Interface\\Minimap\\Tracking\\Food" },
@@ -433,6 +438,30 @@ local function GuideStops(list)
     end
 end
 
+-- Quest givers from LevelGuide's routes: "!" for a quest you can pick up now, "?" for one to hand in.
+local function Givers(list)
+    if type(LevelGuide_QuestGivers) ~= "function" then
+        return
+    end
+    local ok, givers = pcall(LevelGuide_QuestGivers)
+    if not ok or type(givers) ~= "table" then
+        return
+    end
+    for _, giver in ipairs(givers) do
+        if type(giver) == "table" then
+            local zone = Text(giver.zone)
+            local turnin = giver.kind == "turnin"
+            local level = Safe(giver.level)
+            Add(list, "givers", {
+                mapID = ResolveMap(zone, {}), zone = zone, x = Fraction(giver.x), y = Fraction(giver.y),
+                icon = turnin and ICONS.turnin or ICONS.accept,
+                title = (turnin and "Hand in: " or "Quest: ") .. (Text(giver.title) or "?"),
+                lines = { Text(giver.npc), (not turnin and level) and ("Level " .. tostring(level)) or nil },
+            })
+        end
+    end
+end
+
 local function RealmTable(saved, field)
     if type(saved) ~= "table" then
         return nil
@@ -528,7 +557,7 @@ local function Dungeons(list)
     end
 end
 
-local SOURCES = { guide = GuideStops, places = Places, deaths = Deaths, rares = Rares, farms = Farms, dungeons = Dungeons }
+local SOURCES = { guide = GuideStops, givers = Givers, places = Places, deaths = Deaths, rares = Rares, farms = Farms, dungeons = Dungeons }
 
 local function LayerOn(key)
     return db and db.layers[key] ~= false and not IsOff(LAYER[key].helper)
@@ -578,10 +607,23 @@ local function Signature()
     for _, layer in ipairs(LAYERS) do
         parts[#parts + 1] = IsOff(layer.helper) and "x" or "o"
     end
+    if type(LevelGuide_QuestGivers) == "function" then
+        local ok, _, key = pcall(LevelGuide_QuestGivers)
+        parts[#parts + 1] = ok and tostring(key) or "-"
+    end
     if type(LevelGuide_UpcomingStops) == "function" then
+        -- Every stop, not just the first: finishing point 2 of 3 changes only a later one.
         local ok, stops = pcall(LevelGuide_UpcomingStops)
-        local first = ok and type(stops) == "table" and type(stops[1]) == "table" and stops[1] or nil
-        parts[#parts + 1] = first and tostring(Text(first.label)) .. tostring(Safe(first.x)) .. tostring(Safe(first.y)) or "-"
+        if ok and type(stops) == "table" then
+            parts[#parts + 1] = #stops
+            for _, stop in ipairs(stops) do
+                if type(stop) == "table" then
+                    parts[#parts + 1] = tostring(Text(stop.label)) .. tostring(Safe(stop.mapID)) .. tostring(Safe(stop.x)) .. tostring(Safe(stop.y))
+                end
+            end
+        else
+            parts[#parts + 1] = "-"
+        end
     end
     return table.concat(parts, ":")
 end
@@ -628,7 +670,7 @@ local function SetWaypoint(mapID, record)
     if not (record and mapID and C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
         return false
     end
-    return (ForeverWaypoint_Set(mapID, record.x, record.y, record.name))
+    return (ForeverWaypoint_Set(mapID, record.x, record.y, record.title))
 end
 
 local function ApplyIcon(texture, icon, size)
@@ -953,12 +995,16 @@ local function Axes(mapID)
 end
 
 local function UpdateMinimap(force)
+    -- Every way out that hides the pins also forgets the last state, so they come back as soon as
+    -- they may, not only once you move.
     if not (db and db.minimap and Minimap and not IsOff("MapPins")) then
         HideMiniPins(1)
+        lastState = nil
         return
     end
     if not (C_Map and C_Map.GetPlayerMapPosition and C_Map.GetWorldPosFromMapPos and CreateVector2D) then
         HideMiniPins(1)
+        lastState = nil
         return
     end
     local mapID = PlayerMap()
@@ -980,6 +1026,7 @@ local function UpdateMinimap(force)
     local facing = rotate and GetPlayerFacing and Safe(GetPlayerFacing()) or nil
     if rotate and not facing then
         HideMiniPins(1)
+        lastState = nil
         return
     end
     local radius = MapPins_MinimapRadius()
@@ -1077,6 +1124,7 @@ end
 
 local AVAILABLE = {
     guide = function() return type(LevelGuide_UpcomingStops) == "function" end,
+    givers = function() return type(LevelGuide_QuestGivers) == "function" end,
     places = function() return LandmarksDB ~= nil end,
     deaths = function() return DeathNotesDB ~= nil end,
     rares = function() return RareWatchDB ~= nil end,

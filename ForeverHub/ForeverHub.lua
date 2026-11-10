@@ -167,15 +167,15 @@ local HELPERS = {
     { name = "WeaponSkillWatch", section = "character", about = "Warns when the weapon you hold is far below its skill cap." },
     { name = "RestGuard", section = "character", about = "Shows your rested XP and warns if you log out outside a rested area." },
     { name = "RepWatch", section = "character", about = "Reputation gained this session and how far each faction is from its next standing." },
-    { name = "LevelLog", section = "character", about = "Records your play time and deaths for each level." },
+    { name = "LevelLog", section = "character", about = "Records your play time, deaths and where your XP came from (quests or kills) for each level." },
     -- Lives in the ReadyCheck folder, but calls itself SpellReady everywhere it talks to the hub.
     { name = "SpellReady", section = "character", about = "Checks for missing buffs and spells you could train a higher rank of." },
-    { name = "Landmarks", section = "world", about = "Remembers vendors, inns, flight masters, mailboxes, banks and trainers you visit, and finds the nearest." },
-    { name = "DeathNotes", section = "world", about = "Remembers where you died and warns when you walk back into that spot." },
+    { name = "Landmarks", section = "world", about = "Remembers vendors, inns, flight masters, mailboxes, banks and trainers you visit, finds the nearest, and learns flight times as you fly." },
+    { name = "DeathNotes", section = "world", about = "Remembers where you died and warns when you walk back into that spot; warns loudly when your breath or fatigue is running out." },
     { name = "RareWatch", section = "world",
         about = "A pop-up and a sound when a rare appears on your minimap; remembers where and when each was last seen or killed, and estimates your layer." },
     { name = "MapPins", section = "world",
-        about = "Draws your guide stops, remembered places, deaths, rares, gold farms and dungeon entrances on the world map and minimap. Click a pin to set a waypoint." },
+        about = "Draws your guide stops, quest givers (! to pick up, ? to hand in), remembered places, deaths, rares, gold farms and dungeon entrances on the world map and minimap. Click a pin to set a waypoint, or type /way 45.2 58.5." },
     { name = "ForeverHelper", section = "hub", about = "Leveling rates, a to-do list for each character, and an overview of your characters." },
     { name = "ErrorLog", section = "hub", about = "Saves Lua errors so you can read them later." },
 }
@@ -1580,10 +1580,12 @@ local function TrackXP()
     end
     local gained = 0
     if session.lastXP then
-        if xp >= session.lastXP then
+        -- A new level is seen by its new XP bar size too: when XP was unreadable (instances, combat)
+        -- at the level-up, the XP after it can be higher than the last reading.
+        if session.lastMax and (maxXP ~= session.lastMax or xp < session.lastXP) then
+            gained = math.max(session.lastMax - session.lastXP, 0) + xp
+        elseif xp >= session.lastXP then
             gained = xp - session.lastXP
-        elseif session.lastMax then
-            gained = session.lastMax - session.lastXP + xp
         end
     end
     if gained > 0 then
@@ -1693,6 +1695,10 @@ events:SetScript("OnEvent", function(_, event, ...)
     else
         if event == "PLAYER_REGEN_ENABLED" and narrationPending then
             NarrationOff()
+        end
+        if event == "QUEST_LOG_UPDATE" then
+            -- A turn-in's XP is already yours: read the finished quests again on the next refresh.
+            questXPAt = -QUEST_XP_SECONDS
         end
         if event == "PLAYER_ENTERING_WORLD" then
             local isInitialLogin, isReloadingUi = ...

@@ -1,4 +1,4 @@
-﻿# Forever addon suite: status (2026-11-09)
+# Forever addon suite: status (2026-11-09)
 
 Start here when resuming.
 
@@ -9,8 +9,48 @@ Start here when resuming.
   full WTF copy in `_forever_\WTF_Backup_20261109`. VoidSweep and VeritasUI_PriorityRotation were moved (user approved) to
   `_forever_\Interface\AddOns_Removed_20261109`.
 - Roll back: close WoW, delete the six bundle folders, move the backup folders back.
-- Tests: all 41 pass (`tests\runall.ps1`, after `npm install` in tests). Old tests that checked for chat output and
+- Tests: all pass (`tests\runall.ps1`, after `npm install` in tests). Old tests that checked for chat output and
   replaced window layouts, and one-off data-migration scripts, were removed on 2026-11-09 (see git history).
+- 2026-11-09, later:
+  - LevelGuide routes and the zone plan are Alliance only (`LevelGuideRoutes.faction`). Before this, Horde
+    characters and Skyborne were sent to Teldrassil, Dun Morogh or Elwynn.
+  - Skyborne now get a Zephras Isle plan entry for 1-13, the zeppelin way to Westfall, and the Human chain after
+    that (`tests\test_lg_faction.lua`).
+  - RestGuard no longer errors when the hearthstone cooldown API is missing.
+  - RestedXP v4.11.35 was re-checked. The correction to the Skyborne exit is in `research\rxp_forever_guides.md` 6.1.
+
+- 2026-11-10: full review of every helper (`research\review_2026-11-10.md`). 19 bugs were fixed, with new or
+  extended tests:
+  - `test_itemadvisor_spellpower.lua`, `test_hub_xp.lua`, `test_tooltips.lua`, `test_rarewatch.lua`,
+    `test_landmarks.lua`.
+  - The comparison with other addons is in `research\compare_2026-11-10.md`, with a ranked "build next" list.
+
+- 2026-11-10, later:
+  - Second review round fixed 12 more bugs in Builds, ReadyCheck, ProfessionGuide, GoldGuide and Dungeons.
+  - New features, each with a test:
+    - quest givers on the map (`LevelGuide_QuestGivers` plus a MapPins "givers" layer; `test_lg_givers.lua`,
+      `test_mappins.lua`);
+    - drowning/fatigue warning (`DeathNotes\BreathWatch.lua`, `test_breathwatch.lua`);
+    - XP from quests vs kills (LevelLog, `test_levellog_xp.lua`);
+    - flight times (Landmarks, `test_flighttimes.lua`);
+    - `/way` (`MapPins\Way.lua`, `test_way.lua`).
+  - **LevelGuide.lua is at Lua's 200-local limit in its main chunk.** New code there must go in a `do` block and
+    keep its state in one table, as `LevelGuide_QuestGivers` does.
+  - `research\builds\gen_data.js` can't run: it reads `research\builds\data_header.lua`, which was never
+    committed. `Builds\Data.lua` was edited by hand to match `research\builds\WARLOCK.lua`.
+
+- 2026-11-10, evening:
+  - LevelGuide review: 12 fixes (`research\review_2026-11-10.md` third round).
+  - Forever research: 22 more addons studied, 21 Forever facts and 25 ranked improvements
+    (`research\forever_improvements_2026-11-10.md`). Built from it:
+    - a Classic-preset notice (QuestCheck);
+    - a profession fallback by skill line (ProfessionCap, ProfessionGuide, GoldGuide, ItemAdvisor);
+    - Waylaid Crates never sold (ItemAdvisor);
+    - Riverglades 2548 and Zephras Isle 2521 map IDs (Dungeons, MapPins);
+    - the error-cap warning (ErrorLog).
+  - Next from that list: an XP boosters block (camp, sleeping bag, XP food), Legacy challenges and perks, vendor
+    price from the tooltip, spirit-healer arrow and dungeon entrances from the client, server checks of route
+    quests, library books.
 
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
@@ -33,6 +73,22 @@ Start here when resuming.
   old per-helper folders to a dated backup and carrying their saved data over once.
 
 ## In-game checks still needed
+- After the 2026-11-10 fixes:
+  - ItemAdvisor in a dungeon should say it can't read worn gear rather than "fills an empty slot", if gear links
+    are hidden there.
+  - Three trainers on Craftsmen's Terrace should be three Landmarks entries.
+  - MapPins switched off and on in the hub should bring minimap pins back at once.
+- Forever facts to settle in game (from the research):
+  - `/dump GetProfessionInfo`: if it's nil, the new skill-line fallback is what reads your professions.
+  - Does `C_Item.GetItemInfo`'s vendor price match the tooltip's? If not, take it from the tooltip.
+  - Does the Classic preset really hide quest markers (QuestCheck now says so once)?
+- New features (2026-11-10), not yet seen in game:
+  - Quest-giver "!" and "?" icons: check the atlases QuestNormal/QuestTurnin exist, else the gossip icons show.
+  - Flight times: the flight map's node positions are on the continent map (GetTaxiMapID), and landing within
+    0.02 of a node is recognised.
+  - The drowning warning fires under water, with the sound.
+  - `/way` doesn't clash with another addon's `/way` (TomTom); `/fway` always works.
+  - LevelLog's quest XP comes from QUEST_TURNED_IN's xpReward.
 - Fight with the world map open and closed: no "blocked from an action" pop-up, no new Blocked action line on the Errors page.
 - Map pins line up when the map is zoomed, panned, windowed and maximised; hover and click work; gamepad mode has no errors.
 - /reload in combat, leave combat: Forever Hub page appears in Options.
@@ -48,6 +104,10 @@ Start here when resuming.
   with no argument); Shift pauses; a quest shared by a party member is not accepted; gray quests are skipped.
 
 ## Follow-ups
+- Horde routes and plan: RestedXP's free Forever guides cover Horde 1-22 (Durotar, Mulgore, Tirisfal, Barrens,
+  Silverpine) and could be a fact source, as the Alliance ones were.
+- Skyborne 1-13 on Zephras Isle has no step-by-step route yet, only the plan. Check in game that the zeppelin spot
+  (65.8, 83.4) and the map name "Zephras Isle" match.
 - Re-run the builds research after Blizzard's 2026-11-10 class tuning.
 - Tooltips: quest giver "Turn in" lines for quests you don't hold are noisy at busy NPCs; consider showing only held turn-ins.
 

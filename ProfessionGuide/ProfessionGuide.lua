@@ -1,3 +1,28 @@
+-- Shared Forever profession fallback (the same copy is in every helper that reads professions; whichever
+-- loads first defines it). Used only when GetProfessions/GetProfessionInfo are missing, which a third-party
+-- measurement found on a Forever beta build: the twelve Classic profession skill lines, read by ID.
+-- Returns { { name, rank, maxRank, skillLine, secondary } }.
+ForeverSkillProfessions = ForeverSkillProfessions or function()
+    local list = {}
+    if not (C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID) then
+        return list
+    end
+    local function Hidden(value)
+        return issecretvalue and issecretvalue(value)
+    end
+    for _, line in ipairs({ 164, 165, 171, 182, 186, 197, 202, 333, 393, 129, 185, 356 }) do
+        local ok, info = pcall(C_SkillInfo.GetSkillLineInfoByID, line)
+        if ok and type(info) == "table" and not Hidden(info) then
+            local name, rank, maxRank = info.name, info.rank, info.maxRank
+            if not (Hidden(name) or Hidden(rank) or Hidden(maxRank)) and type(name) == "string" and name ~= ""
+                and type(rank) == "number" and type(maxRank) == "number" and maxRank > 0 then
+                list[#list + 1] = { name = name, rank = rank, maxRank = maxRank, skillLine = line,
+                    secondary = line == 129 or line == 185 or line == 356 }
+            end
+        end
+    end
+    return list
+end
 -- ProfessionGuide: a leveling path for each of your professions, what to make next, the materials still
 -- missing, and where the trainers are. Read-only: it reads your skills and what you own, and only shows
 -- information (the one action is placing the game's own map pin on a trainer when you ask for it).
@@ -239,6 +264,13 @@ local function ReadProfessions()
                 end
             end
         end
+    else
+        -- The game's profession list isn't there: read the skill lines by ID instead.
+        for _, entry in ipairs(ForeverSkillProfessions()) do
+            local guide, line = GuideFor(entry.skillLine, entry.name)
+            list[#list + 1] = { name = entry.name, rank = entry.rank, maxRank = entry.maxRank, guide = guide, line = line }
+            seen[line or entry.name] = true
+        end
     end
     local info = C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID and Safe(C_SkillInfo.GetSkillLineInfoByID(FIRST_AID_SKILL_LINE))
     if type(info) == "table" then
@@ -292,14 +324,21 @@ local function SafeCrafts(from, to, yellow, grey)
 end
 
 -- Crafts left in this step from your skill. Steps that also stock parts for later steps (bolts, stones)
--- plan more crafts than the skill needs; that extra is kept.
+-- plan more crafts than the skill needs: then what's left is whichever is more, the crafts for the skill
+-- or the parts still missing from the stock (the parts you own, bought or made, count).
 local function CraftsLeft(step, rank)
     local start = math.max(rank, step.from)
     if step.yellow and step.grey then
         local whole = SafeCrafts(step.from, step.to, step.yellow, step.grey)
         local left = SafeCrafts(start, step.to, step.yellow, step.grey)
         if whole and left then
-            return left + math.max((step.crafts or whole) - whole, 0)
+            local planned = step.crafts or whole
+            if planned <= whole or not step.itemID then
+                return left + math.max(planned - whole, 0)
+            end
+            local makes = step.makes or 1
+            local missing = math.max(planned * makes - Owned(step.itemID), 0)
+            return math.max(left, math.ceil(missing / makes))
         end
     end
     local crafts = step.crafts or (step.to - step.from)
@@ -316,11 +355,19 @@ local function MatsLeft(step, crafts)
     return rows
 end
 
--- How many crafts you could make right now from what you own.
+-- What's in your bags: you can only craft from these, not from the bank.
+local function InBags(itemID)
+    if not (C_Item and C_Item.GetItemCount) then
+        return 0
+    end
+    return Safe(C_Item.GetItemCount(itemID, false)) or 0
+end
+
+-- How many crafts you could make right now from what you carry.
 local function CraftsReady(step)
     local ready
     for _, mat in ipairs(step.mats or {}) do
-        local can = math.floor(Owned(mat.itemID) / mat.count)
+        local can = math.floor(InBags(mat.itemID) / mat.count)
         ready = ready and math.min(ready, can) or can
     end
     return ready or 0
@@ -487,7 +534,10 @@ local function ShowMats(rows)
         local color = missing == 0 and "|cff66dd66" or "|cffffffff"
         local vendor = row.mat.vendor and " |cff999999(vendor)|r" or ""
         if missing == 0 then
-            Print(string.format("    %s%s|r %d/%d, ready%s", color, row.mat.name, row.have, row.need, vendor))
+            -- Owned counts the bank (nothing is bought twice), but only what you carry can be crafted.
+            local carried = InBags(row.mat.itemID)
+            local where = carried < row.need and string.format(", %d in the bank", row.have - carried) or ""
+            Print(string.format("    %s%s|r %d/%d, ready%s%s", color, row.mat.name, row.have, row.need, where, vendor))
         else
             Print(string.format("    %s%s|r %d/%d, need %d more%s", color, row.mat.name, row.have, row.need, missing, vendor))
         end
@@ -505,6 +555,10 @@ local function ShowProfession(profession)
     if not step then
         Print("    Path complete. Nothing left to level.")
         return
+    end
+    if profession.rank >= profession.maxRank and profession.maxRank < 300 then
+        -- At the cap no craft gives a point (ProfessionCap says which rank and where).
+        Print("    |cffff9933Capped: train the next rank first. Crafting now gives no skill.|r")
     end
     if step.gather then
         Print(string.format("    Now: gather %s until %d", step.gather, step.to))

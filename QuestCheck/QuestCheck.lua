@@ -73,6 +73,21 @@ local function PrintGroup(heading, lines)
     end
 end
 
+-- Forever asks each new character to pick "Classic" or "Enhanced". Classic turns the map's quest markers
+-- and objective areas off by default, and LevelGuide (map "!" offers) and QuestMobs read those, so they
+-- show less. C_GameRules.GetForeverExperiencePreset: 0 = Classic, 1 = Enhanced (API docs).
+local CLASSIC_PRESET = 0
+local PRESET_TEXT = "Your character uses Forever's Classic preset, which hides quest markers and objective areas on the map by default. "
+    .. "The leveling guide and quest-mob markers use them; if they show little, turn the map's quest markers back on in the world map's settings."
+
+local function ClassicPreset()
+    if not (C_GameRules and C_GameRules.GetForeverExperiencePreset) then
+        return false
+    end
+    local ok, preset = pcall(C_GameRules.GetForeverExperiencePreset)
+    return ok and Safe(preset) == CLASSIC_PRESET
+end
+
 local function ShowReport()
     local used, maximum = LogSlots()
     if used then
@@ -85,11 +100,26 @@ local function ShowReport()
     if #groups.ready + #groups.gray + #groups.group == 0 then
         Print("Nothing to flag.")
     end
+    if ClassicPreset() then
+        Print("|cff999999" .. PRESET_TEXT .. "|r")
+    end
 end
 
 local events = CreateFrame("Frame")
 events:RegisterEvent("QUEST_LOG_UPDATE")
-events:SetScript("OnEvent", CheckLog)
+events:RegisterEvent("PLAYER_ENTERING_WORLD")
+events:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_ENTERING_WORLD" then
+        -- Said once per character; the Quests page keeps saying it.
+        QuestCheckCharDB = type(QuestCheckCharDB) == "table" and QuestCheckCharDB or {}
+        if not QuestCheckCharDB.presetNoted and ClassicPreset() then
+            QuestCheckCharDB.presetNoted = true
+            Print(PRESET_TEXT)
+        end
+        return
+    end
+    CheckLog()
+end)
 
 SLASH_QUESTCHECK1 = "/qc"
 SLASH_QUESTCHECK2 = "/questcheck"

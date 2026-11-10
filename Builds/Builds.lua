@@ -523,12 +523,35 @@ local function DefaultRole(classFile, talents)
     end
 end
 
+local NextTalent, SpentRank
+
+-- True when the leveling build (a point-by-point one) has points left and everything you spent is
+-- exactly its points so far.
+local function FollowingLeveling(classFile, talents)
+    local build = BuildFor(classFile, "leveling")
+    if not (build and talents and type(build.points) == "table" and #build.points > 0) then
+        return false
+    end
+    local met = 0
+    for _, point in ipairs(build.points) do
+        if SpentRank(talents, point.talent) >= (point.rank or 1) then
+            met = met + 1
+        else
+            return met == (talents.spent or -1)
+        end
+    end
+    return false
+end
+
 local function CurrentGoal(classFile, level, talents)
     local saved = Record().goal
     if saved and BuildFor(classFile, saved) then
         return saved, true
     end
-    if (level or 0) >= MAX_LEVEL then
+    -- At 60 the last point still belongs to the leveling build if you followed it point for point (every
+    -- point before its next one taken, nothing else): a role build only once that's spent, or if you
+    -- went another way (a respec is your call).
+    if (level or 0) >= MAX_LEVEL and not FollowingLeveling(classFile, talents) then
         local role = DefaultRole(classFile, talents)
         if role then
             return role, false
@@ -611,7 +634,7 @@ local function KeyTalents(build)
     return list
 end
 
-local function SpentRank(talents, name)
+function SpentRank(talents, name)
     local entry = talents and talents.byName[Lower(name)]
     return entry and entry.rank or 0, entry
 end
@@ -626,24 +649,48 @@ local function CurrentStep(build, level)
     return steps[1]
 end
 
+-- Points spent in one tree.
+local function TreeSpent(talents, tree)
+    local total = 0
+    for _, entry in ipairs(talents and talents.list or {}) do
+        if entry.tree == tree then
+            total = total + (entry.rank or 0)
+        end
+    end
+    return total
+end
+
+-- Whether a talent's row is open: row N needs 5 x (N - 1) points in its tree. True when the row is unknown.
+local function RowOpen(talents, entry)
+    return not (entry and entry.row and entry.tree) or TreeSpent(talents, entry.tree) >= 5 * (entry.row - 1)
+end
+
 -- The next talent to take: { name, tree, rank, level?, step? } or nil, plus the step text for steps builds.
-local function NextTalent(build, talents, level)
+-- A talent whose row isn't open yet (points spent off the build) is passed over for the next one that is.
+function NextTalent(build, talents, level)
     if type(build.points) == "table" and #build.points > 0 then
         if not talents then
             return nil
         end
+        local first
         for _, point in ipairs(build.points) do
-            if SpentRank(talents, point.talent) < (point.rank or 1) then
-                return { name = point.talent, tree = point.tree, rank = point.rank or 1, level = point.level }
+            local rank, entry = SpentRank(talents, point.talent)
+            if rank < (point.rank or 1) then
+                local pick = { name = point.talent, tree = point.tree, rank = point.rank or 1, level = point.level }
+                if RowOpen(talents, entry) then
+                    return pick
+                end
+                first = first or pick
             end
         end
-        return nil
+        return first
     end
     local current = CurrentStep(build, level)
     if not talents or not current then
         return nil, current
     end
     local keys = KeyTalents(build)
+    local first
     -- Steps up to your level, earliest first, so a talent you skipped earlier comes before later ones.
     for _, step in ipairs(build.steps or {}) do
         if (step.from or 0) > math.max(level, FIRST_TALENT_LEVEL) then
@@ -652,12 +699,20 @@ local function NextTalent(build, talents, level)
         for _, hit in ipairs(Mentions(TakeText(step.text), keys)) do
             local rank, entry = SpentRank(talents, hit.name)
             local full = entry and entry.maxRank and rank >= entry.maxRank or (not (entry and entry.maxRank) and rank > 0)
-            if not full then
-                return { name = hit.name, tree = entry and entry.tree or build.spec, rank = rank + 1, step = step }, current
+            -- A name the game's talent list doesn't have (renamed, or another client) can't be taken.
+            local unknown = not entry and talents.list and #talents.list > 0
+            if not full and not unknown then
+                -- The tree the game gives, else the one the step names before its colon ("Affliction: ...").
+                local tree = entry and entry.tree or (type(step.text) == "string" and step.text:match("^(%a[%a ]-):")) or build.spec
+                local pick = { name = hit.name, tree = tree, rank = rank + 1, step = step }
+                if RowOpen(talents, entry) then
+                    return pick, current
+                end
+                first = first or pick
             end
         end
     end
-    return nil, current
+    return first, current
 end
 
 -- Spent talents that the build doesn't mention, as "Name (ranks)".

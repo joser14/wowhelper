@@ -72,7 +72,8 @@ local I = {
 }
 
 local farms = {}
-local function F(minLevel, maxLevel, name, zone, x, y, drops, why, profession)
+-- minSkill: the gathering skill the farm's main node needs (Mining guide values, ProfessionGuide\Data_Mining.lua).
+local function F(minLevel, maxLevel, name, zone, x, y, drops, why, profession, minSkill)
     local list = {}
     for index, item in ipairs(drops) do
         list[index] = { itemID = item[1], name = item[2] }
@@ -80,7 +81,7 @@ local function F(minLevel, maxLevel, name, zone, x, y, drops, why, profession)
     farms[#farms + 1] = {
         minLevel = minLevel, maxLevel = maxLevel, name = name, zone = zone,
         mapID = ZONES[zone] and ZONES[zone][1], x = x / 100, y = y / 100,
-        drops = list, why = why, profession = profession,
+        drops = list, why = why, profession = profession, minSkill = minSkill,
     }
 end
 
@@ -158,25 +159,25 @@ F(55, 60, "Dust Stormers for Essence of Air", "Silithus", 20.0, 26.2, { I.essenc
 F(10, 20, "Copper in Loch Modan", "Loch Modan", 34.6, 84.5, { I.copper },
     "Lots of Copper veins along the hills, thickest near Stonesplinter Valley. Darkshore's cliffs have Copper too.", MINING)
 F(18, 28, "Tin in Ashenvale", "Ashenvale", 38.5, 35.6, { I.tin, I.silver },
-    "The most Tin veins of any zone, close to home. Thickest in the northwest near Thistlefur Village.", MINING)
+    "The most Tin veins of any zone, close to home. Thickest in the northwest near Thistlefur Village.", MINING, 65)
 F(20, 30, "Tin in the Wetlands", "Wetlands", 50.4, 61.0, { I.tin, I.silver },
-    "Tin and the odd Silver vein along the ridges of central Wetlands.", MINING)
+    "Tin and the odd Silver vein along the ridges of central Wetlands.", MINING, 65)
 F(30, 40, "Iron in the Arathi Highlands", "Arathi Highlands", 59.6, 76.2, { I.iron, I.gold },
-    "The most Iron deposits of any zone, plus Gold. Loop the hills.", MINING)
+    "The most Iron deposits of any zone, plus Gold. Loop the hills.", MINING, 125)
 F(32, 42, "Iron in Stranglethorn", "Stranglethorn Vale", 41.4, 42.3, { I.iron, I.gold },
-    "Iron and Gold along the central hills.", MINING)
+    "Iron and Gold along the central hills.", MINING, 125)
 F(40, 50, "Mithril in the Hinterlands", "The Hinterlands", 57.9, 42.7, { I.mithril, I.truesilver },
-    "The most Mithril deposits of any zone, with Truesilver.", MINING)
+    "The most Mithril deposits of any zone, with Truesilver.", MINING, 175)
 F(43, 50, "Mithril in Tanaris", "Tanaris", 54.7, 74.0, { I.mithril, I.truesilver },
-    "Mithril thickest in southern Tanaris; sell in Gadgetzan.", MINING)
+    "Mithril thickest in southern Tanaris; sell in Gadgetzan.", MINING, 175)
 F(45, 52, "Mithril in Searing Gorge", "Searing Gorge", 46.0, 43.9, { I.mithril, I.truesilver },
-    "Mithril, Truesilver and Iron together.", MINING)
+    "Mithril, Truesilver and Iron together.", MINING, 175)
 F(50, 58, "Thorium in Un'Goro Crater", "Un'Goro Crater", 66.6, 15.5, { I.thorium },
-    "Small Thorium veins (skill 230) along the crater walls; ride the edge of the bowl in a loop.", MINING)
+    "Small Thorium veins (skill 245) along the crater walls; ride the edge of the bowl in a loop.", MINING, 245)
 F(54, 60, "Rich Thorium in Winterspring", "Winterspring", 57.9, 83.6, { I.thorium },
-    "The most Rich Thorium veins (skill 255), thickest in the south of the zone.", MINING)
+    "The most Rich Thorium veins (skill 275), thickest in the south of the zone.", MINING, 275)
 F(54, 60, "Thorium in Burning Steppes", "Burning Steppes", 79.8, 43.0, { I.thorium },
-    "Small Thorium veins, thickest around Dreadmaul Rock in the east.", MINING)
+    "Small Thorium veins, thickest around Dreadmaul Rock in the east.", MINING, 245)
 
 ----- Herbalism (182).
 F(16, 26, "Bruiseweed and Briarthorn in Ashenvale", "Ashenvale", 54.8, 63.7, { I.bruiseweed, I.briarthorn, I.kingsblood },

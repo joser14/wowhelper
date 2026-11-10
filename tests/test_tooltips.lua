@@ -398,6 +398,14 @@ hover(2589, nil, { "Linen Cloth", "Linen Run" })
 lack("Needed for:", "quest already on the tooltip isn't repeated")
 hover(2589, nil, { "Linen Cloth", "KEEP: Needed for Linen Run" })
 lack("Needed for:", "ItemAdvisor's quest line isn't repeated")
+-- Review 2026-11-10: with the count stripped, a name must match whole: "Linen Cloth" isn't
+-- "Bolt of Linen Cloth".
+log[2].objectives[1] = { text = "Bolt of Linen Cloth: 1/4", type = "item", numFulfilled = 1, numRequired = 4, finished = false }
+f.fn(f, "QUEST_LOG_UPDATE")
+hover(2589)
+lack("Needed for:", "a longer item name doesn't match")
+log[2].objectives[1] = { text = "Linen Cloth: 5/8", type = "item", numFulfilled = 5, numRequired = 8, finished = false }
+f.fn(f, "QUEST_LOG_UPDATE")
 -- Finished objectives, counts only in the text, secret parts.
 setLog({
     { info = { title = "Done Gathering", questID = 102 }, objectives = { { text = "Linen Cloth: 8/8", type = "item", numFulfilled = 8, numRequired = 8, finished = true } } },

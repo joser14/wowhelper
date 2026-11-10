@@ -137,7 +137,12 @@ end
 local firstAid = { name = "First Aid", rank = 0, maxRank = 0 }
 C_SkillInfo = { GetSkillLineInfoByID = function(id) if id == 129 then return firstAid end end }
 local bags = {}
-C_Item = { GetItemCount = function(id, bank) assert(bank == true, "counts the bank"); return bags[id] or 0 end }
+-- Shopping counts the bank too (nothing bought twice); crafting only what's in your bags (bankOnly by id).
+local bankOnly = {}
+C_Item = { GetItemCount = function(id, bank)
+    if bank then return (bags[id] or 0) + (bankOnly[id] or 0) end
+    return bags[id] or 0
+end }
 local locale = "enUS"
 GetLocale = function() return locale end
 

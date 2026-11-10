@@ -83,7 +83,7 @@ ProfessionGuideData[197] = {
               { itemID = 2321, name = "Fine Thread", count = 2, vendor = true },
           },
           learn = "trainer",
-          note = "Expert recipe (Georgio Bolero, Stormwind). Orange to 170." },
+          note = "Expert recipe (Georgio Bolero, Stormwind). Orange to 170. Sources differ on learning it at 150 or 155: if the trainer doesn't list it yet, use any orange silk recipe you know until 155." },
         { from = 170, to = 190, craft = "Crimson Silk Pantaloons", itemID = 7062, crafts = 27, yellow = 180, grey = 200, makes = 1,
           mats = {
               { itemID = 4305, name = "Bolt of Silk Cloth", count = 4 },

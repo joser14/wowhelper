@@ -1220,3 +1220,14 @@ for _, part in ipairs(parts) do
         LevelGuideQuestIDs.renamed[from] = to
     end
 end
+
+-- Quests an Alliance character can turn in that share a route quest's title but aren't the route's (the
+-- "dropped" variants above): their turn-ins mustn't count toward that title.
+LevelGuideQuestIDs.unrelated = {
+    [3102] = true,   -- Encrypted Letter (Elwynn, level 1; the route's is 511 in Hillsbrad)
+    [146] = true,    -- Messenger to Darkshire, the way back (the route's is 145)
+    [5402] = true,   -- Minion's Scourgestones, Pureheart's copy (the route's is 5510)
+    [623] = true,    -- Akiris by the Bundle, the Theramore follow-up (the route's is 617)
+    [2881] = true,   -- Troll Necklace Bounty, repeatable
+    [1878] = true,   -- Water Pouch Bounty, repeatable
+}

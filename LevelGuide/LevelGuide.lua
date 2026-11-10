@@ -260,22 +260,28 @@ do
     end
 end
 
-local WIDTH, HEADER_HEIGHT, ARROW_SIZE = 330, 22, 44
-local MAX_NEXT = 3
-local ARRIVED_YARDS = 12
-local KEEP_RATIO = 1.3       -- the current step stays until another is this much closer, so it doesn't flicker
-local TURNIN_BIAS = 0.7      -- a ready turn-in is worth going a bit further for: it's XP now
-local PICKUP_BIAS = 0.4      -- quest givers nearby come before heading out; a turn-in at the same
-                             -- spot still comes first (it can unlock the next pick-up)
-local TRIVIAL_PENALTY = 400  -- gray quests come last unless they're right there
-local HARD_LEVELS = 5        -- red quests are left out until you're closer to their level
-local ARROW_SECONDS, ROUTE_SECONDS = 0.05, 2
-local AHEAD_RADIANS = 0.35
-local XP_WEIGHT = 2          -- a quest worth a fifth of a level counts as 1.4 times closer
-local NO_SCALE_UNITS = 1000  -- without the map's size in yards, distances are only compared, never shown
-local OUTLEVELED = 4         -- route steps this far below you count as done, so a route can start midway
-local ROUTE_WINDOW = 10      -- how many upcoming route steps may be reordered to save walking
-local ZONE_MAP_TYPE = 3      -- Enum.UIMapType.Zone: caves and buildings below this report up to their zone
+-- Tuning constants, in one table so they count as a single local (the file is near Lua's 200-local limit).
+local K = {
+    WIDTH = 330,
+    HEADER_HEIGHT = 22,
+    ARROW_SIZE = 44,
+    MAX_NEXT = 3,
+    ARRIVED_YARDS = 12,
+    KEEP_RATIO = 1.3, -- the current step stays until another is this much closer, so it doesn't flicker
+    TURNIN_BIAS = 0.7, -- a ready turn-in is worth going a bit further for: it's XP now
+    PICKUP_BIAS = 0.4, -- quest givers nearby come before heading out; a turn-in at the same
+    -- spot still comes first (it can unlock the next pick-up)
+    TRIVIAL_PENALTY = 400, -- gray quests come last unless they're right there
+    HARD_LEVELS = 5, -- red quests are left out until you're closer to their level
+    ARROW_SECONDS = 0.05,
+    ROUTE_SECONDS = 2,
+    AHEAD_RADIANS = 0.35,
+    XP_WEIGHT = 2, -- a quest worth a fifth of a level counts as 1.4 times closer
+    NO_SCALE_UNITS = 1000, -- without the map's size in yards, distances are only compared, never shown
+    OUTLEVELED = 4, -- route steps this far below you count as done, so a route can start midway
+    ROUTE_WINDOW = 10, -- how many upcoming route steps may be reordered to save walking
+    ZONE_MAP_TYPE = 3, -- Enum.UIMapType.Zone: caves and buildings below this report up to their zone
+}
 
 local KINDS = {
     turnin = { label = "Turn in", color = "|cff33ff33" },
@@ -345,6 +351,29 @@ local function Now()
     return GetTime and GetTime() or 0
 end
 
+-- Whether the written routes and plan are for your faction (Routes.lua `faction`). When the game
+-- doesn't say, they are used as before.
+local function RoutesForYou()
+    local want = LevelGuideRoutes and LevelGuideRoutes.faction
+    local mine = want and UnitFactionGroup and Safe((UnitFactionGroup("player")))
+    return not (type(mine) == "string" and mine ~= want)
+end
+
+-- The plan entries that apply to you: race-only entries (Routes.lua PLAN `race`) for your race, then the rest.
+local function PlanEntries()
+    if not RoutesForYou() then
+        return {}
+    end
+    local race = UnitRace and Safe(select(2, UnitRace("player")))
+    local list = {}
+    for _, entry in ipairs(LevelGuideRoutes and LevelGuideRoutes.plan or {}) do
+        if not entry.race or entry.race == race then
+            list[#list + 1] = entry
+        end
+    end
+    return list
+end
+
 -- Whether an accept/turn-in event for this quest ID (or title) came in the last few seconds.
 local function Recent(list, key, seconds)
     local at = key ~= nil and GetTime and list[key]
@@ -367,8 +396,12 @@ end
 
 -- How many yards one whole map width and height cover, from the map's own corners.
 local function MapScale(mapID)
-    if scales[mapID] ~= nil then
-        return scales[mapID] or nil
+    -- A failed read (hidden in combat, map not loaded yet) is tried again after a while, not kept.
+    local cached = scales[mapID]
+    if type(cached) == "table" then
+        return cached
+    elseif type(cached) == "number" and Now() - cached < 10 then
+        return nil
     end
     local scale = false
     if C_Map.GetWorldPosFromMapPos and CreateVector2D then
@@ -389,7 +422,7 @@ local function MapScale(mapID)
             end
         end
     end
-    scales[mapID] = scale
+    scales[mapID] = scale or Now()
     return scale or nil
 end
 
@@ -399,7 +432,7 @@ local function Offset(mapID, fromX, fromY, toX, toY)
     if scale then
         return (toX - fromX) * scale[1], (toY - fromY) * scale[2], true
     end
-    return (toX - fromX) * NO_SCALE_UNITS, (toY - fromY) * NO_SCALE_UNITS, false
+    return (toX - fromX) * K.NO_SCALE_UNITS, (toY - fromY) * K.NO_SCALE_UNITS, false
 end
 
 local function Distance(mapID, fromX, fromY, toX, toY)
@@ -415,7 +448,7 @@ local function PlayerPosition()
     for _ = 1, 4 do
         local info = C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
         local mapType, parent = info and Safe(info.mapType), info and Safe(info.parentMapID)
-        if not (mapType and mapType > ZONE_MAP_TYPE and parent and parent > 0) then
+        if not (mapType and mapType > K.ZONE_MAP_TYPE and parent and parent > 0) then
             break
         end
         mapID = parent
@@ -452,7 +485,9 @@ local function WorldOf(mapID, x, y)
 end
 
 local function Basis(mapID)
-    if bases[mapID] == nil then
+    -- Failures are tried again after a while (see MapScale).
+    local cached = bases[mapID]
+    if cached == nil or (type(cached) == "number" and Now() - cached >= 10) then
         local basis = false
         local continent, ox, oy = WorldOf(mapID, 0, 0)
         local _, ex, ey = WorldOf(mapID, 1, 0)
@@ -465,9 +500,9 @@ local function Basis(mapID)
                 basis = b
             end
         end
-        bases[mapID] = basis
+        bases[mapID] = basis or Now()
     end
-    return bases[mapID] or nil
+    return type(bases[mapID]) == "table" and bases[mapID] or nil
 end
 
 -- x, y (0-1) on fromMap as a position on toMap, or nil (other continent, no world data).
@@ -645,7 +680,7 @@ local function ReadQuests(mapID)
             local questLevel = Safe(info.difficultyLevel) or Safe(info.level)
             local ready = (Safe(C_QuestLog.IsComplete(id)) or Safe(C_QuestLog.ReadyForTurnIn(id))) and true or false
             local failed = C_QuestLog.IsFailed and Safe(C_QuestLog.IsFailed(id))
-            local tooHard = not ready and level and questLevel and questLevel - level >= HARD_LEVELS
+            local tooHard = not ready and level and questLevel and questLevel - level >= K.HARD_LEVELS
             if tooHard then
                 later[#later + 1] = questLevel
             end
@@ -694,8 +729,10 @@ local function ReadOffers(mapID)
     if not (mapID and C_QuestLine and C_QuestLine.GetAvailableQuestLines) then
         return offers
     end
-    if requestedMap ~= mapID and C_QuestLine.RequestQuestLinesForMap then
-        requestedMap = mapID
+    -- Asked once per map until you change zone (a set: two maps asked in turn would ask forever).
+    if not (requestedMap and requestedMap[mapID]) and C_QuestLine.RequestQuestLinesForMap then
+        requestedMap = requestedMap or {}
+        requestedMap[mapID] = true
         C_QuestLine.RequestQuestLinesForMap(mapID)
     end
     for _, info in ipairs(C_QuestLine.GetAvailableQuestLines(mapID) or {}) do
@@ -714,17 +751,17 @@ end
 local function Cost(step, mapID, fromX, fromY)
     local cost = Distance(mapID, fromX, fromY, step.x, step.y)
     if step.kind == "turnin" then
-        cost = cost * TURNIN_BIAS
+        cost = cost * K.TURNIN_BIAS
     elseif step.kind == "pickup" then
         -- Picking a quest up takes seconds and gives you more to do on the way, so sweep the hub first.
-        cost = cost * PICKUP_BIAS
+        cost = cost * K.PICKUP_BIAS
     end
     local maxXP = MaxXP()
     if step.xp and step.xp > 0 and maxXP then
-        cost = cost / (1 + XP_WEIGHT * step.xp / maxXP)
+        cost = cost / (1 + K.XP_WEIGHT * step.xp / maxXP)
     end
     if step.trivial then
-        cost = cost + TRIVIAL_PENALTY
+        cost = cost + K.TRIVIAL_PENALTY
     end
     return cost
 end
@@ -767,7 +804,7 @@ local function Route(candidates, mapID, playerX, playerY)
         end
         if #route == unplaced and currentKey then
             for index, step in ipairs(remaining) do
-                if StepKey(step) == currentKey and Cost(step, mapID, fromX, fromY) <= bestCost * KEEP_RATIO then
+                if StepKey(step) == currentKey and Cost(step, mapID, fromX, fromY) <= bestCost * K.KEEP_RATIO then
                     bestIndex = index
                 end
             end
@@ -986,7 +1023,7 @@ end
 
 local function Outleveled(step, level)
     -- step.outlevel (Routes.lua Outlevel()) overrides the usual "this far below you counts as done".
-    return level and step.lvl and level >= step.lvl + (step.outlevel or OUTLEVELED) or false
+    return level and step.lvl and level >= step.lvl + (step.outlevel or K.OUTLEVELED) or false
 end
 
 -- Quest IDs (QuestIDs.lua) let the game itself say what this character has finished, including
@@ -1045,6 +1082,8 @@ local function TurnedIn(title)
                 flagged = flagged + 1
             end
         end
+        -- The count by title only grows for these IDs (QUEST_TURNED_IN below), so a wrong ID in our list
+        -- can't make a finished quest look undone.
         counted = math.max(counted, flagged)
     end
     turnedCache[title] = counted
@@ -1054,7 +1093,13 @@ end
 -- The log entry for this step's quest and part: holding part 3 of a chain is not holding part 1.
 local function HeldPart(byTitle, step)
     local entry = InLog(byTitle, step.q)
-    if entry and entry.part and entry.part ~= (tonumber(step.part) or 1) then
+    if not entry then
+        return nil
+    end
+    -- Without a part from the quest IDs, a chain's part you hold is the one after those turned in.
+    -- (A step without a part is a one-part quest: any log entry of that title is it.)
+    local held = entry.part or (step.part and TurnedIn(step.q) + 1)
+    if held and held ~= (tonumber(step.part) or 1) then
         return nil
     end
     return entry
@@ -1081,13 +1126,19 @@ end
 -- it is behind you even if the addon never saw you reach the spot.
 local function LastProgress(route, byTitle)
     if progressMarks[route] == nil then
-        local furthest = 0
+        local furthest, seen = 0, {}
         for index, step in ipairs(route.steps) do
-            if step.t == "accept" then
-                -- Holding part 1 of a chain says nothing about where part 8's pick-up is.
+            local part = tonumber(step.part) or 1
+            -- Only a quest part's first pick-up counts: one written twice mustn't move you past everything
+            -- between the two.
+            local key = step.t == "accept" and (step.q .. "#" .. part)
+            if key and not seen[key] then
+                seen[key] = true
+                -- Holding part 1 of a chain says nothing about where part 8's pick-up is. Without a part
+                -- from the quest IDs, the part you hold is the one after those turned in.
                 local held = InLog(byTitle, step.q)
-                local part = tonumber(step.part) or 1
-                if (held and (not held.part or held.part >= part)) or TurnedIn(step.q) >= part then
+                local heldPart = held and (held.part or (step.part and TurnedIn(step.q) + 1) or part)
+                if (held and heldPart >= part) or TurnedIn(step.q) >= part then
                     furthest = index
                 end
             end
@@ -1261,8 +1312,9 @@ local function MapOffers(zoneName)
     local result = false
     local zoneMap = C_QuestLine and C_QuestLine.GetAvailableQuestLines and ZoneMap(zoneName)
     if zoneMap then
-        if requestedMap ~= zoneMap and C_QuestLine.RequestQuestLinesForMap then
-            requestedMap = zoneMap
+        if not (requestedMap and requestedMap[zoneMap]) and C_QuestLine.RequestQuestLinesForMap then
+            requestedMap = requestedMap or {}
+            requestedMap[zoneMap] = true
             C_QuestLine.RequestQuestLinesForMap(zoneMap)
         end
         local titles, ids, any = {}, {}, false
@@ -1470,17 +1522,51 @@ end
 -- A utility step's own completion. What can be lost later (a bound hearth moved on, items used up for a
 -- quest) is remembered once seen, so the guide never sends you back for it. With the route and the
 -- step's place in it, a move is also done once you're past it (MovedPast).
+-- Whether a move or XP gate before this step on the route is still open. Being in a place counts as
+-- having arrived there only once you've reached that point of the route: in Auberdine before the Loch
+-- Modan trip, the trip's closing "Hearth to Auberdine" is done for now but not remembered as done.
+local function OpenMoveBefore(route, index, level)
+    if not (route and index) then
+        return false
+    end
+    local passed = LastProgress(route, lastByTitle or {})
+    for earlier = index - 1, 1, -1 do
+        local other = route.steps[earlier]
+        if earlier < passed then
+            return false
+        end
+        if BARRIER[other.t] and not other.side and ClassMatches(other.cls) then
+            local otherKey = RouteKey(route, earlier)
+            if not charData.skips[otherKey] and not charData.visited[otherKey] then
+                if other.t ~= "xp" or not XPReached(other, level) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- Arrived: remembered when the route has got this far, else only true while you're there.
+local function Arrived(key, route, index, level)
+    if OpenMoveBefore(route, index, level) then
+        return true
+    end
+    charData.visited[key] = true
+    return true
+end
+
 function UtilityDone(step, key, level, route, index)
     if step.t == "go" then
         -- A move into a place (Routes.lua Reach(), e.g. "Enter Darnassus") is done once you're there,
         -- wherever you came in.
         if not charData.visited[key] and step.reach and (InZone(step.reach) or (route and MovedPast(route, index))) then
-            charData.visited[key] = true
+            return Arrived(key, route, index, level)
         end
         return charData.visited[key] or false
     elseif step.t == "zone" then
         if not charData.visited[key] and (InZone(step.reach) or (route and MovedPast(route, index))) then
-            charData.visited[key] = true
+            return Arrived(key, route, index, level)
         end
         return charData.visited[key] or false
     elseif step.t == "home" then
@@ -1512,7 +1598,7 @@ function UtilityDone(step, key, level, route, index)
     elseif step.t == "hearth" then
         -- Done once you're there, by hearthstone or on foot.
         if not charData.visited[key] and InZone(step.place) then
-            charData.visited[key] = true
+            return Arrived(key, route, index, level)
         end
         return charData.visited[key] or false
     elseif step.t == "bags" then
@@ -1802,10 +1888,12 @@ local function CityToZone(zoneMap, step, x, y)
         return x, y
     end
     local key = zoneMap .. ":" .. city .. ":" .. x .. ":" .. y
-    if cityPoints[key] == nil then
+    -- A point that couldn't be placed is tried again after a while (CityPoints keeps the time).
+    local tried = cityPoints[key]
+    if tried == nil or (type(tried) == "number" and Now() - tried >= 10) then
         local cityMap = CityMap(zoneMap, city)
         if cityMap then
-            cityPoints[key] = false
+            cityPoints[key] = Now()
         end
         if cityMap and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos and CreateVector2D then
             local continent, world = C_Map.GetWorldPosFromMapPos(cityMap, CreateVector2D(x, y))
@@ -1817,7 +1905,7 @@ local function CityToZone(zoneMap, step, x, y)
                 end
             end
         end
-        if cityMap and not (cityPoints[key] and cityPoints[key][1]) then
+        if cityMap and not (type(cityPoints[key]) == "table" and cityPoints[key][1]) then
             local zoneX, zoneY = Project(cityMap, x, y, zoneMap)
             if zoneX then
                 cityPoints[key] = { zoneX, zoneY }
@@ -1825,7 +1913,7 @@ local function CityToZone(zoneMap, step, x, y)
         end
     end
     local point = cityPoints[key]
-    if point and point[1] and point[2] then
+    if type(point) == "table" and point[1] and point[2] then
         return point[1], point[2]
     end
     -- No conversion: better no point than one in the wrong place.
@@ -2083,7 +2171,7 @@ local function PassedLegs(routes, byTitle)
 end
 
 function FindRoute(level, byTitle)
-    local chains = LevelGuideRoutes and LevelGuideRoutes.chains
+    local chains = RoutesForYou() and LevelGuideRoutes and LevelGuideRoutes.chains
     local race = UnitRace and Safe(select(2, UnitRace("player")))
     local all = chains and race and chains[race] or {}
     local passed = PassedLegs(all, byTitle)
@@ -2097,6 +2185,23 @@ function FindRoute(level, byTitle)
     -- zone before shouldn't keep the guide pointing back there.
     -- ZoneMap climbs from the map you're on (a town, a cave, a city) to its zone, so standing in
     -- Darnassus or Dolanaar still counts as Teldrassil.
+    -- In a zone the plan puts you in for your level (Zephras Isle for a Skyborne under 13, Elwynn for a
+    -- Human under 11), routes that start a couple of levels above you wait until you reach them.
+    -- A race's own start (PLAN `race`, Zephras Isle for Skyborne) holds until its max level while you're
+    -- there: no route elsewhere is chosen, however near its level.
+    local early = 2
+    for _, entry in ipairs(PlanEntries()) do
+        if level >= entry.min and level < entry.max then
+            for _, zone in ipairs(entry.zones or {}) do
+                if ZoneMap(zone) or MapNamed(zone) then
+                    if entry.race then
+                        return nil
+                    end
+                    early = 0
+                end
+            end
+        end
+    end
     local stuckHere
     for _, route in ipairs(routes) do
         if level >= route.min and level <= route.max and RouteHere(route) and RouteUnfinished(route, byTitle, level) then
@@ -2111,7 +2216,7 @@ function FindRoute(level, byTitle)
     -- Before this, the guide stayed in the zone you stood in with nothing to show until its max level.
     for _, route in ipairs(routes) do
         -- A zone more than a couple of levels above you waits, even when the ones before it are done.
-        if level <= route.max and level >= route.min - 2 and RouteHasWork(route, byTitle, level) then
+        if level <= route.max and level >= route.min - early and RouteHasWork(route, byTitle, level) then
             return route, stuckHere
         end
     end
@@ -2119,7 +2224,7 @@ function FindRoute(level, byTitle)
         return stuckHere
     end
     for _, route in ipairs(routes) do
-        if level <= route.max and level >= route.min - 2 and RouteUnfinished(route, byTitle, level) then
+        if level <= route.max and level >= route.min - early and RouteUnfinished(route, byTitle, level) then
             return route
         end
     end
@@ -2128,7 +2233,7 @@ end -- route choice helpers
 
 -- The plan's dungeon hint for your level, if any.
 local function PlanNote(level)
-    for _, entry in ipairs(LevelGuideRoutes and LevelGuideRoutes.plan or {}) do
+    for _, entry in ipairs(PlanEntries()) do
         if level >= entry.min and level < entry.max then
             return entry.note
         end
@@ -2264,7 +2369,7 @@ local function RouteSteps(level)
         end
         local written, writtenEnd = {}, 0
         for index, step in ipairs(route.steps) do
-            if #written >= MAX_NEXT then
+            if #written >= K.MAX_NEXT then
                 break
             end
             if not step.side and not RouteStepDone(route, index, step, byTitle, level)
@@ -2305,7 +2410,7 @@ local function RouteSteps(level)
                 -- The move comes first; what follows it stays in written order behind it.
                 ready[1] = RouteDisplay(route, index, step, byTitle, zoneMap)
                 for nextIndex = index + 1, #route.steps do
-                    if #waiting >= MAX_NEXT then
+                    if #waiting >= K.MAX_NEXT then
                         break
                     end
                     local nextStep = route.steps[nextIndex]
@@ -2327,7 +2432,7 @@ local function RouteSteps(level)
             -- A pick-up you can't take yet isn't shown at all: it would only send you to someone
             -- with nothing to give you. Only what's shown uses up the window.
             local visible = actionable or step.t ~= "accept"
-            if considered >= ROUTE_WINDOW then
+            if considered >= K.ROUTE_WINDOW then
                 if visible then
                     waiting[#waiting + 1] = shown
                     windowEnd = index
@@ -2362,6 +2467,16 @@ local function RouteSteps(level)
     -- The route is a plan, not the whole truth: quests in your log it doesn't know (or hasn't reached
     -- yet) and "!" quests the map shows that it doesn't list are on offer too, so they join the pool.
     local known = {}
+    -- A quest whose part for here is done ("kill 8 here, the rest later") is known too: hidden by the
+    -- route on purpose, it mustn't come back as an extra from the map.
+    for _, step in ipairs(route.steps) do
+        if step.t == "do" and step.obj then
+            local entry = HeldPart(byTitle, step)
+            if entry and entry.id and ObjectivesDone(entry.id, step.obj, step.objMax) then
+                known[entry.id] = true
+            end
+        end
+    end
     for _, group in ipairs({ ready, waiting }) do
         for _, shown in ipairs(group) do
             if shown.id then
@@ -2408,7 +2523,7 @@ local function RouteSteps(level)
 end
 
 local function PlanFor(level)
-    for _, entry in ipairs(LevelGuideRoutes and LevelGuideRoutes.plan or {}) do
+    for _, entry in ipairs(PlanEntries()) do
         if level >= entry.min and level < entry.max then
             return entry
         end
@@ -2578,7 +2693,7 @@ local function ChoresText(later)
     local parts = {}
     if later and #later > 0 then
         table.sort(later)
-        parts[#parts + 1] = string.format("%d quest(s) for level %d+", #later, later[1] - HARD_LEVELS + 1)
+        parts[#parts + 1] = string.format("%d quest(s) for level %d+", #later, later[1] - K.HARD_LEVELS + 1)
     end
     for _, name in ipairs(CHORES) do
         local source = ForeverHubStatus and ForeverHubStatus[name]
@@ -2760,7 +2875,7 @@ end
 
 local function Render(mapID, playerX, playerY, later)
     local current = steps[1]
-    local y = -HEADER_HEIGHT
+    local y = -K.HEADER_HEIGHT
     local level = Safe(UnitLevel("player"))
     local xp, maxXP = Safe(UnitXP("player")), Safe(UnitXPMax("player"))
     if level and xp and maxXP and maxXP > 0 then
@@ -2789,17 +2904,17 @@ local function Render(mapID, playerX, playerY, later)
     currentRow.right:SetText(current and current.timerEnds and TimeLeftText(current.timerEnds) or "")
     currentRow:ClearAllPoints()
     currentRow:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, y - 2)
-    currentRow:SetPoint("RIGHT", frame, "RIGHT", -(ARROW_SIZE + 16), 0)
+    currentRow:SetPoint("RIGHT", frame, "RIGHT", -(K.ARROW_SIZE + 16), 0)
     y = y - 22
     detailText:ClearAllPoints()
     detailText:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, y)
-    detailText:SetPoint("RIGHT", frame, "RIGHT", -(ARROW_SIZE + 16), 0)
+    detailText:SetPoint("RIGHT", frame, "RIGHT", -(K.ARROW_SIZE + 16), 0)
     y = y - math.max(detailText:GetStringHeight(), 12) - 6
-    y = math.min(y, -HEADER_HEIGHT - ARROW_SIZE - 14)
+    y = math.min(y, -K.HEADER_HEIGHT - K.ARROW_SIZE - 14)
 
     local shown = 0
     if not db.collapsed then
-        for index = 2, MAX_NEXT + 1 do
+        for index = 2, K.MAX_NEXT + 1 do
             local step = steps[index]
             if step then
                 shown = shown + 1
@@ -2911,7 +3026,7 @@ local function UpdateArrow()
     end
     local east, south, isYards = Offset(mapID, playerX, playerY, step.x, step.y)
     local yards = math.sqrt(east * east + south * south)
-    if isYards and yards <= ARRIVED_YARDS then
+    if isYards and yards <= K.ARRIVED_YARDS then
         arrow:Hide()
         if step.corpse then
             yardsText:SetText("|cff33ff33Your corpse|r")
@@ -2929,7 +3044,9 @@ local function UpdateArrow()
             -- One point of several reached: on to the next one, remembered for this step.
             charData.points[step.routeKey] = step.pointIndex + 1
             dirty = true
-        elseif step.routeKey and step.kind == "travel" and charData and not charData.visited[step.routeKey] then
+        -- Only a "go" step is done by reaching its spot: a Travel() step's spot is where you board (the
+        -- flight master, the pier), and it's done on arrival in the zone it takes you to (UtilityDone).
+        elseif step.routeKey and step.kind == "travel" and step.stepType == "go" and charData and not charData.visited[step.routeKey] then
             charData.visited[step.routeKey] = true
             dirty = true
         end
@@ -2945,7 +3062,7 @@ local function UpdateArrow()
     local relative = atan2(-east, -south) - facing
     arrow:SetRotation(relative)
     local wrapped = (relative + math.pi) % (2 * math.pi) - math.pi
-    if math.abs(wrapped) < AHEAD_RADIANS then
+    if math.abs(wrapped) < K.AHEAD_RADIANS then
         arrow:SetVertexColor(0.3, 1, 0.3)
     else
         arrow:SetVertexColor(1, 0.82, 0)
@@ -3210,10 +3327,10 @@ local function OnUpdate(_, elapsed)
     sinceArrow = sinceArrow + elapsed
     sinceRoute = sinceRoute + elapsed
     -- A burst of quest events (looting, zoning) rebuilds once, not once per frame.
-    if (dirty and sinceRoute >= DIRTY_SECONDS) or sinceRoute >= ROUTE_SECONDS then
+    if (dirty and sinceRoute >= DIRTY_SECONDS) or sinceRoute >= K.ROUTE_SECONDS then
         dirty, sinceRoute, sinceArrow = false, 0, 0
         Attempt(Rebuild)
-    elseif sinceArrow >= ARROW_SECONDS then
+    elseif sinceArrow >= K.ARROW_SECONDS then
         sinceArrow = 0
         Attempt(UpdateArrow)
     end
@@ -3230,7 +3347,7 @@ end
 
 local function Build()
     frame = CreateFrame("Frame", "LevelGuideFrame", UIParent, "BackdropTemplate")
-    frame:SetWidth(WIDTH)
+    frame:SetWidth(K.WIDTH)
     frame:SetHeight(100)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
@@ -3251,7 +3368,7 @@ local function Build()
     local header = CreateFrame("Button", nil, frame)
     header:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -3)
     header:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -50, -3)
-    header:SetHeight(HEADER_HEIGHT - 4)
+    header:SetHeight(K.HEADER_HEIGHT - 4)
     header:RegisterForDrag("LeftButton")
     header:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     header:SetScript("OnDragStart", function()
@@ -3269,8 +3386,11 @@ local function Build()
         if IsShiftKeyDown and IsShiftKeyDown() then
             UndoAllSkips()
         elseif not UndoSkip() then
-            -- Nothing skipped this session: fall back to bringing everything back.
-            UndoAllSkips()
+            -- Nothing skipped this session (a /reload clears that list): say so. Bringing back every saved
+            -- skip is Shift+right-click only, so it never happens by accident.
+            if ForeverHub_Receive then
+                ForeverHub_Receive("LevelGuide", "No skip to undo this session. Shift+right-click brings back every skipped step.")
+            end
         end
     end)
     header:SetScript("OnEnter", function(self)
@@ -3322,8 +3442,8 @@ local function Build()
     else
         arrow:SetTexture("Interface\\MINIMAP\\MiniMap-QuestArrow")
     end
-    arrow:SetSize(ARROW_SIZE * 0.6, ARROW_SIZE)
-    arrow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, -HEADER_HEIGHT - 2)
+    arrow:SetSize(K.ARROW_SIZE * 0.6, K.ARROW_SIZE)
+    arrow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, -K.HEADER_HEIGHT - 2)
     arrow:Hide()
     yardsText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     yardsText:SetPoint("TOP", arrow, "BOTTOM", 0, -1)
@@ -3332,7 +3452,7 @@ local function Build()
     detailText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     detailText:SetJustifyH("LEFT")
     detailText:SetWordWrap(true)
-    for index = 1, MAX_NEXT do
+    for index = 1, K.MAX_NEXT do
         nextRows[index] = MakeStepButton(16, "GameFontHighlightSmall")
         nextRows[index]:Hide()
     end
@@ -3516,7 +3636,10 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         timedWarned[questID], lowWarned[questID] = nil, nil
     elseif event == "QUEST_TURNED_IN" and questID then
         local title = titlesByID[questID] or (C_QuestLog.GetTitleForQuestID and Safe(C_QuestLog.GetTitleForQuestID(questID)))
-        if title then
+        -- Another quest with a route quest's title (QuestIDs.lua "unrelated": the Elwynn Encrypted Letter,
+        -- repeatable bounties) doesn't count as the route's.
+        local unrelated = LevelGuideQuestIDs and LevelGuideQuestIDs.unrelated
+        if title and not (unrelated and unrelated[questID]) then
             charData.done[title] = (charData.done[title] or 0) + 1
         end
         -- Turning a quest in can open new ones anywhere, so what givers offered is out of date.
@@ -3539,3 +3662,92 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
     end
     dirty = true
 end)
+
+-- Quest givers for the map (MapPins' "Quest givers" layer), the way Questie marks them: every pick-up on
+-- the written routes you could take now (not in your log, not done, its earlier parts and prerequisites
+-- done, within a few levels of yours), and where to hand in what's finished. From the routes, so
+-- Alliance quests in zones a route covers; the game's own map shows the rest. Never acts.
+do -- (a block, so its helpers don't count toward the file's 200-local limit)
+    -- One table, not several locals: this file is at Lua's 200-local limit.
+    local G = { above = 1 }
+
+    -- The map a step's spot is on: its own (On()), a city named in the giver's text, else the route's zone.
+    function G.StepZone(route, step)
+        if step.map then
+            return step.map
+        end
+        local text = (step.npc or ""):match("^[^(]*")
+        for _, city in ipairs(CITIES) do
+            if text:find(", " .. city, 1, true) then
+                return city
+            end
+        end
+        return route.zone
+    end
+
+    function G.Build(level)
+        local list, seen, keys = {}, {}, {}
+        local routesSeen = {}
+        for _, chain in pairs(LevelGuideRoutes.chains or {}) do
+            for _, route in ipairs(type(chain) == "table" and chain or {}) do
+                -- A route in several chains (Skyborne share the Human one) is read once.
+                local steps = type(route) == "table" and not routesSeen[route] and route.steps or {}
+                routesSeen[route] = true
+                for index, step in ipairs(steps) do
+                    -- The guide's own filters: class, guards (When), steps you skipped.
+                    if (step.t == "accept" or step.t == "turnin") and step.q and step.x and step.y and not step.side
+                        and ClassMatches(step.cls) and GuardsPass(step.when, lastByTitle)
+                        and not charData.skips[RouteKey(route, index)] then
+                        local part = tonumber(step.part) or 1
+                        local id = step.t .. "|" .. step.q .. "|" .. part
+                        if not seen[id] then
+                            seen[id] = true
+                            local show
+                            if step.t == "accept" then
+                                local lvl = tonumber(step.lvl) or level
+                                show = not InLog(lastByTitle, step.q) and TurnedIn(step.q) == part - 1
+                                    and lvl <= level + G.above and not Outleveled(step, level)
+                                    and PrereqsMet(step.q, level)
+                            else
+                                local entry = HeldPart(lastByTitle, step)
+                                show = entry and entry.ready or false
+                            end
+                            if show then
+                                list[#list + 1] = { kind = step.t, title = step.q, npc = step.npc, level = step.lvl,
+                                    zone = G.StepZone(route, step), x = step.x / 100, y = step.y / 100 }
+                                keys[#keys + 1] = id
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        table.sort(keys)
+        return list, table.concat(keys, ";")
+    end
+
+    -- { { kind = "accept"|"turnin", title, npc, level, zone, x, y (0-1) } }, plus a key that changes when the
+    -- list does. Worked out again after each of the guide's own rebuilds, or when your level changes.
+    function LevelGuide_QuestGivers()
+        if not (charData and lastByTitle and type(LevelGuideRoutes) == "table" and RoutesForYou()) then
+            return {}, ""
+        end
+        local level = UnitLevel and Safe(UnitLevel("player"))
+        if type(level) ~= "number" then
+            return G.cache or {}, G.key or ""
+        end
+        if not (G.cache and G.forLog == lastByTitle and G.level == level) then
+            local ok, list, key = pcall(G.Build, level)
+            if ok then
+                G.cache, G.key = list, key
+            else
+                G.cache, G.key = {}, ""
+                if geterrorhandler then
+                    geterrorhandler()(list)
+                end
+            end
+            G.forLog, G.level = lastByTitle, level
+        end
+        return G.cache, G.key
+    end
+end

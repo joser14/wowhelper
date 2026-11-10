@@ -351,13 +351,15 @@ local function AgoText(when)
     return string.format("%d day(s) ago", math.floor(seconds / 86400))
 end
 
+-- nil while the game hides your level.
 local function MyLevel()
-    return (UnitLevel and Safe(UnitLevel("player"))) or 1
+    return UnitLevel and Safe(UnitLevel("player")) or nil
 end
 
--- A death spot still matters while you're not far above the level you died at there.
+-- A death spot still matters while you're not far above the level you died at there. With your level
+-- hidden, nothing is called dangerous (else a level 60 would be warned about its level 5 deaths).
 local function StillDangerous(death, level)
-    return (tonumber(death.level) or 1) + OUTGROWN_LEVELS > level
+    return type(level) == "number" and (tonumber(death.level) or 1) + OUTGROWN_LEVELS > level
 end
 
 -- The combat log is closed to addons on Forever, so the enemy you were targeting is the best guess.
@@ -377,7 +379,12 @@ local function HostileTargetName()
     return nil
 end
 
+-- Only a foe you're fighting counts: one clicked from afar before a fall isn't the killer.
 local function NoteFoe()
+    local fighting = UnitAffectingCombat and Safe(UnitAffectingCombat("player"))
+    if fighting == false then
+        return
+    end
     local name = HostileTargetName()
     if name and GetTime then
         lastFoe = { name = name, when = GetTime() }
@@ -411,7 +418,7 @@ local function RecordDeath()
     end
     -- You know you're here right now; the warning is for coming back later.
     warned[death] = true
-    Print(string.format("Noted: died at level %d in %s%s.", death.level, death.where,
+    Print(string.format("Noted: died at level %s in %s%s.", tostring(death.level or "?"), death.where,
         death.killer and (" to " .. death.killer) or ""))
 end
 
@@ -585,6 +592,7 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_DEAD")
 events:RegisterEvent("PLAYER_TARGET_CHANGED")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
+events:RegisterEvent("PLAYER_REGEN_ENABLED")
 -- Never register COMBAT_LOG_EVENT_UNFILTERED: Forever (Midnight rules) forbids it, and even inside
 -- pcall the attempt raises ADDON_ACTION_FORBIDDEN ("blocked from an action", logged as UNKNOWN()).
 -- The killer is taken from your hostile target instead (see Killer).
@@ -626,6 +634,9 @@ events:SetScript("OnEvent", function(_, event)
         lastFoe = nil
     elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_DISABLED" then
         NoteFoe()
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        -- A fight that ended didn't kill you: a later fall or drowning isn't that foe's doing.
+        lastFoe = nil
     end
 end)
 

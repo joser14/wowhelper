@@ -1626,6 +1626,9 @@ local HILLSBRAD = { zone = "Hillsbrad Foothills", min = 28, max = 32, steps = {
     G("Road north into the Alterac Mountains", 47.4, 5.4, 31, "Lions roam the southern Alterac hills; the Syndicate camps are at Corrahn's Dagger, Sofera's Naze and Gallows' Corner"),
     D("Costly Menace", "Kill 8 Mountain Lions and 10 Hulking Mountain Lions in the hills north-west of Hillsbrad Fields", 38.8, 24.6, 31),
     D("Syndicate Assassins", "Kill 12 Syndicate Footpads and 8 Syndicate Thieves at the Syndicate camps (Alterac Mountains); keep the Syndicate Documents drops: Foreboding Plans and Encrypted Letter", 47.4, 5.4, 31),
+    -- Both start from the Syndicate Documents the Footpads and Thieves drop (Strahnbrad, Alterac Mountains).
+    New(On("Alterac Mountains", A("Foreboding Plans", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 31))),
+    New(On("Alterac Mountains", A("Encrypted Letter", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 31))),
     -- Back to Southshore
     G("Return to Southshore", 49.9, 56.4, 32),
     T("Bartolo's Yeti Fur Cloak", "Bartolo Ginsetti", 49.4, 55.5, 32),
@@ -3571,21 +3574,11 @@ do
         New(On("Silverpine Forest", A("Friend of the Kirin Tor", "Image of Archmage Modera (Lordamere Lake shore)", 68.5, 45.3, 30))),
         New(On("Alterac Mountains", T("Friend of the Kirin Tor", "Archmage Celindra (City of Dalaran)", 14.2, 60.0, 30))),
         New(A("Crushridge Bounty", "Marshal Redpath, Southshore", 49.5, 58.7, 31)),
-        New(A("Syndicate Assassins", "Magistrate Henry Maleb, Southshore", 48.1, 59.1, 31)),
-        New(On("Alterac Mountains", D("Syndicate Assassins", "12 Syndicate Footpads and 8 Thieves at Strahnbrad", 57.7, 68.0, 31))),
-        New(On("Alterac Mountains", A("Foreboding Plans", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 32))),
-        New(On("Alterac Mountains", A("Encrypted Letter", "Syndicate Documents (Strahnbrad)", 58.3, 67.9, 32))),
         New(Later(Keep(3668, "Assassin's Contract", "Assassin's Contract", 32, "From a Shadowy Assassin; it leads to Baron Vardus."))),
         New(On("Alterac Mountains", D("Crushridge Bounty", "9 Dirty Knucklebones from the Crushridge ogres", 45.6, 48.0, 33))),
-        New(T("Syndicate Assassins", "Magistrate Henry Maleb (U)", 48.1, 59.1, 33)),
         New(T("Crushridge Bounty", "Marshal Redpath", 49.5, 58.7, 33)),
         New(A("Crushridge Warmongers", "Marshal Redpath (its wand reward suits a priest)", 49.5, 58.7, 33)),
-        New(T("Foreboding Plans", "Magistrate Henry Maleb", 48.1, 59.1, 33)),
-        New(A("Noble Deaths", "Magistrate Henry Maleb", 48.1, 59.1, 33)),
-        New(T("Encrypted Letter", "Loremaster Dibbs", 50.6, 57.1, 33)),
-        New(On("Alterac Mountains", D("Noble Deaths", "7 Alterac Signet Rings from the Syndicate at the Lordamere internment camp and the Ruins of Alterac", 55.7, 27.8, 34))),
         New(On("Alterac Mountains", D("Crushridge Warmongers", "15 Crushridge Warmongers", 36.3, 53.8, 34))),
-        New(T("Noble Deaths", "Magistrate Henry Maleb (U)", 48.1, 59.1, 34)),
         New(T("Crushridge Warmongers", "Marshal Redpath (U)", 49.5, 58.7, 34)),
     })
     -- Arathi: the Refuge Pointe flight path, training, the greater wand from the auction house.
@@ -3662,7 +3655,13 @@ local COLDRIDGE_GEN = Generated("Dun Morogh", 1426, 1, 6, { qmax = 5, key = "Col
 local RIVERGLADES_GEN = Generated("Riverglades", 2548, 36, 46)
 
 -- Where to level at every stage, for when no detailed route covers you yet.
+-- An entry with `race` is only for that race (UnitRace's second return) and comes before the general ones.
 local PLAN = {
+    -- Skyborne start on Forever's Zephras Isle (uiMapID 2521). Exit for Alliance non-Hunters, from RestedXP's
+    -- free Skyborne guide (research\rxp_forever_guides.md 6.1, facts only): zeppelin to Dalaran, the Skyborne
+    -- Portal to Stormwind ("Welcome to Azeroth"), then Bolvar's "Journey to Sentinel Hill" to Westfall.
+    { min = 1, max = 13, race = "Skyborne", zones = { "Zephras Isle" }, hub = "Thendal Village, Shen'dar Village or Valanaar",
+      note = "At about 13 take the zeppelin to Dalaran, the Skyborne Portal to Stormwind, then Bolvar sends you to Westfall" },
     { min = 1, max = 11, zones = { "Teldrassil", "Dun Morogh", "Elwynn Forest" }, hub = "Your starting zone" },
     { min = 11, max = 16, zones = { "Darkshore", "Loch Modan", "Westfall" }, hub = "Auberdine, Thelsamar or Sentinel Hill", note = "Hall of Thanes (13-18) is under Ironforge" },
     { min = 16, max = 21, zones = { "Darkshore", "Westfall", "Redridge Mountains", "Loch Modan" }, hub = "Auberdine, Sentinel Hill or Lakeshire", note = "Wailing Caverns and The Deadmines suit 17-24" },
@@ -3701,12 +3700,19 @@ LOCH_MODAN_TRIP.ways = {
     Way("Stormwind City", "Deeprun Tram to Ironforge (Dwarven District)", 66.0, 34.0, "Unverified spot: check in game"),
     Way("Dun Morogh", "East gate to Loch Modan", 87.5, 48.8, "South Gate Pass, then Thelsamar"),
 }
+-- Skyborne leave Zephras Isle by zeppelin (65.8, 83.4, RestedXP's Skyborne guide), then the portal to Stormwind.
+WESTFALL.ways = {
+    Way("Zephras Isle", "Zeppelin to Dalaran", 65.8, 83.4, "Then the Skyborne Portal to Stormwind; Bolvar sends you on to Sentinel Hill"),
+}
 REDRIDGE_TRIP.ways = {
     Way("Darkshore", "Boat to Stormwind (Auberdine pier)", 30.7, 41.0, "Then east through Elwynn to Redridge"),
     Way("Elwynn Forest", "East road to Redridge (Three Corners)", 90.5, 71.5, "Approximate spot"),
 }
 
 LevelGuideRoutes = {
+    -- Every route and the plan are Alliance: a character of another faction gets neither, rather than
+    -- directions into the other faction's zones.
+    faction = "Alliance",
     chains = {
         -- Ordered by route min (an optional side trip may sit a few levels early, e.g. Stonetalon after
         -- Ashenvale): the guide takes the first route that fits your level. Order from research\routes_20_60.md
@@ -3724,3 +3730,5 @@ LevelGuideRoutes = {
     },
     plan = PLAN,
 }
+-- Alliance Skyborne reach Westfall from Zephras Isle at about 13 and go on as Humans do from there.
+LevelGuideRoutes.chains.Skyborne = LevelGuideRoutes.chains.Human

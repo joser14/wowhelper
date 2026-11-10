@@ -229,7 +229,8 @@ C_QuestLog.GetLogIndexForQuestID = function() return SECRET end
 C_Item.GetItemCount = function() return SECRET end
 UnitClass = function() return SECRET, SECRET end
 page("")
-need("Dungeons for level 1", "secret level reads as 1")
+-- Review 2026-11-10: a hidden level isn't level 1; the page says it can't be read.
+need("Your level can't be read right now", "secret level is said, not taken as 1")
 page("dm")
 check(not has("<<ERROR"), "details with secret values")
 

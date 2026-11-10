@@ -269,13 +269,14 @@ local function Allowed(unit)
     return true
 end
 
--- The cache key: the unit's GUID, or the token when there is no GUID. nil, true when the GUID is secret.
+-- The cache key: the unit's GUID. nil, true when the GUID is secret; nil when there is none (a token such
+-- as "nameplate3" moves to another mob, so it can't stand in for one).
 local function UnitKey(unit)
     local raw = UnitGUID and UnitGUID(unit)
     if raw ~= nil and Safe(raw) == nil then
         return nil, true
     end
-    return raw or unit
+    return raw
 end
 
 -- The result for a unit, reading its tooltip at most once every READ_EVERY seconds.
@@ -664,11 +665,8 @@ function QuestMobs_IsQuestMob(unit)
     if not db or not Allowed(unit) then
         return false
     end
+    -- Nil right after the quest log changed: the old answer may be the 8th of 8 already killed, so no.
     local result = Lookup(unit, Now())
-    if not result then
-        local key = UnitKey(unit)
-        result = key and cache[key]
-    end
     if result and result.quest then
         return true, result.progress
     end

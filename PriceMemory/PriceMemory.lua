@@ -479,6 +479,13 @@ local function Prune()
         if key == VENDOR_KEY then
             if type(value) ~= "table" then
                 PriceMemoryDB[key] = nil
+            else
+                -- Vendor prices you haven't seen for a month go too, as auction prices do.
+                for id, entry in pairs(value) do
+                    if type(entry) ~= "table" or (tonumber(entry.seen) or 0) < cutoff then
+                        value[id] = nil
+                    end
+                end
             end
         elseif type(value) == "table" then
             if type(value.seen) == "number" then

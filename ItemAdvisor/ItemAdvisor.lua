@@ -1,3 +1,28 @@
+-- Shared Forever profession fallback (the same copy is in every helper that reads professions; whichever
+-- loads first defines it). Used only when GetProfessions/GetProfessionInfo are missing, which a third-party
+-- measurement found on a Forever beta build: the twelve Classic profession skill lines, read by ID.
+-- Returns { { name, rank, maxRank, skillLine, secondary } }.
+ForeverSkillProfessions = ForeverSkillProfessions or function()
+    local list = {}
+    if not (C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID) then
+        return list
+    end
+    local function Hidden(value)
+        return issecretvalue and issecretvalue(value)
+    end
+    for _, line in ipairs({ 164, 165, 171, 182, 186, 197, 202, 333, 393, 129, 185, 356 }) do
+        local ok, info = pcall(C_SkillInfo.GetSkillLineInfoByID, line)
+        if ok and type(info) == "table" and not Hidden(info) then
+            local name, rank, maxRank = info.name, info.rank, info.maxRank
+            if not (Hidden(name) or Hidden(rank) or Hidden(maxRank)) and type(name) == "string" and name ~= ""
+                and type(rank) == "number" and type(maxRank) == "number" and maxRank > 0 then
+                list[#list + 1] = { name = name, rank = rank, maxRank = maxRank, skillLine = line,
+                    secondary = line == 129 or line == 185 or line == 356 }
+            end
+        end
+    end
+    return list
+end
 -- Shared Forever character identity (the same copy is in every helper that saves per-character data,
 -- so each helper still works alone; whichever loads first defines it). On Forever a character has a
 -- first name and a surname (UnitName's second return), so the first name alone is not unique.
@@ -373,6 +398,11 @@ local function CanDisenchant()
         return true
     end
     if not (GetProfessions and GetProfessionInfo) then
+        for _, entry in ipairs(ForeverSkillProfessions()) do
+            if entry.skillLine == SKILL_ENCHANTING then
+                return true
+            end
+        end
         return false
     end
     local first, second = GetProfessions()
@@ -430,10 +460,23 @@ local function ObjectiveItemName(text)
     return name and name ~= "" and name or nil
 end
 
+-- What the verdicts depend on (item names and quest titles, not the counts), to tell a real change
+-- from a loot or kill updating a count.
+local questItemsKey = ""
+local function QuestItemsKey()
+    local parts = {}
+    for _, entry in ipairs(questItems) do
+        parts[#parts + 1] = (entry.item or entry.text) .. "\1" .. entry.title
+    end
+    table.sort(parts)
+    return table.concat(parts, "\2")
+end
+
+-- Returns true when the list of items your quests want changed.
 local function RebuildQuestItems()
     questItems = {}
     if not (C_QuestLog and C_QuestLog.GetNumQuestLogEntries) then
-        return
+        return false
     end
     local entries = C_QuestLog.GetNumQuestLogEntries()
     for index = 1, Safe(entries) or 0 do
@@ -448,6 +491,10 @@ local function RebuildQuestItems()
             end
         end
     end
+    local key = QuestItemsKey()
+    local changed = key ~= questItemsKey
+    questItemsKey = key
+    return changed
 end
 
 local function QuestNeeding(name)
@@ -765,8 +812,21 @@ local function FormatChange(amount, label)
     return (amount > 0 and "+" or "-") .. shown .. " " .. label
 end
 
+-- Whether a stat changes your score (Score above), so gaining or losing it counts.
+local function StatCounts(stat, weights, equipLoc, subClassID)
+    if stat == "armor" then
+        return true
+    elseif stat == "dps" then
+        return DpsWeight(weights, equipLoc, subClassID) > 0
+    elseif stat == "sp" or stat == "heal" then
+        -- Spell power is damage and healing; bonus healing also gives a third as damage.
+        return (weights.dmg or 0) > 0 or (weights.heal or 0) > 0
+    end
+    return (weights[stat] or 0) > 0
+end
+
 -- What changes for your role if you swap: stats you gain and lose, or nil if either item can't be read.
--- Stats your role doesn't use are left out, but armor and weapon damage always count.
+-- Only stats that change your score are listed (armor always), so a lost stat can't be missed.
 local function StatChanges(link, wornLink)
     local new, newUnknown = ReadStats(link)
     local worn, wornUnknown = ReadStats(wornLink)
@@ -774,11 +834,12 @@ local function StatChanges(link, wornLink)
         return nil
     end
     local weights = Weights()
+    local _, _, _, _, _, _, _, _, equipLoc, _, _, _, subClassID = C_Item.GetItemInfo(link)
     local gains, losses = {}, {}
     for _, entry in ipairs(STAT_ORDER) do
         local stat, label = entry[1], entry[2]
         local difference = (new[stat] or 0) - (worn[stat] or 0)
-        if difference ~= 0 and ((weights[stat] or 0) > 0 or stat == "armor" or stat == "dps") then
+        if difference ~= 0 and StatCounts(stat, weights, Safe(equipLoc), Safe(subClassID)) then
             local list = difference > 0 and gains or losses
             list[#list + 1] = FormatChange(difference, label)
         end
@@ -979,8 +1040,29 @@ local function JudgePair(link, equipLoc, classID, inBags)
     return "CHECK", "You wear a two-hander; even paired with " .. partner .. " from your bags, it scores lower"
 end
 
+-- Set while evaluating when the answer rests on data that may still arrive (Evaluate won't cache it).
+local dontCache = false
+local noStatsTries, NO_STATS_TRIES = {}, 3
+
+-- Worn gear the game hides right now (combat, some instances) would read as empty slots, so every item
+-- would look like an upgrade.
+local function WornGearHidden()
+    if not issecretvalue then
+        return false
+    end
+    for slot = 1, 19 do
+        if issecretvalue(GetInventoryItemLink("player", slot)) then
+            return true
+        end
+    end
+    return false
+end
+
 local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quality, sellPrice, bindType, isBound, inBags)
     local slots = SLOTS[equipLoc]
+    if WornGearHidden() then
+        return "CHECK", "Can't read your worn gear right now (combat or instance); hover again later"
+    end
     -- A copy in your bags has the same link as the one you're wearing, but it's a spare.
     if not inBags then
         for _, target in ipairs(SlotTargets(equipLoc, classID, slots)) do
@@ -993,7 +1075,8 @@ local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quali
         return "KEEP", "In one of your equipment sets"
     end
     -- Equipping a second unique copy is impossible, and swapping it for the worn one changes nothing.
-    if IsWorn(link) and IsUnique(link) then
+    -- Only a copy you own is a spare: a vendor's or a quest reward's copy isn't yours to sell.
+    if inBags and IsWorn(link) and IsUnique(link) then
         return NotNeeded("Spare copy; it's unique and you already wear one", classID, quality, sellPrice, bindType, isBound)
     end
 
@@ -1017,6 +1100,13 @@ local function EvaluateGear(link, equipLoc, classID, subClassID, minLevel, quali
     local halfOfPair = equipLoc ~= "INVTYPE_2HWEAPON" and (slots[1] == MAIN_HAND or slots[1] == OFF_HAND)
         and MainHandIsTwoHanded()
     local noStats = select(3, ReadStats(link))
+    -- Stats can load after the name: ask again and don't remember this answer, a few times; an item that
+    -- really has no stats (an on-use trinket) is then remembered like any other.
+    if noStats and (noStatsTries[link] or 0) < NO_STATS_TRIES then
+        noStatsTries[link] = (noStatsTries[link] or 0) + 1
+        RequestItem(link)
+        dontCache = true
+    end
 
     local gain = best.gain
     local margin = math.max(MIN_GAIN, best.base * CLOSE_CALL_PERCENT / 100)
@@ -1100,6 +1190,13 @@ local function EvaluateNow(link, isBound, inBags)
         return "CHECK", "Item data is still loading; hover again"
     end
     sellPrice = sellPrice or 0
+    -- Forever's Waylaid Crates (items 248682-248713, wow-professions.com): filled with one of the bundles
+    -- on their tooltip and turned in for Merchant's Favor and Azeroth Commerce Authority reputation; they
+    -- sell on the auction house while empty. Never vendor trash.
+    local itemID = tonumber(link:match("item:(%d+)"))
+    if (itemID and itemID >= 248682 and itemID <= 248713) or (type(name) == "string" and name:find("^Waylaid ")) then
+        return "KEEP", "Waylaid Crate: fill it and turn it in to Marcy Baker, Three Corners (Redridge), or auction it empty"
+    end
     if classID == CLASS_QUEST or bindType == BIND_QUEST then
         return "KEEP", "Quest item"
     end
@@ -1136,9 +1233,10 @@ local function Evaluate(link, isBound, inBags)
     if cached then
         return cached[1], cached[2]
     end
+    dontCache = false
     local verdict, reason = EvaluateNow(link, isBound, inBags)
     -- An answer that depends on data still loading isn't worth keeping.
-    if not (reason:find("loading", 1, true) or reason:find("Can't read", 1, true)) then
+    if not (dontCache or reason:find("loading", 1, true) or reason:find("Can't read", 1, true)) then
         if verdictCount >= VERDICT_CACHE_LIMIT then
             ForgetVerdicts()
         end
@@ -1952,9 +2050,9 @@ events:SetScript("OnEvent", function(_, event, arg1)
         return
     end
     if event == "QUEST_LOG_UPDATE" then
-        RebuildQuestItems()
-        -- Picking up or finishing a quest can change whether an item is safe to sell.
-        if charData then
+        -- Picking up or finishing a quest can change whether an item is safe to sell. A count going up
+        -- (a loot, a kill) changes nothing here, and this event fires for every one of them.
+        if RebuildQuestItems() and charData then
             ScheduleRepaint()
         end
         return
