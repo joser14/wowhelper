@@ -162,6 +162,9 @@ these sources:
 - Ideas only, no code or art: LevelGuide's saved death spot as a corpse fallback, the red-yellow-green arrow
   colour and the arrival sound follow behaviour described in TomTom (all rights reserved; its arrow art is
   non-commercial and is not shipped).
+- `DeathNotes\LowWarn.lua`: the in-combat low-health/low-mana cue passes the game's curve-evaluated percent
+  straight into SetAlpha, the method of Glowing Bars by vattiss (`value-curves.service.ts`, MIT License,
+  Copyright (c) vattiss); written in our own code.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.
