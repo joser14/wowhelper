@@ -205,6 +205,8 @@ reset(); SlashCmdList.PROFESSIONCAP("")
 need("Cooking 130/150. Expert can be learned now from its book.", "early book")
 
 ----- SupplyWatch
+-- Ammo is for hunters only (round 3, rank 8).
+class = "HUNTER"
 reset()
 C_Container = { GetContainerNumSlots = function() return 16 end }
 C_Item.GetItemCount = function() return 0 end

@@ -43,16 +43,23 @@ local function ReadBags()
             if link then
                 local name, _, _, _, minLevel, _, _, _, _, _, _, classID, subClassID = C_Item.GetItemInfo(link)
                 name, minLevel, classID, subClassID = Safe(name), Safe(minLevel), Safe(classID), Safe(subClassID)
+                local itemID = Safe(info.itemID)
+                local known = itemID and FoodCheckIDs and (FoodCheckIDs.food[itemID] or FoodCheckIDs.drink[itemID])
                 if not name then
                     pending = true
-                    local itemID = Safe(info.itemID)
                     if itemID then
                         C_Item.RequestLoadItemDataByID(itemID)
                     end
-                elseif classID == CLASS_CONSUMABLE and subClassID == SUBCLASS_FOOD_DRINK then
+                elseif known or (classID == CLASS_CONSUMABLE and subClassID == SUBCLASS_FOOD_DRINK) then
                     local item = byLink[link]
                     if not item then
-                        local health, mana = ReadRestores(link)
+                        -- By item ID (any client language); the tooltip's English text only for items the list lacks.
+                        local health, mana
+                        if known then
+                            health, mana = FoodCheckIDs.food[itemID] == true, FoodCheckIDs.drink[itemID] == true
+                        else
+                            health, mana = ReadRestores(link)
+                        end
                         item = { link = link, level = minLevel or 1, count = 0, health = health, mana = mana }
                         byLink[link] = item
                         items[#items + 1] = item
@@ -124,5 +131,252 @@ local function ShowCheck()
     end
 end
 
+-- ---- Buff reminders (research\re_round3.md rank 8, opt-in) -------------------------------------------------
+-- Buffs you ask to keep up (Well Fed, an elixir, a scroll) and a weapon oil, stone or poison. Each is watched by
+-- spell ID (or its name, so any "Well Fed" counts), out of combat and only while auras aren't secret: a buff
+-- that can't be read is "unknown", never "gone". One pop-up when it's under 3 minutes and one when it's gone
+-- (also after login, for one that ran out while you were away); it re-arms once the buff is back.
+local REMIND_SECONDS, CHECK_SECONDS = 180, 20
+local MAIN_HAND = 0
+local db -- this character's settings: { reminders = { { id, name } or { weapon = true } } }
+local states = {} -- reminder key -> "ok" / "low" / "gone"
+local ready = false -- set a few seconds after login, once auras and the weapon have loaded
+
+local function AurasReadable()
+    if InCombatLockdown and InCombatLockdown() then
+        return false
+    end
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret then
+        local ok, secret = pcall(C_Secrets.ShouldAurasBeSecret)
+        return ok and Safe(secret) == false
+    end
+    return true
+end
+
+-- Your helpful aura by spell ID or name: the aura table, false if you don't have it, nil when unreadable.
+local function FindBuff(id, name)
+    if not (AurasReadable() and C_UnitAuras) then
+        return nil
+    end
+    local aura
+    if id and C_UnitAuras.GetPlayerAuraBySpellID then
+        local ok, found = pcall(C_UnitAuras.GetPlayerAuraBySpellID, id)
+        if not ok then
+            return nil
+        end
+        aura = Safe(found)
+    end
+    if not aura and name and C_UnitAuras.GetAuraDataBySpellName then
+        local ok, found = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, "HELPFUL")
+        if not ok then
+            return nil
+        end
+        aura = Safe(found)
+    end
+    -- The name as typed may differ in case: look through your buffs.
+    if not aura and name and C_UnitAuras.GetBuffDataByIndex then
+        local wanted = name:lower()
+        for index = 1, 40 do
+            local ok, found = pcall(C_UnitAuras.GetBuffDataByIndex, "player", index)
+            found = ok and Safe(found)
+            if type(found) ~= "table" then
+                break
+            end
+            local foundName = Safe(found.name)
+            if type(foundName) == "string" and foundName:lower() == wanted then
+                aura = found
+                break
+            end
+        end
+    end
+    return type(aura) == "table" and aura or false
+end
+
+-- Seconds left on a temporary main-hand enchant (oil, stone, poison): a number, false if none, nil if unknown.
+-- C_Item.GetWeaponEnchantInfo's timeLeft is taken to be in milliseconds like the old API (UNVERIFIED in game).
+local function WeaponSecondsLeft()
+    if not AurasReadable() then
+        return nil
+    end
+    if C_Item and C_Item.GetWeaponEnchantInfo then
+        local ok, list = pcall(C_Item.GetWeaponEnchantInfo, MAIN_HAND)
+        if not ok or type(list) ~= "table" then
+            return nil
+        end
+        for _, enchant in ipairs(list) do
+            local has, left = Safe(enchant.hasEnchant), Safe(enchant.timeLeft)
+            if has and type(left) == "number" and left > 0 then
+                return left / 1000
+            end
+        end
+        return false
+    elseif GetWeaponEnchantInfo then
+        local ok, has, expires = pcall(GetWeaponEnchantInfo)
+        has, expires = ok and Safe(has), ok and Safe(expires)
+        if not ok then
+            return nil
+        end
+        return has and type(expires) == "number" and expires / 1000 or false
+    end
+    return nil
+end
+
+local function ReminderKey(entry)
+    return entry.weapon and "weapon" or tostring(entry.id or entry.name)
+end
+
+local function ReminderLabel(entry)
+    return entry.weapon and "Weapon oil or stone" or entry.name or ("spell " .. tostring(entry.id))
+end
+
+-- "ok", "low" (with seconds left), "gone", or nil when it can't be read now.
+local function ReminderState(entry)
+    local left
+    if entry.weapon then
+        left = WeaponSecondsLeft()
+    else
+        local aura = FindBuff(entry.id, entry.name)
+        if aura == nil then
+            return nil
+        elseif aura then
+            local expires = Safe(aura.expirationTime)
+            left = type(expires) == "number" and expires > 0 and (expires - GetTime()) or math.huge
+        else
+            left = false
+        end
+    end
+    if left == nil then
+        return nil
+    elseif left == false or left <= 0 then
+        return "gone"
+    elseif left <= REMIND_SECONDS then
+        return "low", left
+    end
+    return "ok", left
+end
+
+local function CheckReminders()
+    if not (db and ready) then
+        return
+    end
+    for _, entry in ipairs(db.reminders) do
+        local key = ReminderKey(entry)
+        local state, left = ReminderState(entry)
+        local before = states[key]
+        if state and state ~= before then
+            if state == "low" and before ~= "gone" then
+                Print(string.format("%s runs out in %d min.", ReminderLabel(entry), math.max(math.ceil(left / 60), 1)))
+            elseif state == "gone" then
+                Print(before == nil and string.format("%s ran out while you were away.", ReminderLabel(entry))
+                    or string.format("%s is gone.", ReminderLabel(entry)))
+            end
+            states[key] = state
+        end
+    end
+end
+
+local function ReminderCommand(verb, rest)
+    local lower = rest:lower()
+    if verb == "remind" then
+        if lower == "weapon" or lower == "oil" then
+            for _, entry in ipairs(db.reminders) do
+                if entry.weapon then
+                    Print("Already watching your weapon oil or stone.")
+                    return
+                end
+            end
+            db.reminders[#db.reminders + 1] = { weapon = true }
+            states.weapon = ReminderState(db.reminders[#db.reminders])
+            Print("Watching your weapon oil or stone.")
+            return
+        end
+        local aura = FindBuff(nil, rest)
+        if aura == nil then
+            Print("Buffs can't be read right now; try again out of combat.")
+            return
+        elseif not aura then
+            Print(string.format("You don't have \"%s\" on you. Type the buff's name while it's active.", rest))
+            return
+        end
+        local id, name = Safe(aura.spellId), Safe(aura.name) or rest
+        for _, entry in ipairs(db.reminders) do
+            if (id and entry.id == id) or (entry.name and entry.name:lower() == tostring(name):lower()) then
+                Print("Already watching " .. name .. ".")
+                return
+            end
+        end
+        db.reminders[#db.reminders + 1] = { id = id, name = name }
+        states[ReminderKey(db.reminders[#db.reminders])] = ReminderState(db.reminders[#db.reminders])
+        Print("Watching " .. name .. ".")
+        return
+    end
+    for index, entry in ipairs(db.reminders) do
+        if (entry.weapon and (lower == "weapon" or lower == "oil")) or (entry.name and entry.name:lower() == lower) then
+            table.remove(db.reminders, index)
+            states[ReminderKey(entry)] = nil
+            Print("Stopped watching " .. ReminderLabel(entry) .. ".")
+            return
+        end
+    end
+    Print(string.format("Not watching \"%s\".", rest))
+end
+
+local function ShowReminders()
+    if not db or #db.reminders == 0 then
+        Print("|cff999999Buff reminders: none. Type remind <buff you have now> or remind weapon.|r")
+        return
+    end
+    for _, entry in ipairs(db.reminders) do
+        local state, left = ReminderState(entry)
+        local text = state == nil and "can't be read now" or state == "gone" and "gone"
+            or (left == math.huge and "on") or string.format("%d min left", math.ceil(left / 60))
+        Print(string.format("Reminder: %s, %s", ReminderLabel(entry), text))
+    end
+end
+
 SLASH_FOODCHECK1 = "/food"
-SlashCmdList.FOODCHECK = ShowCheck
+SlashCmdList.FOODCHECK = function(message)
+    local verb, rest = (message or ""):match("^%s*(%a+)%s+(.-)%s*$")
+    verb = verb and verb:lower()
+    if db and (verb == "remind" or verb == "stop") and rest ~= "" then
+        ReminderCommand(verb, rest)
+    end
+    ShowCheck()
+    ShowReminders()
+end
+
+-- (Loaded without a frame API in some tests: then only the page works.)
+local events = CreateFrame and CreateFrame("Frame") or { RegisterEvent = function() end, SetScript = function() end }
+events:RegisterEvent("PLAYER_LOGIN")
+events:RegisterEvent("PLAYER_REGEN_ENABLED")
+if events.RegisterUnitEvent then
+    events:RegisterUnitEvent("UNIT_AURA", "player")
+else
+    events:RegisterEvent("UNIT_AURA")
+end
+events:SetScript("OnEvent", function(_, event, unit)
+    if event == "PLAYER_LOGIN" then
+        FoodCheckDB = type(FoodCheckDB) == "table" and FoodCheckDB or {}
+        local key = (ForeverCharacterKey and ForeverCharacterKey())
+            or ((Safe(UnitName("player")) or "Unknown") .. "-" .. (Safe(GetRealmName()) or "Unknown"))
+        FoodCheckDB[key] = type(FoodCheckDB[key]) == "table" and FoodCheckDB[key] or {}
+        db = FoodCheckDB[key]
+        db.reminders = type(db.reminders) == "table" and db.reminders or {}
+        -- A few seconds after login, so auras and the weapon have loaded; then every 20 s for time left.
+        if C_Timer and C_Timer.After then
+            C_Timer.After(5, function()
+                ready = true
+                CheckReminders()
+            end)
+        else
+            ready = true
+        end
+        if C_Timer and C_Timer.NewTicker then
+            C_Timer.NewTicker(CHECK_SECONDS, CheckReminders)
+        end
+    elseif event == "UNIT_AURA" and Safe(unit) ~= "player" then
+        return
+    else
+        CheckReminders()
+    end
+end)

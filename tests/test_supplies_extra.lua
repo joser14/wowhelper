@@ -95,6 +95,8 @@ reset(); SlashCmdList.FOODCHECK("")
 need("Best food: |h[Small Bread]|h x3", "smaller stack of the same level first")
 
 ----- SupplyWatch
+-- Ammo is for hunters only (round 3, rank 8).
+class = "HUNTER"
 C_Container.GetContainerNumSlots = function() return 0 end
 local counts = { [159] = 5, [4540] = 0 }
 C_Item.GetItemCount = function(id) return counts[id] or 0 end

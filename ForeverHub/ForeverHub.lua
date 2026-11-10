@@ -206,7 +206,7 @@ local TABS = {
     { label = "Bag advice", key = "ITEMADVISOR", helper = "ItemAdvisor", hint = "To change what stats to favor, type: role healer" },
     { label = "Bag space", key = "BAGCHECK", helper = "BagCheck", hint = "keep <item>: never suggest dropping it.   forget <item>: suggest it again" },
     { label = "Find an item", key = "ITEMFINDER", helper = "ItemFinder", hint = "Type part of an item name and press Enter", emptyHint = "Search your bags, bank, and gear on every character.", search = true },
-    { label = "Food and drink", key = "FOODCHECK", helper = "FoodCheck" },
+    { label = "Food and drink", key = "FOODCHECK", helper = "FoodCheck", hint = "remind <a buff you have now>   remind weapon   stop <name>: pop-ups when they run low" },
     { label = "Supplies", key = "SUPPLYWATCH", helper = "SupplyWatch", hint = "Item in your bags and how many: Water 20   Or: remove 1   Or: ammo 400", supplies = true },
     { label = "Repairs", key = "DURABILITYWATCH", helper = "DurabilityWatch" },
     { label = "Tooltips", key = "TOOLTIPS", helper = "Tooltips", hint = "Type: off vendor   Or: on id   Or: on npc" },
@@ -220,7 +220,7 @@ local TABS = {
     { label = "Level log", key = "LEVELLOG", helper = "LevelLog", arg = "all" },
     -- Not READYCHECK: that is Blizzard's own /readycheck command, which the hub must never wrap.
     { label = "Ready check", key = "SPELLREADY", helper = "SpellReady", hint = "Type: ignore Frostbolt   Or: unignore Frostbolt   Or: ignored" },
-    { label = "Places", key = "LANDMARKS", helper = "Landmarks", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer" },
+    { label = "Places", key = "LANDMARKS", helper = "Landmarks", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer, arrows, bullets, bags, reagents" },
     { label = "Deaths", key = "DEATHNOTES", helper = "DeathNotes", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
     -- "Rares" exactly: RareWatch's side panel line opens this page by that name.
     { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: all   Or: forget all" },

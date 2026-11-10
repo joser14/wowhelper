@@ -277,6 +277,10 @@ local KINDS = {
     { key = "bank", label = "Bank" },
     { key = "trainer", label = "Class trainer" },
     { key = "profession", label = "Profession trainer" },
+    { key = "arrows", label = "Arrows" },
+    { key = "bullets", label = "Bullets" },
+    { key = "bags", label = "Bags" },
+    { key = "reagents", label = "Reagents" },
 }
 local KIND_LABEL = {}
 for _, kind in ipairs(KINDS) do
@@ -660,23 +664,38 @@ local function NpcName(fallback)
     return (UnitName and Safe(UnitName("npc"))) or fallback
 end
 
--- Whether the merchant window that just opened sells anything to eat or drink.
-local function SellsFood()
+-- What the merchant window that just opened sells, by group: food and drink (by item ID from FoodCheck's list
+-- when it's loaded, else the food-and-drink subclass), arrows (projectile 6/2), bullets (6/3), bags (class 1)
+-- and reagents (class 5, or miscellaneous reagent 15/1). Groups after Shortest Path Forever's nearby services
+-- (UI\Nearby.lua, GPL-3.0-or-later), in our own code.
+local CLASS_CONTAINER, CLASS_PROJECTILE, CLASS_REAGENT, CLASS_MISC = 1, 6, 5, 15
+local function MerchantGroups()
+    local groups = {}
     if not (GetMerchantNumItems and GetMerchantItemID and C_Item and C_Item.GetItemInfoInstant) then
-        return false
+        return groups
     end
     for index = 1, Safe(GetMerchantNumItems()) or 0 do
         local itemID = Safe(GetMerchantItemID(index))
         if itemID then
             local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(itemID)
-            if Safe(classID) == CLASS_CONSUMABLE and Safe(subClassID) == SUBCLASS_FOOD_DRINK then
-                return true
+            classID, subClassID = Safe(classID), Safe(subClassID)
+            local ids = FoodCheckIDs
+            if (classID == CLASS_CONSUMABLE and subClassID == SUBCLASS_FOOD_DRINK)
+                or (type(ids) == "table" and ((ids.food and ids.food[itemID]) or (ids.drink and ids.drink[itemID]))) then
+                groups.food = true
+            elseif classID == CLASS_PROJECTILE and subClassID == 2 then
+                groups.arrows = true
+            elseif classID == CLASS_PROJECTILE and subClassID == 3 then
+                groups.bullets = true
+            elseif classID == CLASS_CONTAINER then
+                groups.bags = true
+            elseif classID == CLASS_REAGENT or (classID == CLASS_MISC and subClassID == 1) then
+                groups.reagents = true
             end
         end
     end
-    return false
+    return groups
 end
-
 local function Nearest(spot, kind)
     local best, bestYards
     for _, place in ipairs(db.places) do
@@ -720,7 +739,7 @@ local function ShowPage(arg)
             end
         end
         if not kind then
-            Print("I don't know a place called '" .. want .. "'. Try: repair, vendor, food, inn, flight, mail, bank, trainer, profession.")
+            Print("I don't know a place called '" .. want .. "'. Try: repair, vendor, food, inn, flight, mail, bank, trainer, profession, arrows, bullets, bags, reagents.")
         elseif not spot then
             Print("I can't read where you are right now.")
         else
@@ -851,8 +870,8 @@ events:SetScript("OnEvent", function(_, event)
         if CanMerchantRepair and Safe(CanMerchantRepair()) then
             Remember("repair", name, spot)
         end
-        if SellsFood() then
-            Remember("food", name, spot)
+        for group in pairs(MerchantGroups()) do
+            Remember(group, name, spot)
         end
     elseif event == "MAIL_SHOW" then
         Remember("mail", "Mailbox", spot)

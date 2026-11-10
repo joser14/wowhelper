@@ -3,5 +3,7 @@
 ## Title: FoodCheck
 ## Notes: Shows the best food and drink in your bags for your level and which are outgrown. Never eats or drinks for you.
 ## Version: 0.1.1
+## SavedVariables: FoodCheckDB
 
+FoodIDs.lua
 FoodCheck.lua

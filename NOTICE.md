@@ -52,6 +52,10 @@ these sources:
   levels written in our own words from public game facts and our research. Nothing is taken from Polestar's
   `TravelData.lua`, walking grids or baked legs.
 - **Questie** Forever data (Questie team), GPL, used for quest IDs, givers and coordinates.
+- `FoodCheck\FoodIDs.lua` (which items are food and which are drink) is taken from **Shortest Path Forever**
+  (`Data\Services.lua`, GPL-3.0-or-later), generated there from the WoW: Forever 1.60.1 client tables via
+  wago.tools. Landmarks' vendor groups (arrows, bullets, bags, reagents) follow the same addon's nearby-services
+  groups (`UI\Nearby.lua`), in our own code.
 - `RestGuard\RestGuard.lua` and `FoodCheck\FoodCheck.lua`: the camp spell IDs (Camp Benefits 1229741, Campfire
   Nearby 1283391, camp tent boost 1229451, campfire placement 1307227 / 1307252 / 1307237) come from **Tweaks
   Forever** `Data\CampBenefits.lua`, GPL-3.0-or-later (itself from Blizzard's spell data). Only the IDs are used.
