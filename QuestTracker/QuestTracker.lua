@@ -278,17 +278,113 @@ local function DifficultyColor(quest)
     return "|cff40c040"
 end
 
+-- Returns the shown objectives, the quest's progress (0-1), and which objectives (by the game's index)
+-- are finished.
 local function ReadObjectives(questID)
-    local list, fulfilled, required = {}, 0, 0
-    for _, objective in ipairs(C_QuestLog.GetQuestObjectives(questID) or {}) do
+    local list, fulfilled, required, done = {}, 0, 0, {}
+    for index, objective in ipairs(C_QuestLog.GetQuestObjectives(questID) or {}) do
         local text = Safe(objective.text)
+        local finished = Safe(objective.finished)
+        local have, need = Safe(objective.numFulfilled) or 0, Safe(objective.numRequired) or 0
+        -- Forever's criteria objectives can read 1/1 while the game still says unfinished: that's 0/1
+        -- (the same rule Questie uses). Only when "finished" is plainly false, never when it's hidden.
+        if finished == false and have == 1 and need == 1 then
+            have = 0
+            if text then
+                text = text:gsub("1%s*/%s*1", "0/1", 1)
+            end
+        end
+        done[index] = finished == true
         if text and text ~= "" then
-            local have, need = Safe(objective.numFulfilled) or 0, Safe(objective.numRequired) or 0
-            list[#list + 1] = { text = text, finished = Safe(objective.finished) and true or false, have = have }
+            list[#list + 1] = { text = text, finished = finished and true or false, have = have }
             fulfilled, required = fulfilled + math.min(have, need), required + need
         end
     end
-    return list, required > 0 and fulfilled / required or 0
+    return list, required > 0 and fulfilled / required or 0, done
+end
+
+-- When the game gives no distance (often on Forever), the nearest unfinished objective camp from
+-- LevelGuide's quest data, or the turn-in NPC once the quest is done. Read-only use of LevelGuide's
+-- public lookup (LevelGuideQuestFacts); nil without LevelGuide or on another continent.
+local campCache = {}
+local function PlayerSpot()
+    if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then
+        return nil
+    end
+    local mapID = Safe(C_Map.GetBestMapForUnit("player"))
+    local position = mapID and C_Map.GetPlayerMapPosition(mapID, "player")
+    if not position then
+        return nil
+    end
+    local x, y = position:GetXY()
+    x, y = Safe(x), Safe(y)
+    if type(x) == "number" and type(y) == "number" then
+        return mapID, x, y
+    end
+end
+
+-- The camp points (0-1 on mapID) still worth walking to for a quest. Kept per quest, map and progress.
+local function CampPoints(quest, done, mapID)
+    local facts = LevelGuideQuestFacts
+    if type(facts) ~= "table" or type(facts.Quest) ~= "function" or type(facts.Project) ~= "function" then
+        return nil
+    end
+    local key = { mapID, quest.ready and "r" or "" }
+    for index = 1, #done do
+        key[#key + 1] = done[index] and "1" or "0"
+    end
+    key = table.concat(key, ",")
+    local cached = campCache[quest.id]
+    if cached and cached.key == key then
+        return cached.points
+    end
+    local points = {}
+    local function Add(map, x, y)
+        local px, py = facts.Project(map, x, y, mapID)
+        if type(px) == "number" and type(py) == "number" then
+            points[#points + 1] = { px / 100, py / 100 }
+        end
+    end
+    if quest.ready then
+        if type(facts.EnderSpot) == "function" then
+            local map, x, y = facts.EnderSpot(quest.id, mapID)
+            if map then
+                Add(map, x, y)
+            end
+        end
+    else
+        local q = facts.Quest(quest.id)
+        for index, objective in ipairs(q and q.objectives or {}) do
+            if not done[index] then
+                for _, spot in ipairs(objective.spots or {}) do
+                    Add(spot.map, spot.x, spot.y)
+                end
+            end
+        end
+    end
+    campCache[quest.id] = { key = key, points = points }
+    return points
+end
+
+local YardsBetween
+local function CampDistance(quest, done)
+    local mapID, px, py = PlayerSpot()
+    if not mapID then
+        return nil
+    end
+    local ok, points = pcall(CampPoints, quest, done, mapID)
+    if not ok or not points or #points == 0 then
+        return nil
+    end
+    -- The nearest point on the map first, then yards for that one only.
+    local best, bestSq
+    for _, point in ipairs(points) do
+        local sq = (point[1] - px) ^ 2 + (point[2] - py) ^ 2
+        if not bestSq or sq < bestSq then
+            best, bestSq = point, sq
+        end
+    end
+    return YardsBetween(mapID, px, py, best[1], best[2])
 end
 
 local function ObjectiveText(objective)
@@ -412,7 +508,8 @@ local function ReadQuest(info, zone)
     quest.ready = (Safe(C_QuestLog.IsComplete(questID)) or Safe(C_QuestLog.ReadyForTurnIn(questID))) and true or false
     quest.failed = C_QuestLog.IsFailed and Safe(C_QuestLog.IsFailed(questID)) or false
     quest.trivial = Safe(C_QuestLog.IsQuestTrivial(questID)) or false
-    quest.objectives, quest.progress = ReadObjectives(questID)
+    local done
+    quest.objectives, quest.progress, done = ReadObjectives(questID)
     quest.xp = RewardXP(questID)
     quest.money = GetQuestLogRewardMoney and Safe(GetQuestLogRewardMoney(questID)) or 0
     if C_QuestLog.IsOnMap then
@@ -424,6 +521,9 @@ local function ReadQuest(info, zone)
         if distanceSq and onContinent then
             quest.distance = math.sqrt(distanceSq)
         end
+    end
+    if not quest.distance then
+        quest.distance = CampDistance(quest, done)
     end
     -- Escort and delivery quests with a clock; the end time lets the row count down without rereading.
     if C_QuestLog.GetTimeAllowed and GetTime then
@@ -490,11 +590,17 @@ local function ReadQuests()
             end
         end
     end
+    -- Camp points only for quests still in the log.
+    for questID in pairs(campCache) do
+        if not seen[questID] then
+            campCache[questID] = nil
+        end
+    end
     return quests
 end
 
-local function YardsBetween(mapID, x1, y1, x2, y2)
-    if not (C_Map.GetWorldPosFromMapPos and CreateVector2D) then
+YardsBetween = function(mapID, x1, y1, x2, y2)
+    if not (C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then
         return nil
     end
     local _, first = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(x1, y1))
