@@ -958,9 +958,21 @@ The existing "+N% ready to turn in" banked-XP readout can compute that gap live.
   - **Valanaar**, hearth;
   - Thendal Grove (16622) and Thendal Cave (16673).
 - Quests start at 92460 "Coming of Age" and include ley-line objectives.
-- **Exits:**
-  - Alliance: boat to Darkshore. Then `13-15 Westfall` for non-Hunters, `14-16 Darkshore` for Hunters.
-  - Horde: Silverpine or Barrens.
+- **Exits** (re-checked 2026-11-09 against the v4.11.35 package from CurseForge, file 9514096; read only, never run):
+  - Alliance, every class: the zeppelin at Zephras Isle 65.8, 83.4 to Dalaran (Alterac Mountains, map 1416).
+    There, the Skyborne Portal completes "Welcome to Azeroth" (94947) and takes you to Stormwind.
+    Highlord Bolvar takes the turn-in and gives "Exploring the Alliance" (93963). Non-Hunters also get
+    "Journey to Sentinel Hill" (98021).
+  - Non-Hunters then go on to `13-15 Westfall`. Only Hunters take the Stormwind boat to Darkshore
+    (`14-16 Darkshore`), after a shopping stop in Stormwind.
+  - An earlier version of this note said every Alliance Skyborne takes the boat to Darkshore. That was wrong.
+  - Horde: the airship to Mulgore, then `12-14 Silverpine Forest` (non-Hunters) or `12-17 The Barrens` (Hunters).
+- **What LevelGuide uses from this** (facts only):
+  - Skyborne have their own plan entry: Zephras Isle, levels 1-13.
+  - Alliance Skyborne follow the Human chain from Westfall.
+  - Westfall has a way off the isle: the zeppelin spot.
+  - All routes are Alliance only (`LevelGuideRoutes.faction`), so Horde characters, Horde Skyborne included,
+    get no directions into Alliance zones.
 - Skyborne also gets race forks in the 11-20 guide, e.g. "Journey to Sentinel Hill" 98021 and the Druid "Great Windborne Cat Spirit" 98341/98404/98738.
 - A dungeon variant of the Skyborne guide exists too.
 

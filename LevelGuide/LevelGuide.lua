@@ -345,6 +345,29 @@ local function Now()
     return GetTime and GetTime() or 0
 end
 
+-- Whether the written routes and plan are for your faction (Routes.lua `faction`). When the game
+-- doesn't say, they are used as before.
+local function RoutesForYou()
+    local want = LevelGuideRoutes and LevelGuideRoutes.faction
+    local mine = want and UnitFactionGroup and Safe((UnitFactionGroup("player")))
+    return not (type(mine) == "string" and mine ~= want)
+end
+
+-- The plan entries that apply to you: race-only entries (Routes.lua PLAN `race`) for your race, then the rest.
+local function PlanEntries()
+    if not RoutesForYou() then
+        return {}
+    end
+    local race = UnitRace and Safe(select(2, UnitRace("player")))
+    local list = {}
+    for _, entry in ipairs(LevelGuideRoutes and LevelGuideRoutes.plan or {}) do
+        if not entry.race or entry.race == race then
+            list[#list + 1] = entry
+        end
+    end
+    return list
+end
+
 -- Whether an accept/turn-in event for this quest ID (or title) came in the last few seconds.
 local function Recent(list, key, seconds)
     local at = key ~= nil and GetTime and list[key]
@@ -2032,7 +2055,7 @@ local function PassedLegs(routes, byTitle)
 end
 
 function FindRoute(level, byTitle)
-    local chains = LevelGuideRoutes and LevelGuideRoutes.chains
+    local chains = RoutesForYou() and LevelGuideRoutes and LevelGuideRoutes.chains
     local race = UnitRace and Safe(select(2, UnitRace("player")))
     local all = chains and race and chains[race] or {}
     local passed = PassedLegs(all, byTitle)
@@ -2077,7 +2100,7 @@ end -- route choice helpers
 
 -- The plan's dungeon hint for your level, if any.
 local function PlanNote(level)
-    for _, entry in ipairs(LevelGuideRoutes and LevelGuideRoutes.plan or {}) do
+    for _, entry in ipairs(PlanEntries()) do
         if level >= entry.min and level < entry.max then
             return entry.note
         end
@@ -2356,7 +2379,7 @@ local function RouteSteps(level)
 end
 
 local function PlanFor(level)
-    for _, entry in ipairs(LevelGuideRoutes and LevelGuideRoutes.plan or {}) do
+    for _, entry in ipairs(PlanEntries()) do
         if level >= entry.min and level < entry.max then
             return entry
         end

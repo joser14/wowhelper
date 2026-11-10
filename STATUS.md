@@ -9,8 +9,15 @@ Start here when resuming.
   full WTF copy in `_forever_\WTF_Backup_20261109`. VoidSweep and VeritasUI_PriorityRotation were moved (user approved) to
   `_forever_\Interface\AddOns_Removed_20261109`.
 - Roll back: close WoW, delete the six bundle folders, move the backup folders back.
-- Tests: all 41 pass (`tests\runall.ps1`, after `npm install` in tests). Old tests that checked for chat output and
+- Tests: all pass (`tests\runall.ps1`, after `npm install` in tests). Old tests that checked for chat output and
   replaced window layouts, and one-off data-migration scripts, were removed on 2026-11-09 (see git history).
+- 2026-11-09, later:
+  - LevelGuide routes and the zone plan are Alliance only (`LevelGuideRoutes.faction`). Before this, Horde
+    characters and Skyborne were sent to Teldrassil, Dun Morogh or Elwynn.
+  - Skyborne now get a Zephras Isle plan entry for 1-13, the zeppelin way to Westfall, and the Human chain after
+    that (`tests\test_lg_faction.lua`).
+  - RestGuard no longer errors when the hearthstone cooldown API is missing.
+  - RestedXP v4.11.35 was re-checked. The correction to the Skyborne exit is in `research\rxp_forever_guides.md` 6.1.
 
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
@@ -48,6 +55,10 @@ Start here when resuming.
   with no argument); Shift pauses; a quest shared by a party member is not accepted; gray quests are skipped.
 
 ## Follow-ups
+- Horde routes and plan: RestedXP's free Forever guides cover Horde 1-22 (Durotar, Mulgore, Tirisfal, Barrens,
+  Silverpine) and could be a fact source, as the Alliance ones were.
+- Skyborne 1-13 on Zephras Isle has no step-by-step route yet, only the plan. Check in game that the zeppelin spot
+  (65.8, 83.4) and the map name "Zephras Isle" match.
 - Re-run the builds research after Blizzard's 2026-11-10 class tuning.
 - Tooltips: quest giver "Turn in" lines for quests you don't hold are noisy at busy NPCs; consider showing only held turn-ins.
 

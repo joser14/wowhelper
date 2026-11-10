@@ -3637,7 +3637,13 @@ do
 end
 
 -- Where to level at every stage, for when no detailed route covers you yet.
+-- An entry with `race` is only for that race (UnitRace's second return) and comes before the general ones.
 local PLAN = {
+    -- Skyborne start on Forever's Zephras Isle (uiMapID 2521). Exit for Alliance non-Hunters, from RestedXP's
+    -- free Skyborne guide (research\rxp_forever_guides.md 6.1, facts only): zeppelin to Dalaran, the Skyborne
+    -- Portal to Stormwind ("Welcome to Azeroth"), then Bolvar's "Journey to Sentinel Hill" to Westfall.
+    { min = 1, max = 13, race = "Skyborne", zones = { "Zephras Isle" }, hub = "Thendal Village, Shen'dar Village or Valanaar",
+      note = "At about 13 take the zeppelin to Dalaran, the Skyborne Portal to Stormwind, then Bolvar sends you to Westfall" },
     { min = 1, max = 11, zones = { "Teldrassil", "Dun Morogh", "Elwynn Forest" }, hub = "Your starting zone" },
     { min = 11, max = 16, zones = { "Darkshore", "Loch Modan", "Westfall" }, hub = "Auberdine, Thelsamar or Sentinel Hill", note = "Hall of Thanes (13-18) is under Ironforge" },
     { min = 16, max = 21, zones = { "Darkshore", "Westfall", "Redridge Mountains", "Loch Modan" }, hub = "Auberdine, Sentinel Hill or Lakeshire", note = "Wailing Caverns and The Deadmines suit 17-24" },
@@ -3676,12 +3682,19 @@ LOCH_MODAN_TRIP.ways = {
     Way("Stormwind City", "Deeprun Tram to Ironforge (Dwarven District)", 66.0, 34.0, "Unverified spot: check in game"),
     Way("Dun Morogh", "East gate to Loch Modan", 87.5, 48.8, "South Gate Pass, then Thelsamar"),
 }
+-- Skyborne leave Zephras Isle by zeppelin (65.8, 83.4, RestedXP's Skyborne guide), then the portal to Stormwind.
+WESTFALL.ways = {
+    Way("Zephras Isle", "Zeppelin to Dalaran", 65.8, 83.4, "Then the Skyborne Portal to Stormwind; Bolvar sends you on to Sentinel Hill"),
+}
 REDRIDGE_TRIP.ways = {
     Way("Darkshore", "Boat to Stormwind (Auberdine pier)", 30.7, 41.0, "Then east through Elwynn to Redridge"),
     Way("Elwynn Forest", "East road to Redridge (Three Corners)", 90.5, 71.5, "Approximate spot"),
 }
 
 LevelGuideRoutes = {
+    -- Every route and the plan are Alliance: a character of another faction gets neither, rather than
+    -- directions into the other faction's zones.
+    faction = "Alliance",
     chains = {
         -- Ordered by route min (an optional side trip may sit a few levels early, e.g. Stonetalon after
         -- Ashenvale): the guide takes the first route that fits your level. Order from research\routes_20_60.md
@@ -3699,3 +3712,5 @@ LevelGuideRoutes = {
     },
     plan = PLAN,
 }
+-- Alliance Skyborne reach Westfall from Zephras Isle at about 13 and go on as Humans do from there.
+LevelGuideRoutes.chains.Skyborne = LevelGuideRoutes.chains.Human

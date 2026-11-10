@@ -52,7 +52,14 @@ local function HearthstoneText()
     if carried == 0 then
         return "Hearthstone: bound to " .. place .. ", but it isn't in your bags"
     end
-    local start, duration = C_Container.GetItemCooldown(HEARTHSTONE)
+    local start, duration
+    if C_Container and C_Container.GetItemCooldown then
+        local ok
+        ok, start, duration = pcall(C_Container.GetItemCooldown, HEARTHSTONE)
+        if not ok then
+            start, duration = nil, nil
+        end
+    end
     start, duration = Safe(start), Safe(duration)
     if not (start and duration) then
         return "Hearthstone: " .. place
