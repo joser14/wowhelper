@@ -81,6 +81,13 @@ local function ShowStatus()
         else
             Print(string.format("Rested: %d%% of this level. That's full.", math.floor(percent)))
         end
+        -- In kills, from the kill XP LevelLog measures (when it's loaded and has seen a few kills).
+        if type(LevelLog_KillsToLevel) == "function" then
+            local ok, kills, restedKills = pcall(LevelLog_KillsToLevel)
+            if ok and type(kills) == "number" and type(restedKills) == "number" and restedKills > 0 then
+                Print(string.format("Rested covers about %d kill(s); about %d kill(s) to level.", restedKills, kills))
+            end
+        end
     end
     Print(HearthstoneText())
 end

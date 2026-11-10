@@ -114,7 +114,7 @@ local MAX_LEVEL = 60
 local GOLD, GRAY, GREEN, ORANGE, RED = "|cffffd100", "|cff999999", "|cff33ff33", "|cffffaa66", "|cffff6666"
 
 -- Most useful first; the panel shows these in this order.
-local STATUS_ORDER = { "RareWatch", "DeathNotes", "ItemAdvisor", "Builds", "TalentNudge", "TrainerNotes", "SpellReady", "QuestCheck", "Dungeons",
+local STATUS_ORDER = { "RareWatch", "DeathNotes", "LevelLog", "RestGuard", "ItemAdvisor", "Builds", "TalentNudge", "TrainerNotes", "SpellReady", "QuestCheck", "Dungeons",
     "DurabilityWatch", "BagCheck", "SupplyWatch", "ProfessionCap", "ProfessionGuide", "WeaponSkillWatch", "GoldGoal", "GoldGuide" }
 
 -- The sidebar groups, one per installed addon (see build.ps1), in the order they're shown.
@@ -1148,6 +1148,17 @@ local function ResolveSession(isInitialLogin, isReloadingUi)
     SaveSession()
 end
 
+-- Kills to level and kills the rested pool covers, from LevelLog's measured kill XP (nil without it).
+local function KillsToLevel()
+    if type(LevelLog_KillsToLevel) ~= "function" or ForeverHub_IsOff("LevelLog") then
+        return nil
+    end
+    local ok, kills, restedKills = pcall(LevelLog_KillsToLevel)
+    if ok and type(kills) == "number" then
+        return kills, tonumber(restedKills) or 0
+    end
+end
+
 -- The always-on panel: your rates at the top, then only what needs doing.
 local function RefreshStats()
     local now = GetTime()
@@ -1169,18 +1180,22 @@ local function RefreshStats()
         local rate = recentXP * 3600 / math.min(elapsed, XP_WINDOW_SECONDS)
         -- XP already earned in finished quests doesn't need grinding; only the rest is timed.
         local toGo = maxXP - xp - banked
+        local kills, restedKills = KillsToLevel()
+        local killsText = kills and kills > 0 and string.format("  |cff999999~%d kills|r", kills) or ""
         if banked > 0 and toGo <= 0 then
             statLines[2]:SetText("|cff33ff33Turn in to level up|r")
         elseif rate <= 0 then
-            statLines[2]:SetText("|cff999999Next level time appears once you earn XP|r")
+            statLines[2]:SetText(kills and string.format("About %d kills to level", kills)
+                or "|cff999999Next level time appears once you earn XP|r")
         elseif now - session.start < XP_WARMUP_SECONDS then
             statLines[2]:SetText(string.format("|cff999999Next level time: warming up (%ds)|r",
-                math.ceil(XP_WARMUP_SECONDS - (now - session.start))))
+                math.ceil(XP_WARMUP_SECONDS - (now - session.start))) .. killsText)
         else
-            statLines[2]:SetText(string.format("Next level in %s", FormatDuration(toGo * 3600 / rate)))
+            statLines[2]:SetText(string.format("Next level in %s", FormatDuration(toGo * 3600 / rate)) .. killsText)
         end
         local rested = Safe(GetXPExhaustion()) or 0
-        statLines[3]:SetText(rested > 0 and string.format("Rested %d%% of this level", math.floor(rested * 100 / maxXP)) or "|cff999999Not rested|r")
+        local restedText = restedKills and restedKills > 0 and string.format(" (~%d kills)", restedKills) or ""
+        statLines[3]:SetText(rested > 0 and string.format("Rested %d%% of this level%s", math.floor(rested * 100 / maxXP), restedText) or "|cff999999Not rested|r")
     else
         statLines[1]:SetText(level and string.format("Level %d", level) or "")
         statLines[2]:SetText("")
@@ -1679,7 +1694,7 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 for _, name in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "QUEST_LOG_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_MONEY",
     "SKILL_LINES_CHANGED", "TRAINER_UPDATE", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "UPDATE_INVENTORY_DURABILITY", "PLAYER_XP_UPDATE",
-    "TRAIT_CONFIG_UPDATED", "PLAYER_LOGOUT" }) do
+    "TRAIT_CONFIG_UPDATED", "PLAYER_TARGET_CHANGED", "PLAYER_LOGOUT" }) do
     events:RegisterEvent(name)
 end
 events:SetScript("OnEvent", function(_, event, ...)
