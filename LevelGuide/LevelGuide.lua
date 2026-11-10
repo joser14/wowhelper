@@ -3014,10 +3014,17 @@ local function RouteSteps(level)
     for _, trip in ipairs(TravelSteps(away)) do
         waiting[#waiting + 1] = trip
     end
+    -- Quests taken off the route are fitted into it (X.FitPending); one whose place on the route isn't
+    -- reached yet waits behind the route's steps.
+    X.FitPending(route, byTitle, level, zoneMap)
     for _, extra in ipairs(here) do
         if not known[extra.id] and not (extra.kind == "pickup" and known[extra.title]) then
             known[extra.id] = true
-            ready[#ready + 1] = extra
+            if X.ExtraWaits(extra, route, byTitle, level) then
+                waiting[#waiting + 1] = extra
+            else
+                ready[#ready + 1] = extra
+            end
         end
     end
     local playerX, playerY = PositionOn(zoneMap)
@@ -3110,6 +3117,11 @@ local function PutTimedFirst(list)
             and not Recent(recentTurnins, id, TURNIN_GRACE) then
             local failed = C_QuestLog.IsFailed and Safe(C_QuestLog.IsFailed(id))
             local ends = not failed and TimerEnds(id)
+            if failed then
+                -- Abandoned after failing, it simply goes back (no "lost" card).
+                X.failedSeen = X.failedSeen or {}
+                X.failedSeen[id] = true
+            end
             if failed or ends then
                 local step
                 for position = #list, 1, -1 do
@@ -3172,6 +3184,7 @@ local function BuildSteps()
     routed, activeRoute = RouteSteps(level)
     if routed then
         PutFocusFirst(routed, level)
+        X.PutLostFirst(routed)
         PutTimedFirst(routed)
         MarkLevelUp(routed)
         X.MarkHard(routed)
@@ -3294,7 +3307,12 @@ end
 local function UndoSkip()
     local last = table.remove(skipHistory)
     if last then
-        if last.routeKey and charData then
+        if last.keys and charData then
+            -- A quest skipped with its follow-ups (X.SkipQuest) comes back in one go.
+            for _, key in ipairs(last.keys) do
+                charData.skips[key] = nil
+            end
+        elseif last.routeKey and charData then
             charData.skips[last.routeKey] = nil
         elseif last.id then
             db.skipped[last.id] = nil
@@ -3314,6 +3332,303 @@ local function UndoAllSkips()
     skipHistory, skipNotice = {}, nil
     dirty = true
 end
+
+-- Lost and extra quests (research\guides_deep_re.md 1.5 and 12.10; our own code after Polestar's holdLost /
+-- SkipQuest and Leveldon's fitting of extra quests, both described there):
+-- * A route quest that leaves your log without a turn-in (QUEST_REMOVED, decided at the next rebuild so a
+--   turn-in event has had its say) is "lost": a card asks "go back or skip", and until you answer its
+--   pick-up comes first, so the arrow points at the giver. A failed quest you abandon just goes back.
+--   "Skip it" skips its steps and its follow-ups (later parts of the title, and pick-ups whose
+--   prerequisites need it), undone together by one right-click on the header. Taking it again answers too.
+-- * A quest you take that the route doesn't have is fitted 1 s later (its places arrive late): its work
+--   after the first upcoming stop within 250 yd of one of its QuestDB camps, its turn-in after the first stop
+--   from there within 80 yd of where it's handed in (Planner.Fit). Until the route gets there it waits
+--   behind the route's steps; if it fits nowhere it says "Not on your route". Saved per character until the
+--   quest leaves your log.
+do
+local function Clock()
+    return (time and Safe(time())) or Now()
+end
+
+-- The route (active first, then your race's chain) and index of the pick-up of this quest ID.
+function X.FindAccept(questID)
+    local race = UnitRace and Safe(select(2, UnitRace("player")))
+    local chains = LevelGuideRoutes and LevelGuideRoutes.chains
+    local routes = { activeRoute }
+    for _, route in ipairs(race and chains and chains[race] or {}) do
+        routes[#routes + 1] = route
+    end
+    for _, route in ipairs(routes) do
+        for index, step in ipairs(route and rawget(route, "steps") or {}) do
+            if step.t == "accept" and step.q and X.QuestIDFor(step, nil) == questID then
+                return route, index
+            end
+        end
+    end
+end
+
+function X.QuestRemoved(questID)
+    X.removed = X.removed or {}
+    X.removed[questID] = { failed = X.failedSeen and X.failedSeen[questID] }
+    if charData and charData.extras then
+        charData.extras[questID] = nil
+    end
+end
+
+function X.ResolveRemoved()
+    if not (X.removed and charData) then
+        return
+    end
+    for questID, info in pairs(X.removed) do
+        X.removed[questID] = nil
+        if not (Recent(recentTurnins, questID, TURNIN_GRACE) or Flagged(questID) or info.failed) then
+            local route, index = X.FindAccept(questID)
+            if route then
+                charData.lost = charData.lost or {}
+                charData.lost[questID] = { q = route.steps[index].q, part = route.steps[index].part, t = Clock() }
+            end
+        end
+    end
+end
+
+-- A quest accepted: no longer lost; off the route, to be fitted.
+function X.Accepted(questID)
+    if not charData then
+        return
+    end
+    if charData.lost then
+        charData.lost[questID] = nil
+    end
+    if not X.FindAccept(questID) then
+        local title = C_QuestLog.GetTitleForQuestID and Safe(C_QuestLog.GetTitleForQuestID(questID))
+        local onRoute = false
+        for _, step in ipairs(title and activeRoute and activeRoute.steps or {}) do
+            onRoute = onRoute or step.q == title or RealTitle(step.q or "") == title
+        end
+        if not onRoute then
+            X.pendingFit = X.pendingFit or {}
+            X.pendingFit[questID] = Now()
+        end
+    end
+end
+
+-- The first lost quest still waiting for an answer, if any.
+function X.Lost()
+    local questID, lost = next(charData and charData.lost or {})
+    if questID and lastByTitle then
+        for _, entry in pairs(lastByTitle) do
+            if entry.id == questID then
+                -- Taken again.
+                charData.lost[questID] = nil
+                return X.Lost()
+            end
+        end
+    end
+    return questID, lost
+end
+
+-- While a lost quest waits for an answer its pick-up goes first.
+function X.PutLostFirst(list)
+    local questID = X.Lost()
+    local route, index = questID and activeRoute and X.FindAccept(questID)
+    if not (route == activeRoute and index and lastByTitle) then
+        return
+    end
+    local key = RouteKey(route, index)
+    for position = #list, 1, -1 do
+        if list[position].routeKey == key then
+            table.remove(list, position)
+        end
+    end
+    local shown = RouteDisplay(route, index, route.steps[index], lastByTitle, lastZoneMap)
+    shown.detail = "You dropped it: go back for it or skip it (below). " .. (shown.detail or "")
+    table.insert(list, 1, shown)
+end
+
+-- Skips a quest's steps and its follow-ups on the route; returns how many follow-up quests went too.
+function X.SkipQuest(route, title, part)
+    local gone = { [title .. "#" .. (tonumber(part) or 1)] = true }
+    local goneIDs = {}
+    local followUps, changed = 0, true
+    local function Mark(step)
+        local key = step.q .. "#" .. (tonumber(step.part) or 1)
+        if not gone[key] then
+            gone[key], changed = true, true
+            followUps = followUps + 1
+        end
+        local id = X.QuestIDFor(step, nil)
+        if id then
+            goneIDs[id] = true
+        end
+    end
+    for _, step in ipairs(route.steps) do
+        if step.q and gone[step.q .. "#" .. (tonumber(step.part) or 1)] then
+            Mark(step)
+        end
+    end
+    while changed do
+        changed = false
+        for _, step in ipairs(route.steps) do
+            if step.t == "accept" and step.q and not gone[step.q .. "#" .. (tonumber(step.part) or 1)] then
+                local part_ = tonumber(step.part) or 1
+                local need = LevelGuidePrereqs and (LevelGuidePrereqs[step.q] or LevelGuidePrereqs[RealTitle(step.q)])
+                local blocked = part_ > 1 and gone[step.q .. "#" .. (part_ - 1)]
+                for _, id in ipairs(need and need.all or {}) do
+                    blocked = blocked or goneIDs[id]
+                end
+                if need and need.any and #need.any > 0 then
+                    local allGone = true
+                    for _, id in ipairs(need.any) do
+                        allGone = allGone and goneIDs[id]
+                    end
+                    blocked = blocked or allGone
+                end
+                if blocked then
+                    Mark(step)
+                end
+            end
+        end
+    end
+    local keys = {}
+    for index, step in ipairs(route.steps) do
+        local key = RouteKey(route, index)
+        if step.q and gone[step.q .. "#" .. (tonumber(step.part) or 1)] and not charData.skips[key] then
+            charData.skips[key] = true
+            keys[#keys + 1] = key
+        end
+    end
+    skipHistory[#skipHistory + 1] = { keys = keys }
+    return followUps
+end
+
+function X.AnswerLost(goBack)
+    local questID, lost = X.Lost()
+    if not questID then
+        return
+    end
+    charData.lost[questID] = nil
+    local route, index = X.FindAccept(questID)
+    if goBack then
+        if route == activeRoute and index then
+            focusKey = RouteKey(route, index)
+        end
+    elseif route then
+        local more = X.SkipQuest(route, lost.q, lost.part)
+        skipNotice = { text = string.format("Skipped %s%s. Right-click here to undo.", lost.q,
+            more > 0 and string.format(" and %d follow-up(s)", more) or ""), until_ = GetTime() + SKIP_NOTICE_SECONDS }
+    end
+    dirty = true
+end
+
+-- Fits quests accepted off the route (see above); run from RouteSteps while you're in the route's zone.
+function X.FitPending(route, byTitle, level, zoneMap)
+    local P = LevelGuidePlanner
+    for questID, at in pairs(X.pendingFit or {}) do
+        if Now() - at >= 1 and P and charData then
+            X.pendingFit[questID] = nil
+            local camps = X.Camps(questID, zoneMap)
+            if #camps > 0 then
+                local facts = LevelGuideQuestFacts
+                local ender
+                if facts and facts.EnderSpot then
+                    local map, x, y = facts.EnderSpot(questID, zoneMap)
+                    if map == zoneMap and x and y then
+                        ender = { x = x / 100, y = y / 100 }
+                    end
+                end
+                local points, keys = {}, {}
+                for index, step in ipairs(route.steps) do
+                    if #points >= P.FIT.lookAhead then
+                        break
+                    end
+                    if not step.side and not step.map and step.x and step.y and not RouteStepDone(route, index, step, byTitle, level) then
+                        points[#points + 1] = { x = step.x / 100, y = step.y / 100 }
+                        keys[#keys + 1] = RouteKey(route, index)
+                    end
+                end
+                local function Yards(a, b)
+                    local yards, isYards = Distance(zoneMap, a.x, a.y, b.x, b.y)
+                    return isYards and yards or nil
+                end
+                local doAfter, turnAfter = P.Fit(points, camps, ender, Yards)
+                charData.extras = charData.extras or {}
+                charData.extras[questID] = { fits = doAfter ~= nil, doAfter = doAfter and keys[doAfter],
+                    turnAfter = turnAfter and keys[turnAfter], t = Clock() }
+            end
+        end
+    end
+end
+
+-- Whether a quest from your log that the route doesn't have should wait behind the route's steps (its fit
+-- isn't reached yet); notes the reason in its detail.
+function X.ExtraWaits(extra, route, byTitle, level)
+    local fit = extra.id and charData and charData.extras and charData.extras[extra.id]
+    if not fit then
+        return false
+    end
+    if not fit.fits then
+        extra.detail = "Not on your route. " .. (extra.detail or "")
+        return false
+    end
+    local after = extra.kind == "turnin" and fit.turnAfter or (extra.kind == "work" and fit.doAfter)
+    if not after then
+        return false
+    end
+    for index, key in ipairs(RouteKeys(route)) do
+        if key == after then
+            local step = route.steps[index]
+            if RouteStepDone(route, index, step, byTitle, level) then
+                return false
+            end
+            extra.detail = "Fits your route after: " .. tostring(step.q or step.text) .. ". " .. (extra.detail or "")
+            return true
+        end
+    end
+    return false
+end
+
+-- The card: "You dropped X" with Go back / Skip it, under the guide window. Our own frame.
+function X.RenderLost()
+    local questID, lost = X.Lost()
+    local card = X.lostCard
+    if not card then
+        if not questID then
+            return
+        end
+        card = CreateFrame("Frame", "LevelGuideLostCard", frame, "BackdropTemplate")
+        card:SetSize(K.WIDTH, 52)
+        card:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -2)
+        if card.SetBackdrop then
+            card:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+            card:SetBackdropColor(0.12, 0.04, 0.04, 0.9)
+        end
+        local text = card:CreateFontString("LevelGuideLostCardText", "OVERLAY", "GameFontHighlightSmall")
+        text:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -8)
+        text:SetPoint("RIGHT", card, "RIGHT", -10, 0)
+        text:SetJustifyH("LEFT")
+        card.message = text
+        for _, spec in ipairs({ { "LevelGuideLostBack", "Go back", true, -96 }, { "LevelGuideLostSkip", "Skip it", false, -10 } }) do
+            local button = CreateFrame("Button", spec[1], card, "UIPanelButtonTemplate")
+            button:SetSize(80, 20)
+            button:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", spec[4], 6)
+            button:SetText(spec[2])
+            local goBack = spec[3]
+            button:SetScript("OnClick", function()
+                X.AnswerLost(goBack)
+                card:Hide()
+            end)
+        end
+        X.lostCard = card
+    end
+    if questID then
+        card.message:SetText(string.format("You dropped |cffffd100%s|r without turning it in. Go back for it, or skip it and what follows it?", tostring(lost.q)))
+        card:Show()
+    else
+        card:Hide()
+    end
+end
+end -- lost and extra quests
 
 -- The guide's own tooltip, so it never changes Blizzard's shared one.
 local tooltip
@@ -3990,10 +4305,12 @@ end -- route list window
 
 local function Rebuild()
     local mapID, playerX, playerY, later
+    X.ResolveRemoved()
     steps, mapID, playerX, playerY, later = BuildSteps()
     currentKey = StepKey(steps[1])
     X.WhileHere(steps)
     Render(mapID, playerX, playerY, later)
+    X.RenderLost()
     UpdateArrow()
     RefreshList()
 end
@@ -4285,6 +4602,15 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         charData.notOffered = charData.notOffered or {}  -- quest ID (or "title#part") -> "not offered" mark
         X.PruneOffers()
         Attempt(X.ServerStore)   -- server quest levels: starts over on a new client build
+        -- Lost quests and fitted extras (X.Lost, X.FitPending) are dropped after a week unanswered.
+        for _, list in ipairs({ charData.lost or {}, charData.extras or {} }) do
+            for questID, entry in pairs(list) do
+                local now = (time and Safe(time())) or Now()
+                if type(entry) ~= "table" or not entry.t or now - entry.t > 7 * 86400 or now < entry.t then
+                    list[questID] = nil
+                end
+            end
+        end
         -- Once: skips and visits saved under the old "Zone#index" keys move to stable keys, for every
         -- character on this account.
         if (db.stepKeys or 1) < 2 then
@@ -4381,6 +4707,8 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
     end
     if event == "QUEST_REMOVED" and questID then
         db.skipped[questID] = nil
+        -- Dropped without a turn-in? Decided at the next rebuild (X.ResolveRemoved).
+        X.QuestRemoved(questID)
         -- Picked up again later, a timed quest should warn again.
         timedWarned[questID], lowWarned[questID] = nil, nil
     elseif event == "QUEST_TURNED_IN" and questID then
@@ -4398,6 +4726,9 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
     elseif event == "QUEST_ACCEPTED" and questID then
         local title = C_QuestLog.GetTitleForQuestID and Safe(C_QuestLog.GetTitleForQuestID(questID))
         X.OffersAfterAccept(questID, title)
+        Attempt(function()
+            X.Accepted(questID)
+        end)
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         requestedMap = nil
     elseif event == "GOSSIP_SHOW" or event == "QUEST_GREETING" or event == "QUEST_DETAIL" then
