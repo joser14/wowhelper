@@ -3077,11 +3077,18 @@ function FindRoute(level, byTitle)
     -- Nothing to do here until you level: zones of the same levels (Ashenvale, Wetlands and Duskwood are
     -- all 20-30) have work for you now, so the next one in the chain that does comes before grinding.
     -- Before this, the guide stayed in the zone you stood in with nothing to show until its max level.
+    -- Where the chain forks (two or more such routes, up to 3 looked at), a card offers them (X.RouteFork).
+    local candidates = {}
     for _, route in ipairs(routes) do
         -- A zone more than a couple of levels above you waits, even when the ones before it are done.
-        if level <= route.max and level >= route.min - early and RouteHasWork(route, byTitle, level) then
-            return route, stuckHere
+        if #candidates < 3 and level <= route.max and level >= route.min - early and RouteHasWork(route, byTitle, level) then
+            candidates[#candidates + 1] = route
         end
+    end
+    if #candidates > 1 then
+        return X.RouteFork(candidates, byTitle, level) or candidates[1], stuckHere
+    elseif candidates[1] then
+        return candidates[1], stuckHere
     end
     if stuckHere then
         return stuckHere
@@ -3549,7 +3556,7 @@ local function BuildSteps()
     local routed
     sideSteps = {}
     X.projection = nil
-    X.groupAsk = nil
+    X.groupAsk, X.routeFork = nil, nil
     routed, activeRoute = RouteSteps(level)
     if routed then
         PutFocusFirst(routed, level)
@@ -4257,6 +4264,203 @@ function X.OpenSpotCard(step)
     card:Show()
 end
 end -- personal spots
+
+-- The route-choice card (research\guides_deep_re.md 12.17; our own code after the idea of Polestar's route
+-- ranking): where the chain forks (FindRoute: two or more next routes with work at your level and none in the
+-- zone you stand in), each is offered with its open quests, the XP of its turn-ins at your level, about how
+-- long the rest takes (Planner.RouteSeconds) and how far away it is (the travel planner). Until you pick, the
+-- best ranked is followed (Planner.RankRoutes); a pick is kept per character for that set of routes
+-- (charData.routeChoice). Worked out again at most every 30 s.
+do
+local REFRESH = 30
+
+local function RouteID(route)
+    return route.key or route.zone
+end
+
+local function Thousands(n)
+    local text = tostring(math.floor(n + 0.5))
+    while true do
+        local changed
+        text, changed = text:gsub("^(%d+)(%d%d%d)", "%1,%2")
+        if changed == 0 then
+            return text
+        end
+    end
+end
+
+local function Stats(route, byTitle, level, order)
+    local P = LevelGuidePlanner
+    local entry = { route = route, id = RouteID(route), order = order, quests = 0, xp = 0, kills = {}, stops = 0, yards = 0 }
+    local last, first, grey, rated = nil, nil, 0, 0
+    for index, step in ipairs(route.steps) do
+        -- Work and turn-ins of quests not taken yet count too (the guide calls them done only for now).
+        local open = not step.side and ClassMatches(step.cls) and not charData.skips[RouteKey(route, index)]
+            and (not RouteStepDone(route, index, step, byTitle, level)
+                or ((step.t == "do" or step.t == "turnin") and step.q and TurnedIn(step.q) < (tonumber(step.part) or 1)))
+        if open then
+            local id = step.q and X.QuestIDFor(step, byTitle)
+            if step.t == "accept" then
+                entry.quests, entry.stops = entry.quests + 1, entry.stops + 1
+            elseif step.t == "turnin" then
+                entry.stops = entry.stops + 1
+                local full = id and P.QuestXP(id)
+                if full then
+                    entry.xp = entry.xp + math.floor(full * P.Share(level, X.QuestLevel(id)) + 0.5)
+                end
+            elseif step.t == "do" and id then
+                for _, kill in ipairs(select(2, P.QuestXP(id))) do
+                    entry.kills[#entry.kills + 1] = kill
+                end
+            end
+            local q = id and X.QuestLevel(id)
+            if q and (step.t == "accept" or step.t == "turnin") then
+                rated = rated + 1
+                grey = grey + (P.Trivial(level, q) and 1 or 0)
+            end
+            if step.x and step.y and P.TravelYards then
+                local map, x, y = X.GoalOf(route, step, step.x, step.y)
+                local here = map and { map = map, x = x, y = y }
+                if here then
+                    first = first or here
+                    local yards = last and P.TravelYards(last, here)
+                    entry.yards = entry.yards + (yards or 0)
+                    last = here
+                end
+            end
+        end
+    end
+    entry.outleveled = rated > 0 and grey * 2 > rated
+    entry.seconds = P.RouteSeconds({ stops = entry.stops, kills = entry.kills, yards = entry.yards, level = level })
+    -- How far: the travel planner from where you stand to its first open stop.
+    local mapID, px, py = PlayerPosition()
+    if first and mapID and px and P.TravelPlan and LevelGuideTravel and LevelGuideTravel.frames[mapID] then
+        local plan = P.TravelPlan({ from = { map = mapID, x = px * 100, y = py * 100 }, to = first, level = level,
+            known = P.TravelKnown and P.TravelKnown(charData.flights) or nil })
+        entry.travel = plan and plan.total or nil
+    end
+    return entry
+end
+
+-- The route to follow at a fork: your pick, else the best ranked (and the card offers the choice).
+function X.RouteFork(candidates, byTitle, level)
+    local P = LevelGuidePlanner
+    if not (P and P.RankRoutes and charData) then
+        return nil
+    end
+    local ids = {}
+    for _, route in ipairs(candidates) do
+        ids[#ids + 1] = RouteID(route)
+    end
+    table.sort(ids)
+    local key = table.concat(ids, "+")
+    local pick = charData.routeChoice and charData.routeChoice[key]
+    for _, route in ipairs(candidates) do
+        if pick and RouteID(route) == pick then
+            return route
+        end
+    end
+    local cache = X.forkCache
+    if not (cache and cache.key == key and Now() - cache.at < REFRESH) then
+        local list = {}
+        for order, route in ipairs(candidates) do
+            list[#list + 1] = Stats(route, byTitle, level, order)
+        end
+        cache = { key = key, at = Now(), ranked = P.RankRoutes(list) }
+        X.forkCache = cache
+    end
+    X.routeFork = cache
+    return cache.ranked[1].route
+end
+
+local function Pick(entry)
+    if not (charData and X.routeFork) then
+        return
+    end
+    charData.routeChoice = charData.routeChoice or {}
+    charData.routeChoice[X.routeFork.key] = entry.id
+    X.routeFork, X.forkCache = nil, nil
+    dirty = true
+end
+
+local function Line(entry)
+    local route = entry.route
+    local time = entry.seconds >= 3600 and string.format("about %.1f h", entry.seconds / 3600)
+        or string.format("about %d min", math.max(1, math.floor(entry.seconds / 60 + 0.5)))
+    local away = entry.travel and entry.travel >= 60 and string.format(", %d min away", math.floor(entry.travel / 60 + 0.5)) or ""
+    return string.format("%s (%d-%d): %d quest%s, %s XP, %s%s%s", tostring(route.name or route.zone), route.min or 0, route.max or 0,
+        entry.quests, entry.quests == 1 and "" or "s", Thousands(entry.xp), time, away, entry.outleveled and " |cffff8040(mostly gray)|r" or "")
+end
+
+-- The card under the guide (under the other cards when they show). Our own frame.
+function X.RenderFork()
+    local fork = X.routeFork
+    local card = X.forkCard
+    if not card then
+        if not fork then
+            return
+        end
+        card = CreateFrame("Frame", "LevelGuideRouteCard", frame, "BackdropTemplate")
+        card:SetSize(K.WIDTH, 112)
+        if card.SetBackdrop then
+            card:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+            card:SetBackdropColor(0.03, 0.08, 0.04, 0.9)
+        end
+        local text = card:CreateFontString("LevelGuideRouteCardText", "OVERLAY", "GameFontNormalSmall")
+        text:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -8)
+        text:SetPoint("RIGHT", card, "RIGHT", -10, 0)
+        text:SetJustifyH("LEFT")
+        card.message = text
+        card.buttons = {}
+        for i = 1, 3 do
+            local button = CreateFrame("Button", "LevelGuideRouteChoice" .. i, card)
+            button:SetHeight(24)
+            button:SetPoint("TOPLEFT", card, "TOPLEFT", 8, -22 - (i - 1) * 28)
+            button:SetPoint("RIGHT", card, "RIGHT", -8, 0)
+            button:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+            button.label = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            button.label:SetPoint("LEFT", button, "LEFT", 4, 0)
+            button.label:SetPoint("RIGHT", button, "RIGHT", -4, 0)
+            button.label:SetJustifyH("LEFT")
+            button.label:SetWordWrap(true)
+            button:SetScript("OnClick", function(self)
+                if self.entry then
+                    Pick(self.entry)
+                    card:Hide()
+                end
+            end)
+            card.buttons[i] = button
+        end
+        X.forkCard = card
+    end
+    if not fork then
+        card:Hide()
+        return
+    end
+    card:ClearAllPoints()
+    local above = frame
+    for _, other in ipairs({ X.lostCard, X.groupCard }) do
+        if other and other:IsShown() then
+            above = other
+        end
+    end
+    card:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -2)
+    card.message:SetText("Where next? Pick a route (the first is followed until you do):")
+    for i, button in ipairs(card.buttons) do
+        local entry = fork.ranked[i]
+        button.entry = entry
+        if entry then
+            button.label:SetText((i == 1 and "|cff33ff33> |r" or "   ") .. Line(entry))
+            button:Show()
+        else
+            button:Hide()
+        end
+    end
+    card:SetHeight(26 + #fork.ranked * 28)
+    card:Show()
+end
+end -- route choice
 
 -- The guide's own tooltip, so it never changes Blizzard's shared one.
 local tooltip
@@ -5172,6 +5376,7 @@ local function Rebuild()
     Render(mapID, playerX, playerY, later)
     X.RenderLost()
     X.RenderGroup()
+    X.RenderFork()
     UpdateArrow()
     RefreshList()
 end

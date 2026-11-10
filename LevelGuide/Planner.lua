@@ -452,6 +452,40 @@ function P.KillsLeft(missing, rested, perKill)
     return max(1, ceil(max(missing - (rested or 0), missing / 2) / perKill))
 end
 
+-- ---- route choice (research\guides_deep_re.md 12.17; our own code after Polestar's rankRoutes idea) ---------
+
+-- About how long the rest of a route takes: 6 s talking per stop (pick-up or turn-in), (11 + 19(L-1)/59) s a
+-- kill, and the yards between its stops at 7 yd/s. opts = { stops, kills = { { n } }, yards, level }.
+function P.RouteSeconds(opts)
+    local level = opts.level or 1
+    local seconds = (opts.stops or 0) * 6 + (opts.yards or 0) / 7
+    local perKill = 11 + 19 * (level - 1) / 59
+    for _, kill in ipairs(opts.kills or {}) do
+        seconds = seconds + (kill.n or 0) * perKill
+    end
+    return seconds
+end
+
+-- Routes in the order to offer them: not out-levelled first, then the nearer (travel seconds in 60 s bands;
+-- unknown counts as near), then the chain's order. list = { { order, outleveled, travel } }; a new list.
+function P.RankRoutes(list)
+    local ranked = {}
+    for i, entry in ipairs(list) do
+        ranked[i] = entry
+    end
+    table.sort(ranked, function(a, b)
+        if (a.outleveled or false) ~= (b.outleveled or false) then
+            return not a.outleveled
+        end
+        local ba, bb = floor((a.travel or 0) / 60), floor((b.travel or 0) / 60)
+        if ba ~= bb then
+            return ba < bb
+        end
+        return (a.order or 0) < (b.order or 0)
+    end)
+    return ranked
+end
+
 -- ---- route edits (research\guides_deep_re.md 12.14) --------------------------------------------------------
 
 -- A step key's hash (djb2), so a route's key list is cheap to keep. KeyHash and the longest-common-subsequence
