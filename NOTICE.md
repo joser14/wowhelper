@@ -83,7 +83,10 @@ these sources:
   arrive / depart seconds at its stops, which it built from Blizzard's TaxiPathNode table and the CMaNGOS
   mangos-classic transport model, GPL-3.0, on CMaNGOS classic-db's measured periods). `LevelGuide\TravelPlan.lua`
   `P.BoatTimes` / `P.BoatLearn` follow its loop arithmetic (`Transport\Model.lua`) in our own code; the
-  departure is learned only from your own boardings, never shared.
+  departure is learned only from your own boardings, never shared. `LevelGuide\HostileTowns.lua` lists its Horde
+  flight-map nodes (`Data\Taxi.lua`, from Blizzard's TaxiNodes) that have no Alliance flight master within 400 yd,
+  and `TravelPlan.lua` follows its hazard rule (`Journey\Hazards.lua`: a 150 yd circle costing 6x, notes on the
+  leg) in our own code.
 - **MacQuest / SpeedLevel** (https://github.com/Methodologist, by Methodologist), GPL-3.0.
   `LevelGuide\TravelPlan.lua` `P.DeathSkip` uses its death-skip numbers (`tools\tricks.py`): 45 s plus 21 s per
   level above 10 for dying, the walk from the spirit healer, and the 75 s / 135 s thresholds up to level 20.

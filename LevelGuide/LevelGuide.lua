@@ -5517,6 +5517,15 @@ end
 X.RunSpeed = V.Speed
 V.boatSpeed = 12
 
+-- The plan's warnings (TravelPlan.lua: hostile towns, zones well above you), as ". A. B" or "".
+function V.Notes(plan)
+    local notes = plan and plan.notes
+    if not (notes and #notes > 0) then
+        return ""
+    end
+    return ". " .. COLOR_ALERT .. table.concat(notes, ". ") .. "|r"
+end
+
 -- This realm's learned ship departures (LevelGuideDB.boats[realm][ship] = { epoch, seen }), old ones dropped.
 function V.Anchors()
     if not db then
@@ -5620,7 +5629,8 @@ function X.ApplyTravel(list)
         S.shown, S.atDock = nil, nil
         return
     end
-    local level = Safe(UnitLevel("player")) or 1
+    -- Just levelled: the event's level, since UnitLevel can lag behind it (re_round3 rank 17).
+    local level = math.max(Safe(UnitLevel("player")) or 1, X.levelUpTo or 0)
     local hearth = V.Hearth()
     local knownCount = 0
     for _ in pairs(charData.flights or {}) do
@@ -5654,11 +5664,14 @@ function X.ApplyTravel(list)
                 step.mapID, step.x, step.y = mapID, x / 100, y / 100
             end
         end
+        if plan and step.mapID == mapID and V.Notes(plan) ~= "" then
+            step.detail = (step.detail and (step.detail .. ". ") or "") .. V.Notes(plan):sub(3)
+        end
         return
     end
     S.shown = leg
     local note = string.format("About %d min to %s", math.max(1, math.floor(plan.total / 60 + 0.5)),
-        tostring(T.names[goalMap] or "there"))
+        tostring(T.names[goalMap] or "there")) .. V.Notes(plan)
     V.Show(step, leg, leg.text, note, leg.kind ~= "hearth" and leg.from or nil)
     -- At a pier: once you move off it with the boat, the step holds "On the boat to ..." (above).
     local yards = (leg.kind == "boat" or leg.kind == "zeppelin") and P.TravelYards(here, leg.from)
@@ -6108,6 +6121,10 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         Attempt(function()
             X.Accepted(questID)
         end)
+    elseif event == "PLAYER_LEVEL_UP" then
+        -- The way is worked out again with the new level (the event's: UnitLevel can lag behind it).
+        X.levelUpTo = Safe(questID)
+        X.travelReplan = true
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         requestedMap = nil
         X.travelReplan = true   -- off a boat, through a portal, landed: the next leg

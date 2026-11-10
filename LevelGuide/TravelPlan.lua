@@ -233,7 +233,41 @@ local function Static()
     return static
 end
 
--- Seconds on foot from a to b, or nil when they aren't joined on foot.
+-- Hostile towns (HostileTowns.lua; research\re_round3.md rank 17, after Shortest Path Forever's hazards, GPL): the
+-- share of a straight walk inside 150 yd of one (a town your start or goal is in doesn't count), and their names.
+P.HOSTILE = { radius = 150, factor = 6 }
+local function Hostile(a, b, ctx)
+    local T = Data()
+    local share, names = 0, nil
+    local dx, dy = b.wx - a.wx, b.wy - a.wy
+    local len2 = dx * dx + dy * dy
+    local r = P.HOSTILE.radius
+    for i, town in ipairs(T.hostile or {}) do
+        if town.c == a.c and not ctx.exemptTowns[i] then
+            -- Where the segment enters and leaves the circle (t from 0 to 1).
+            local fx, fy = a.wx - town.x, a.wy - town.y
+            local t1, t2
+            if len2 > 0 then
+                local bq = 2 * (fx * dx + fy * dy)
+                local cq = fx * fx + fy * fy - r * r
+                local disc = bq * bq - 4 * len2 * cq
+                if disc > 0 then
+                    local root = sqrt(disc)
+                    t1, t2 = max(0, (-bq - root) / (2 * len2)), min(1, (-bq + root) / (2 * len2))
+                end
+            end
+            if t1 and t2 > t1 then
+                share = share + (t2 - t1)
+                names = names or {}
+                names[#names + 1] = town.name
+            end
+        end
+    end
+    return min(share, 1), names
+end
+
+-- Seconds on foot from a to b, or nil when they aren't joined on foot: the cost used to choose the way, and the
+-- real time (they differ only through hostile towns).
 local function Walk(a, b, ctx)
     if a.region ~= b.region or a.c ~= b.c then
         return nil
@@ -258,7 +292,34 @@ local function Walk(a, b, ctx)
             end
         end
     end
-    return d * C.winding / ctx.speed * mult + crossings * C.zoneSeconds
+    local real = d * C.winding / ctx.speed * mult + crossings * C.zoneSeconds
+    local share = Hostile(a, b, ctx)
+    return real * (1 + share * (P.HOSTILE.factor - 1)), real
+end
+
+-- What a walk passes that's worth knowing: hostile towns, and zones 4+ levels above you (not your start or goal).
+local function WalkNotes(a, b, ctx, notes, seen)
+    local T = Data()
+    local _, towns = Hostile(a, b, ctx)
+    for _, name in ipairs(towns or {}) do
+        local text = "Careful: hostile " .. name .. " on the way"
+        if not seen[text] then
+            seen[text] = true
+            notes[#notes + 1] = text
+        end
+    end
+    local dx, dy = b.wx - a.wx, b.wy - a.wy
+    for _, t in ipairs({ 0.25, 0.5, 0.75 }) do
+        local zone = P.TravelZoneAt(a.c, a.wx + dx * t, a.wy + dy * t)
+        local range = zone and T.levels[zone]
+        if zone and range and not ctx.exempt[zone] and P.TravelDanger(zone, ctx.level) > 1 then
+            local text = string.format("Crosses %s (%d-%d)", T.names[zone] or "?", range[1], range[2])
+            if not seen[text] then
+                seen[text] = true
+                notes[#notes + 1] = text
+            end
+        end
+    end
 end
 
 local walkCache = { key = nil, pairs = {} }
@@ -273,10 +334,14 @@ local function StaticWalk(a, b, ctx)
     end
     local cached = row[b.index]
     if cached == nil then
-        cached = Walk(a, b, ctx) or false
+        local cost, real = Walk(a, b, ctx)
+        cached = cost and { cost, real } or false
         row[b.index] = cached
     end
-    return cached or nil
+    if cached then
+        return cached[1], cached[2]
+    end
+    return nil
 end
 
 local function FlightSeconds(a, b, ctx)
@@ -337,8 +402,18 @@ local function Run(opts, withHearth)
     local level = opts.level or 1
     local speed = min(max(tonumber(opts.speed) or P.TRAVEL.speed, 4), 14)
     local exempt = { [start.map] = true, [goal.map] = true }
-    local ctx = { level = level, speed = speed, exempt = exempt, learned = opts.learned,
-        key = level .. ":" .. speed .. ":" .. start.map .. ":" .. goal.map }
+    -- A hostile town you start or end in can't be helped: it costs nothing extra.
+    local exemptTowns, sig = {}, {}
+    for i, town in ipairs(T.hostile or {}) do
+        for _, v in ipairs({ start, goal }) do
+            if town.c == v.c and sqrt((town.x - v.wx) ^ 2 + (town.y - v.wy) ^ 2) <= P.HOSTILE.radius then
+                exemptTowns[i] = true
+                sig[#sig + 1] = i
+            end
+        end
+    end
+    local ctx = { level = level, speed = speed, exempt = exempt, learned = opts.learned, exemptTowns = exemptTowns,
+        key = level .. ":" .. speed .. ":" .. start.map .. ":" .. goal.map .. ":" .. table.concat(sig, ",") }
     local known = opts.known or function() return false end
     local n = #list
     start.index, goal.index = n + 1, n + 2
@@ -382,13 +457,13 @@ local function Run(opts, withHearth)
         -- On foot to every other place, and to the goal.
         for _, v in ipairs(all) do
             if v ~= u and v ~= start and v ~= inn and not done[v.index] then
-                local seconds
+                local seconds, real
                 if u.kind ~= "start" and u.kind ~= "inn" and v.kind ~= "goal" then
-                    seconds = StaticWalk(u, v, ctx)
+                    seconds, real = StaticWalk(u, v, ctx)
                 else
-                    seconds = Walk(u, v, ctx)
+                    seconds, real = Walk(u, v, ctx)
                 end
-                Relax(u, v, seconds, { kind = "walk" })
+                Relax(u, v, seconds, { kind = "walk", real = real })
             end
         end
         -- Flights: only to a flight point you know; from one you don't, learn it first.
@@ -434,9 +509,15 @@ local function Run(opts, withHearth)
         table.insert(edges, 1, edge)
         at = edge.from
     end
-    local legs, usesHearth = {}, false
+    local legs, usesHearth, total, notes, seen = {}, false, 0, {}, {}
     for _, edge in ipairs(edges) do
         local last = legs[#legs]
+        -- The time shown is real; hostile towns only made the way cost more when choosing it.
+        edge.seconds = edge.real or edge.seconds
+        total = total + edge.seconds
+        if edge.kind == "walk" then
+            WalkNotes(edge.from, edge.to, ctx, notes, seen)
+        end
         if edge.kind == "fly" and last and last.kind == "fly" then
             last.to, last.toVertex = Point(edge.to), edge.to
             last.seconds = last.seconds + edge.seconds
@@ -455,7 +536,7 @@ local function Run(opts, withHearth)
     for _, leg in ipairs(legs) do
         leg.text = LegText(leg)
     end
-    return { legs = legs, total = dist[goal.index], usesHearth = usesHearth }
+    return { legs = legs, total = total, cost = dist[goal.index], notes = notes, usesHearth = usesHearth }
 end
 
 function P.TravelPlan(opts)
