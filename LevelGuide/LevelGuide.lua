@@ -2329,6 +2329,118 @@ function X.HubOrder(list, mapID)
 end
 end -- hub order
 
+-- Kills to level and pace (research\guides_deep_re.md 12.15; after Ding!'s Grind.lua, the formulas in
+-- Planner.KillBase / KillsLeft). Each XP gain (PLAYER_XP_UPDATE) is held 1.5 s: if a turn-in comes within
+-- 1.5 s either way (QUEST_TURNED_IN) it's the quest's, else it's a kill, kept as a share of a same-level mob's
+-- XP with the rested bonus taken out (over 3: a discovery, not kept). The last 30 per character
+-- (charData.killXP). XP per hour counts every gain over the last 15 minutes (at least a minute of them).
+do
+local WINDOW, KEEP, MAX_RATIO, PACE, PACE_MIN = 1.5, 30, 3, 900, 60
+
+local function Read()
+    local level, xp, maxXP = Safe(UnitLevel("player")), Safe(UnitXP("player")), MaxXP()
+    if not (type(level) == "number" and type(xp) == "number" and maxXP) then
+        return nil
+    end
+    local rested = GetXPExhaustion and Safe(GetXPExhaustion()) or 0
+    return { level = level, xp = xp, max = maxXP, rested = type(rested) == "number" and rested or 0 }
+end
+
+function X.OnXP()
+    local P = LevelGuidePlanner
+    local now = Read()
+    if not (P and P.KillBase and now) then
+        return
+    end
+    local before = X.xpLast
+    X.xpLast = now
+    if not before then
+        return
+    end
+    local gained
+    if now.level == before.level then
+        gained = now.xp - before.xp
+    elseif now.level == before.level + 1 then
+        gained = before.max - before.xp + now.xp
+    end
+    if not gained or gained <= 0 then
+        return
+    end
+    local t = Now()
+    X.gains = X.gains or {}
+    X.gains[#X.gains + 1] = { t = t, xp = gained }
+    if X.xpTurninAt and t - X.xpTurninAt <= WINDOW then
+        return
+    end
+    local base = P.KillBase(gained, now.rested > 0 and math.huge or before.rested)
+    local ratio = base / (5 * before.level + 45)
+    if ratio <= MAX_RATIO then
+        X.pendingKills = X.pendingKills or {}
+        X.pendingKills[#X.pendingKills + 1] = { t = t, ratio = ratio }
+    end
+end
+
+-- QUEST_TURNED_IN: XP within 1.5 s before it was the quest's.
+function X.OnXPTurnin()
+    local t = Now()
+    X.xpTurninAt = t
+    for i = #(X.pendingKills or {}), 1, -1 do
+        if t - X.pendingKills[i].t <= WINDOW then
+            table.remove(X.pendingKills, i)
+        end
+    end
+end
+
+-- Every frame while kills wait: those 1.5 s old are kept.
+function X.KillTick()
+    local list = X.pendingKills
+    if not (list and charData) then
+        return
+    end
+    local t = Now()
+    while list[1] and t - list[1].t > WINDOW do
+        local kill = table.remove(list, 1)
+        charData.killXP = charData.killXP or {}
+        local kept = charData.killXP
+        kept[#kept + 1] = math.floor(kill.ratio * 1000 + 0.5) / 1000
+        while #kept > KEEP do
+            table.remove(kept, 1)
+        end
+        dirty = true
+    end
+    if not list[1] then
+        X.pendingKills = nil
+    end
+end
+
+-- "About 7 kills to level 12  |  3200 XP/h", or nil at the top level or when XP can't be read.
+function X.KillsText()
+    local P = LevelGuidePlanner
+    local now = Read()
+    if not (P and P.KillsLeft and now) or now.level >= (P.MAX_LEVEL or 60) then
+        return nil
+    end
+    local ratio = P.Median(charData and charData.killXP) or 1
+    local perKill = math.max(1, math.floor((5 * now.level + 45) * ratio + 0.5))
+    local kills = P.KillsLeft(now.max - now.xp, now.rested, perKill)
+    local text = string.format("About %d kill%s to level %d", kills, kills == 1 and "" or "s", now.level + 1)
+    local t, total, oldest = Now(), 0, nil
+    local kept = {}
+    for _, gain in ipairs(X.gains or {}) do
+        if t - gain.t <= PACE then
+            kept[#kept + 1] = gain
+            total = total + gain.xp
+            oldest = oldest or gain.t
+        end
+    end
+    X.gains = kept
+    if oldest and t - oldest >= PACE_MIN then
+        text = text .. string.format("  |  %d XP/h", math.floor(total * 3600 / (t - oldest) + 0.5))
+    end
+    return text
+end
+end -- kills to level
+
 -- Target hysteresis (Polestar's currentGoal rule, research\guides_deep_re.md 1.7; our own code): the step the
 -- arrow points at stays while you fight, for 5 s after objective progress, and until another is more than
 -- 25% and more than 40 yd nearer (Planner.Switch), so two nearly equal stops don't take turns.
@@ -4270,6 +4382,11 @@ local function Render(mapID, playerX, playerY, later)
     local projection = X.projection
     local planLine = projection and projection.final and activeRoute and projection.route == activeRoute
         and string.format("%sRoute ends at about level %.1f|r", COLOR_DIM, math.floor(projection.final * 10) / 10)
+    -- Kills to level and XP per hour (X.KillsText).
+    local killsLine = X.KillsText()
+    if killsLine then
+        planLine = (planLine and (planLine .. COLOR_DIM .. "  |  |r") or "") .. COLOR_DIM .. killsLine .. "|r"
+    end
     if X.planText then
         X.planText:SetShown(planLine and not db.collapsed or false)
         if planLine and not db.collapsed then
@@ -4968,6 +5085,9 @@ local function OnUpdate(_, elapsed)
     if X.clock >= 60 then
         Attempt(X.ScanTick)
     end
+    if X.pendingKills then
+        Attempt(X.KillTick)
+    end
     -- A burst of quest events (looting, zoning) rebuilds once, not once per frame.
     if (dirty and sinceRoute >= DIRTY_SECONDS) or sinceRoute >= K.ROUTE_SECONDS then
         dirty, sinceRoute, sinceArrow = false, 0, 0
@@ -5233,6 +5353,7 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
             db.stepKeys = 2
         end
         Attempt(Build)
+        Attempt(X.OnXP)   -- where XP stands at login, so the first kill can be measured
         return
     end
     if not db then
@@ -5293,6 +5414,10 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         -- The log has loaded: placement may latch from now on (never from an empty log at login).
         X.logSeen = true
         Attempt(X.CheckProgress)
+    elseif event == "PLAYER_XP_UPDATE" then
+        Attempt(X.OnXP)   -- kills to level (X.KillsText)
+    elseif event == "QUEST_TURNED_IN" then
+        Attempt(X.OnXPTurnin)
     end
     if event == "QUEST_ACCEPTED" or event == "QUEST_TURNED_IN" then
         -- Grace entries only matter for seconds; old ones go so the tables stay small.

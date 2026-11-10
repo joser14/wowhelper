@@ -419,6 +419,39 @@ function P.Fit(points, camps, ender, yards)
     return doAfter, nil
 end
 
+-- ---- kills to level (research\guides_deep_re.md 12.15) -----------------------------------------------------
+
+function P.Median(list)
+    local sorted = {}
+    for i, v in ipairs(list or {}) do
+        sorted[i] = v
+    end
+    table.sort(sorted)
+    local n = #sorted
+    if n == 0 then
+        return nil
+    end
+    if n % 2 == 1 then
+        return sorted[(n + 1) / 2]
+    end
+    return (sorted[n / 2] + sorted[n / 2 + 1]) / 2
+end
+
+-- A kill's own XP without the rested bonus: rested, a kill gives twice its XP, the bonus never more than the
+-- kill's share nor more than the pool had (restedBefore: the pool before it, or math.huge when some is left
+-- after it). KillBase and KillsLeft are ported from Ding! (Core\Grind.lua, by moust4ki, GPL-3.0).
+function P.KillBase(gained, restedBefore)
+    return max(gained / 2, gained - (restedBefore or 0))
+end
+
+-- Kills to cover `missing` XP at perKill each, with `rested` XP in the pool (rested kills count double).
+function P.KillsLeft(missing, rested, perKill)
+    if not (missing and perKill and perKill > 0) or missing <= 0 then
+        return 0
+    end
+    return max(1, ceil(max(missing - (rested or 0), missing / 2) / perKill))
+end
+
 -- ---- route edits (research\guides_deep_re.md 12.14) --------------------------------------------------------
 
 -- A step key's hash (djb2), so a route's key list is cheap to keep. KeyHash and the longest-common-subsequence

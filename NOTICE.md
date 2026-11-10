@@ -57,7 +57,9 @@ these sources:
 
 - **Polestar** (https://github.com/fitzforge/polestar), Copyright (c) 2026 The Polestar authors, GPL-3.0-only.
   `LevelGuide\Planner.lua` ports its XP model (`addon\Polestar\Core\Levels.lua`: the level table, quest XP
-  share, grey level, zero-difference and mob XP formulas, and the route XP simulation), changed for LevelGuide.
+  share, grey level, zero-difference and mob XP formulas, and the route XP simulation), changed for LevelGuide,
+  and its step-key hash and longest-common-subsequence step matching (`Core\Engine.lua` `Own.hash`,
+  `Own.matchSteps`) for keeping progress across route edits.
   Because this code is GPL-3.0-only, the combined work is distributed under the GPL version 3 only.
   Other LevelGuide features (placement from the quest log, "not offered" marks, while-you're-here, arrow
   damping, spawn-camp circuit, server quest levels, lost quests, the travel planner in `LevelGuide\TravelPlan.lua`)
