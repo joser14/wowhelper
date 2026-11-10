@@ -419,6 +419,44 @@ function P.Fit(points, camps, ender, yards)
     return doAfter, nil
 end
 
+-- ---- objective text (research\guides_deep_re.md 12.13) -----------------------------------------------------
+
+-- The counts in an objective's text, for when the game keeps the numbers secret: the last "N/M" (so
+-- "Sanglier : 2/6 tués" works too), and the label with the counts taken out. Reading the last "N/M" is ported
+-- from Ding! (Core\Compat.lua textCount, https://www.curseforge.com/wow/addons/ding-xp-and-leveling-guide,
+-- by moust4ki, GPL-3.0); the label is ours. Returns have, need (numbers or nil), label (or nil).
+function P.ObjectiveCount(text)
+    if type(text) ~= "string" then
+        return nil, nil, nil
+    end
+    local have, need
+    for a, b in text:gmatch("(%d+)%s*/%s*(%d+)") do
+        have, need = a, b
+    end
+    local label = text:gsub("%d+%s*/%s*%d+", ""):gsub("^[%s:%-]+", ""):gsub("[%s:%-]+$", "")
+    return tonumber(have), tonumber(need), label ~= "" and label or nil
+end
+
+-- Which label a route's objective name means: the same text (any case), else the shortest label that holds
+-- it, else nil (after Polestar's objective matching, research\guides_deep_re.md 1.4; our own code).
+function P.MatchObjective(labels, name)
+    if type(name) ~= "string" then
+        return nil
+    end
+    local want = name:lower()
+    local best, bestLen
+    for i, label in pairs(labels) do
+        local low = type(label) == "string" and label:lower()
+        if low == want then
+            return i
+        end
+        if low and low:find(want, 1, true) and (not bestLen or #low < bestLen) then
+            best, bestLen = i, #low
+        end
+    end
+    return best
+end
+
 -- ---- exact order inside a hub (research\guides_deep_re.md 12.11; our own code) -----------------------------
 
 -- NPC stops within 10 yd of each other are one group (one walk). With at most 7 groups the shortest walk from

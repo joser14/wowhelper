@@ -63,6 +63,9 @@ these sources:
   damping, spawn-camp circuit, server quest levels, lost quests, the travel planner in `LevelGuide\TravelPlan.lua`)
   are our own code written after the ideas
   described in `research\guides_deep_re.md`.
+- **Ding!** (https://www.curseforge.com/wow/addons/ding-xp-and-leveling-guide), by moust4ki, GPL-3.0.
+  `LevelGuide\Planner.lua` ports two small pieces: reading the last "N/M" of an objective's text when the
+  game keeps its counts secret (`Core\Compat.lua`), and the rested-aware kills-left formula (`Core\Grind.lua`).
 - Web references for individual facts: wow4ever.quest, foreverchanges.pro, wowhead classic, warcraft.wiki.gg.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under

@@ -352,6 +352,34 @@ local function Now()
     return GetTime and GetTime() or 0
 end
 
+-- A quest's objectives, secret-safe (research\guides_deep_re.md 12.13): { text, label, finished, have, need }
+-- each. A count the game keeps secret comes from the last "N/M" of the text when the text is readable
+-- (Planner.ObjectiveCount), and "finished" from those counts when the game hides it too; what can't be read
+-- stays nil (unknown, never done). An empty list means the game hasn't told us yet.
+function X.Objectives(questID)
+    local list = {}
+    local P = LevelGuidePlanner
+    for i, objective in ipairs(questID and C_QuestLog.GetQuestObjectives(questID) or {}) do
+        local text = Safe(objective.text)
+        text = type(text) == "string" and text or nil
+        local finished, have, need = Safe(objective.finished), Safe(objective.numFulfilled), Safe(objective.numRequired)
+        local textHave, textNeed, label
+        if P and P.ObjectiveCount then
+            textHave, textNeed, label = P.ObjectiveCount(text)
+        end
+        have = type(have) == "number" and have or textHave
+        need = type(need) == "number" and need or textNeed
+        if finished == nil and have and need and need > 0 then
+            finished = have >= need
+        end
+        if finished ~= nil then
+            finished = finished and true or false
+        end
+        list[i] = { text = text, label = label or text, finished = finished, have = have, need = need }
+    end
+    return list
+end
+
 -- Whether the written routes and plan are for your faction (Routes.lua `faction`). When the game
 -- doesn't say, they are used as before.
 local function RoutesForYou()
@@ -587,9 +615,9 @@ local function ZoneName(mapID)
 end
 
 local function FirstUnfinished(questID)
-    for _, objective in ipairs(C_QuestLog.GetQuestObjectives(questID) or {}) do
-        local text = Safe(objective.text)
-        if text and text ~= "" and not Safe(objective.finished) then
+    for _, objective in ipairs(X.Objectives(questID)) do
+        local text = objective.text
+        if text and text ~= "" and not objective.finished then
             return text
         end
     end
@@ -1351,16 +1379,30 @@ do -- (a block, so its helpers don't count toward the file's 200-local limit)
 -- quest's own objective list; the step is done when those are finished, even if the rest isn't.
 -- With max (Routes.lua Count()), an objective counts as done once that many are fulfilled ("8 of 10
 -- here, the rest later").
+-- An objective named in the route (Obj("Nightsaber Boar")) is found by its label (Planner.MatchObjective);
+-- an index is taken as it is.
+local function ObjectiveAt(objectives, index)
+    if type(index) == "string" then
+        local P = LevelGuidePlanner
+        local labels = {}
+        for i, objective in ipairs(objectives) do
+            labels[i] = objective.label
+        end
+        index = P and P.MatchObjective and P.MatchObjective(labels, index)
+    end
+    return index and objectives[index] or nil
+end
+
 function ObjectivesDone(questID, obj, max)
     if not (questID and obj) then
         return false
     end
-    local objectives = C_QuestLog.GetQuestObjectives(questID) or {}
+    local objectives = X.Objectives(questID)
     local list = type(obj) == "table" and obj or { obj }
     for _, index in ipairs(list) do
-        local objective = objectives[index]
-        local fulfilled = objective and Safe(objective.numFulfilled)
-        if not (objective and (Safe(objective.finished) or (max and type(fulfilled) == "number" and fulfilled >= max))) then
+        local objective = ObjectiveAt(objectives, index)
+        local fulfilled = objective and objective.have
+        if not (objective and (objective.finished or (max and type(fulfilled) == "number" and fulfilled >= max))) then
             return false
         end
     end
@@ -1368,12 +1410,12 @@ function ObjectivesDone(questID, obj, max)
 end
 
 function ObjectiveText(questID, obj)
-    local objectives = questID and C_QuestLog.GetQuestObjectives(questID) or {}
+    local objectives = questID and X.Objectives(questID) or {}
     local texts = {}
     for _, index in ipairs(type(obj) == "table" and obj or { obj }) do
-        local objective = objectives[index]
-        local text = objective and Safe(objective.text)
-        if text and text ~= "" and not Safe(objective.finished) then
+        local objective = ObjectiveAt(objectives, index)
+        local text = objective and objective.text
+        if text and text ~= "" and not objective.finished then
             texts[#texts + 1] = text
         end
     end
@@ -1666,9 +1708,9 @@ do
 X.TRAVEL = { go = true, zone = true, hearth = true }
 
 local function HasProgress(questID)
-    for _, objective in ipairs(questID and C_QuestLog.GetQuestObjectives(questID) or {}) do
-        local fulfilled = Safe(objective.numFulfilled)
-        if Safe(objective.finished) or (type(fulfilled) == "number" and fulfilled > 0) then
+    for _, objective in ipairs(questID and X.Objectives(questID) or {}) do
+        local fulfilled = objective.have
+        if objective.finished or (type(fulfilled) == "number" and fulfilled > 0) then
             return true
         end
     end
@@ -2031,8 +2073,8 @@ end
 
 local function LeftToDo(questID)
     local need, left = 0, 0
-    for _, objective in ipairs(C_QuestLog.GetQuestObjectives(questID) or {}) do
-        local have, want = Safe(objective.numFulfilled), Safe(objective.numRequired)
+    for _, objective in ipairs(X.Objectives(questID)) do
+        local have, want = objective.have, objective.need
         if type(have) == "number" and type(want) == "number" and want > 0 then
             need, left = need + want, left + math.max(want - have, 0)
         end
@@ -2221,8 +2263,8 @@ function X.CheckProgress()
         local info = C_QuestLog.GetInfo(index)
         local id = info and Safe(info.questID)
         if id and not Safe(info.isHeader) then
-            for _, objective in ipairs(C_QuestLog.GetQuestObjectives(id) or {}) do
-                total = total + (tonumber(Safe(objective.numFulfilled)) or 0)
+            for _, objective in ipairs(X.Objectives(id)) do
+                total = total + (tonumber(objective.have) or 0)
             end
         end
     end
@@ -3892,10 +3934,10 @@ local function StepTooltip(owner, step)
     Tip():SetOwner(owner, "ANCHOR_LEFT")
     Tip():SetText(step.title, 1, 0.82, 0)
     if step.kind == "turnin" or step.kind == "work" then
-        for _, objective in ipairs(C_QuestLog.GetQuestObjectives(step.id) or {}) do
-            local text = Safe(objective.text)
+        for _, objective in ipairs(X.Objectives(step.id)) do
+            local text = objective.text
             if text then
-                if Safe(objective.finished) then
+                if objective.finished then
                     Tip():AddLine(text, 0.2, 1, 0.2)
                 else
                     Tip():AddLine(text, 1, 1, 1)

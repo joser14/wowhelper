@@ -35,7 +35,8 @@ local function Train(spells, name, npc, x, y, lvl, note) return { t = "train", t
 -- XP gate: grind until frac (0-1) into level `level`, with live progress; what follows waits behind it.
 local function XP(level, frac, note, x, y) return { t = "xp", text = string.format("%d%% into level %d", math.floor(frac * 100 + 0.5), level), level = level, frac = frac, note = note, x = x, y = y, lvl = level } end
 -- Modifiers, wrapped around any step:
--- Obj: a "do" step for some objectives only (index, or list of indexes, of the quest's objective list).
+-- Obj: a "do" step for some objectives only (index, or list of indexes, of the quest's objective list; an
+-- index may also be the objective's name, e.g. "Nightsaber Boar", matched to the game's label without counts).
 local function Obj(obj, step) step.obj = obj return step end
 -- Path: several points taken in order ({ {x, y}, ... }); x, y of the step stay the first point.
 local function Path(points, step) step.pts = points return step end
