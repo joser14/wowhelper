@@ -87,16 +87,35 @@ local function SlotRepairCost(slot)
     return type(cost) == "number" and cost >= 0 and cost or nil
 end
 
--- What repairing everything you wear costs, read anywhere. Falls back to the repair merchant's own
--- total while one is open. nil when neither can tell.
-local function RepairCost()
+-- Whether an equipped item is damaged (current below maximum durability).
+local function SlotDamaged(slot)
+    local current, maximum = GetInventoryItemDurability(slot)
+    current, maximum = Safe(current), Safe(maximum)
+    return current and maximum and maximum > 0 and current < maximum or false
+end
+
+-- Review 3b S4: the side panel asks for the cost on every refresh while gear is low, and each ask built 18
+-- item tooltips. repairCost isn't in this client's TooltipData docs, so it may never be there. Now the total
+-- is kept until durability, gear or a merchant window changes, and once a full pass over damaged gear finds
+-- no repairCost at all, the per-slot read is skipped for the rest of the session (merchant total only).
+local cachedCost, costDirty = nil, true
+local perSlotWorks -- nil until known; false once the client showed it has no per-item repair cost
+
+local function ComputeRepairCost()
     local total, any = 0, false
-    if C_TooltipInfo and C_TooltipInfo.GetInventoryItem then
+    if perSlotWorks ~= false and C_TooltipInfo and C_TooltipInfo.GetInventoryItem then
+        local damaged = false
         for slot = FIRST_SLOT, LAST_SLOT do
             local cost = SlotRepairCost(slot)
             if cost then
                 total, any = total + cost, true
             end
+            damaged = damaged or SlotDamaged(slot)
+        end
+        if any then
+            perSlotWorks = true
+        elseif damaged and perSlotWorks == nil then
+            perSlotWorks = false
         end
     end
     if any and total > 0 then
@@ -107,6 +126,15 @@ local function RepairCost()
         return merchantCost
     end
     return any and total or nil
+end
+
+-- What repairing everything you wear costs, read anywhere. Falls back to the repair merchant's own
+-- total while one is open. nil when neither can tell.
+local function RepairCost()
+    if costDirty then
+        cachedCost, costDirty = ComputeRepairCost(), false
+    end
+    return cachedCost
 end
 
 local function ShowRepairCost()
@@ -120,8 +148,14 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_ENTERING_WORLD")
 events:RegisterEvent("UPDATE_INVENTORY_DURABILITY")
 events:RegisterEvent("MERCHANT_SHOW")
+events:RegisterEvent("MERCHANT_CLOSED")
+events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 events:SetScript("OnEvent", function(_, event)
-    if event == "MERCHANT_SHOW" then
+    -- Anything here can change the repair bill.
+    costDirty = true
+    if event == "MERCHANT_CLOSED" or event == "PLAYER_EQUIPMENT_CHANGED" then
+        return
+    elseif event == "MERCHANT_SHOW" then
         if CanMerchantRepair() then
             ShowRepairCost()
         end
