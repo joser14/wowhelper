@@ -13,4 +13,5 @@ Routes.lua
 QuestXP.lua
 Travel.lua
 Planner.lua
+TravelPlan.lua
 LevelGuide.lua
