@@ -162,6 +162,23 @@ Start here when resuming.
   hunter ammo slot; curve-based item verdicts at low levels; Level log split for a quest that levels you.
 - Round 3 world (review3_quests_world.md): zone "Careful" pop-up entering a high zone; elite warning; QuestTracker 0/1
   for unfinished 1/1; map pin "Also here" and "on camps"; rare alert after combat and the seven Zephras rares.
+- Round 4 (re_round4.md items 5, 7, 9, 11, 16, 18, 19; tests `test_lg_deathspot`, `test_r4c_*`):
+  - LevelGuide: after a death outdoors, release and check the arrow points at the body even before the game
+    gives a corpse position; "Resurrect in N s" at the corpse matches the game's wait; the arrow's red/yellow/green
+    colours; the "Snd" button's arrival sound (SOUNDKIT.UI_MAP_WAYPOINT_SUPER_TRACK_ON) plays once per arrival.
+  - DeathNotes low-health/mana cue (`LowWarn.lua`): **check in game** that `UnitHealthPercent("player", true,
+    curve)` and `UnitPowerPercent("player", 0, false, curve)` accept a C_CurveUtil curve on 1.60.1, that the
+    percent the curve sees is 0-1 (if it is 0-100 the cue never shows), and that SetAlpha with the secret result
+    works in combat with no error. The red edge should appear under 35 % health, the drink icon under 20 % mana.
+  - Hub side panel line 5 "N % of the way to 60 - about N h at this pace"; LevelLogXPCurve fills with Forever's
+    real bar sizes (compare `/dump LevelLogXPCurve` with the Classic table).
+  - FoodCheck at a camp: the camp-object list and "skip, you have Blessing of Wisdom" lines (English buff names);
+    Strength of Earth's aura name on Forever; "Mana full in N s" after a fight and the drink advice (tooltip
+    "Restores N mana over S sec").
+  - MapPins: the world-map info line (zone under the cursor and its range, coordinates) sits inside the map at
+    every map size, and the four ZoneLevels ranges that differ from Leatrix Maps (re_round4.md 5.2); the minimap
+    edge arrow with /way and the guide target, with rotation on and off and a square minimap.
+  - RareWatch watch list: "watch <name>" learns the NPC ID on first sight; markers show the distance.
 
 Note: BagCheck, DurabilityWatch, ProfessionCap, QuestCheck and SupplyWatch still write to UIErrorsFrame, but only when
 the hub isn't loaded (it always is in the installed bundles).
