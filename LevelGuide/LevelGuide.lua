@@ -2341,6 +2341,47 @@ local function UtilityDetail(step, level)
     return step.note
 end
 
+-- Spawn camps for work steps (after Polestar's Spots, research\guides_deep_re.md 1.7 and 12.8; our own code):
+-- a "do" step of a quest with QuestDB camps on its zone map points at a camp instead of the written spot,
+-- chosen by Planner.PickCamp (nearest unchecked; a camp is checked once left, or after 7 s standing in it
+-- without progress or a fight; checks are forgotten after 300 s). Per step, for this session.
+do
+X.campState = {}
+
+-- Sets shown.campIndex / campCount / campRadius and returns the camp's x, y (map percent), or nil.
+function X.CampPoint(shown, step, byTitle, zoneMap)
+    local P = LevelGuidePlanner
+    if not (P and zoneMap and step.t == "do" and not step.map and not step.pts) then
+        return nil
+    end
+    local camps = X.Camps(X.QuestIDFor(step, byTitle), zoneMap, step.obj)
+    local scale = #camps > 0 and MapScale(zoneMap)
+    local px, py = PositionOn(zoneMap)
+    if not (scale and px and py) then
+        return nil
+    end
+    local distances = {}
+    for i, camp in ipairs(camps) do
+        distances[i] = Distance(zoneMap, px, py, camp.x, camp.y)
+    end
+    local key = shown.routeKey or step.q
+    local state = X.campState[key] or {}
+    X.campState[key] = state
+    local progressed = X.progressAt ~= nil and X.progressAt ~= state.seenProgress
+    state.seenProgress = X.progressAt
+    local fighting = UnitAffectingCombat and Safe(UnitAffectingCombat("player")) or false
+    local at = P.PickCamp(camps, distances, state, Now(),
+        { progressed = progressed, fighting = fighting, x = px * scale[1], y = py * scale[2] })
+    local camp = at and camps[at]
+    if not camp then
+        return nil
+    end
+    shown.campIndex, shown.campCount, shown.campRadius = at, #camps, camp.r
+    shown.detail = (shown.detail and (shown.detail .. " ") or "") .. string.format("(camp %d of %d)", at, #camps)
+    return camp.x * 100, camp.y * 100
+end
+end -- spawn camps
+
 local function RouteDisplay(route, index, step, byTitle, zoneMap)
     local entry = step.q and HeldPart(byTitle, step)
     local level = Safe(UnitLevel("player"))
@@ -2420,6 +2461,12 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
                     shown.morePoints[#shown.morePoints + 1] = { mapID = mapID, x = laterX, y = laterY, index = later }
                 end
             end
+        end
+    elseif step.t == "do" and entry then
+        -- A quest you hold with spawn camps on this map: the arrow takes them in a circuit.
+        local campX, campY = X.CampPoint(shown, step, byTitle, zoneMap)
+        if campX then
+            x, y = campX, campY
         end
     end
     shown.mapID, shown.x, shown.y = PlacePoint(step, zoneMap, x, y)
@@ -3264,13 +3311,21 @@ local function Paused(current)
     return current ~= nil and current.timerEnds ~= nil
 end
 
--- A quest's spawn camps on this map from QuestDB, as { x, y (0-1), r (yards), n }.
-function X.Camps(questID, zoneMap)
+-- A quest's spawn camps on this map from QuestDB, as { x, y (0-1), r (yards), n }; obj (an objective index
+-- or a list of them, Routes.lua Obj()) keeps only those objectives' camps.
+function X.Camps(questID, zoneMap, obj)
     local facts = LevelGuideQuestFacts
     local q = questID and facts and facts.Quest and facts.Quest(questID)
+    local only
+    if obj then
+        only = {}
+        for _, index in ipairs(type(obj) == "table" and obj or { obj }) do
+            only[index] = true
+        end
+    end
     local list = {}
-    for _, objective in ipairs(q and q.objectives or {}) do
-        for _, spot in ipairs(objective.spots or {}) do
+    for index, objective in ipairs(q and q.objectives or {}) do
+        for _, spot in ipairs((not only or only[index]) and objective.spots or {}) do
             if spot.map == zoneMap and spot.x and spot.y then
                 list[#list + 1] = { x = spot.x / 100, y = spot.y / 100, r = spot.r, n = spot.n }
             end
