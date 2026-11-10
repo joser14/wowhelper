@@ -264,9 +264,12 @@ local function ReadChoices()
                 count = ok and tonumber(Safe(amount)) or 1
             end
             local isUpgrade, reason = Upgrade(link)
+            -- ItemAdvisor couldn't score it (no stats, or stats it can't weigh: on-use trinkets and the like).
+            local unscored = not isUpgrade and type(reason) == "string"
+                and (reason:find("can't score", 1, true) or reason:find("No stats", 1, true)) and true or false
             choices[#choices + 1] = {
                 index = index, link = link, value = info.sellPrice * math.max(count, 1),
-                upgrade = isUpgrade, size = isUpgrade and UpgradeSize(reason) or 0,
+                upgrade = isUpgrade, size = isUpgrade and UpgradeSize(reason) or 0, unscored = unscored,
             }
         end
     end
@@ -285,7 +288,7 @@ local function PaintReward()
     if #choices < 2 then
         return
     end
-    local best, richest, tied
+    local best, richest, tied, unscored
     for _, choice in ipairs(choices) do
         if choice.upgrade and (not best or choice.size > best.size) then
             best = choice
@@ -295,8 +298,10 @@ local function PaintReward()
         elseif richest and choice.value == richest.value then
             tied = true
         end
+        unscored = unscored or choice.unscored
     end
-    if tied or richest == best then
+    -- Round 4 R15 (idea from Pawn): with a choice nobody could score, "Most gold" would be a bad hint.
+    if tied or unscored or richest == best then
         richest = nil
     end
     local buttons = RewardButtons()

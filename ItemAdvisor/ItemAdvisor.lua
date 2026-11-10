@@ -2066,6 +2066,12 @@ local function ReadRewardChoices()
     return choices, pending
 end
 
+-- True for a verdict that says the item couldn't be scored: no stats at all, or stats we can't weigh.
+local function RewardUnscored(verdict, reason)
+    return verdict == "CHECK" and type(reason) == "string"
+        and (reason:find("can't score", 1, true) or reason:find("No stats", 1, true)) and true or false
+end
+
 local function RefreshRewardMarks()
     HideRewardMarks()
     if not (rewardWindowOpen and charData) then
@@ -2075,7 +2081,7 @@ local function RefreshRewardMarks()
     if #choices < 2 then
         return
     end
-    local best, richest, tied
+    local best, richest, tied, unscored
     for _, choice in ipairs(choices) do
         if choice.gain and (not best or choice.gain > best.gain) then
             best = choice
@@ -2085,8 +2091,11 @@ local function RefreshRewardMarks()
         elseif richest and choice.value == richest.value then
             tied = true
         end
+        unscored = unscored or RewardUnscored(choice.verdict, choice.reason)
     end
-    if tied then
+    -- Round 4 R15 (idea from Pawn): a choice we can't score, such as an on-use trinket, may be worth more
+    -- than any vendor price, so "sells for the most" would be a bad hint.
+    if tied or unscored then
         richest = nil
     end
     for _, choice in ipairs(choices) do
