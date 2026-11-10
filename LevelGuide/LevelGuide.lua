@@ -1872,12 +1872,14 @@ function X.NearStart(route, index, place)
         place.near = false
         local start = route.steps[place.start]
         local zoneMap = start.x and start.y and not start.map and ZoneMap(route.zone)
-        local px, py
+        local px, py, sx, sy
         if zoneMap then
             px, py = PositionOn(zoneMap)
+            -- Where the start really is on the zone map ("Name, Darnassus" is on the city's map). Review 3.
+            sx, sy = select(2, X.PlacePoint(start, zoneMap, start.x, start.y))
         end
-        if px and py then
-            local yards, isYards = Distance(zoneMap, px, py, start.x / 100, start.y / 100)
+        if px and py and sx and sy then
+            local yards, isYards = Distance(zoneMap, px, py, sx, sy)
             place.near = isYards and yards <= K.NEAR_START_YARDS or false
         end
     end
@@ -2737,6 +2739,7 @@ local function PlacePoint(step, zoneMap, x, y)
     end
     return nil
 end
+X.PlacePoint = PlacePoint
 
 -- The text a utility step shows under its title, with live progress where there is any.
 local function UtilityDetail(step, level)
