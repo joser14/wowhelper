@@ -2140,6 +2140,113 @@ function X.CheckProgress()
     X.progressTotal = total
 end
 end -- target hysteresis
+
+-- Server quest levels (after DonData's Levels.lua, research\guides_deep_re.md 4.1 and 12.9; our own code):
+-- the levels Forever's server gives the route's quests can differ from QuestDB's. From 60 s after login,
+-- never in combat, one quest every 0.5 s: C_QuestLog.RequestLoadQuestByID, then on QUEST_DATA_LOAD_RESULT
+-- (or after 5 s) C_QuestLog.GetQuestDifficultyLevel. A level that differs from QuestDB's is kept account-wide
+-- (LevelGuideDB.serverLevels, reset on a new client build); each quest is asked once per build. A failed
+-- load means only "no answer", never that the quest is missing.
+do
+local START, EVERY, WAIT = 60, 0.5, 5
+local S = { tried = {}, queue = nil, last = 0 }
+
+local function Store()
+    if not db then
+        return nil
+    end
+    local version, build = nil, nil
+    if GetBuildInfo then
+        version, build = GetBuildInfo()
+    end
+    local key = tostring(Safe(version) or "?") .. "." .. tostring(Safe(build) or "?")
+    local store = db.serverLevels
+    if type(store) ~= "table" or store.build ~= key then
+        store = { build = key, levels = {}, checked = {} }
+        db.serverLevels = store
+    end
+    return store
+end
+X.ServerStore = Store
+
+function X.ServerLevel(id)
+    local store = db and db.serverLevels
+    return store and store.levels and store.levels[id] or nil
+end
+
+-- The route quests of your race's chain, in route order, once per session.
+local function Queue()
+    if S.queue then
+        return S.queue
+    end
+    local queue, seen = {}, {}
+    local race = UnitRace and Safe(select(2, UnitRace("player")))
+    local chains = LevelGuideRoutes and LevelGuideRoutes.chains
+    local ids = LevelGuideQuestIDs and LevelGuideQuestIDs.ids or {}
+    for _, route in ipairs(race and chains and chains[race] or {}) do
+        for _, step in ipairs(rawget(route, "steps") or {}) do
+            local list = step.q and (ids[step.q] or ids[RealTitle(step.q)])
+            local id = list and list[tonumber(step.part) or 1]
+            if id and not seen[id] then
+                seen[id] = true
+                queue[#queue + 1] = id
+            end
+        end
+    end
+    S.queue, S.next = queue, 1
+    return queue
+end
+
+local function Read(store, id)
+    local level = C_QuestLog.GetQuestDifficultyLevel and Safe(C_QuestLog.GetQuestDifficultyLevel(id))
+    if type(level) == "number" and level > 0 then
+        store.checked[id] = true
+        local facts = LevelGuideQuestFacts
+        local q = facts and facts.Quest and facts.Quest(id)
+        if level ~= (q and q.level) then
+            store.levels[id] = level
+        end
+    end
+end
+
+-- Called every frame (cheap until a step is due).
+function X.ScanTick()
+    if X.clock < START or X.clock - S.last < EVERY or not (C_QuestLog.RequestLoadQuestByID and db) then
+        return
+    end
+    S.last = X.clock
+    if (InCombatLockdown and Safe(InCombatLockdown())) or (UnitAffectingCombat and Safe(UnitAffectingCombat("player"))) then
+        return
+    end
+    local store = Store()
+    if S.pending then
+        if not S.pending.loaded and X.clock - S.pending.at < WAIT then
+            return
+        end
+        Read(store, S.pending.id)
+        S.pending = nil
+        return
+    end
+    local queue = Queue()
+    while S.next <= #queue do
+        local id = queue[S.next]
+        S.next = S.next + 1
+        if not (store.checked[id] or S.tried[id]) then
+            S.tried[id] = true
+            S.pending = { id = id, at = X.clock }
+            C_QuestLog.RequestLoadQuestByID(id)
+            return
+        end
+    end
+end
+
+-- QUEST_DATA_LOAD_RESULT: the answer for the quest asked about (success or not, it's read next tick).
+function X.ScanLoaded(questID)
+    if S.pending and S.pending.id == questID then
+        S.pending.loaded = true
+    end
+end
+end -- server quest levels
 -- Quest givers often offer the next quest only after an earlier one with them, so a pick-up waits
 -- while anything earlier on the route with that same person is still to do.
 local function RouteStepActionable(step, byTitle, level, busyNpcs)
@@ -3929,7 +4036,10 @@ end
 local function OnUpdate(_, elapsed)
     sinceArrow = sinceArrow + elapsed
     sinceRoute = sinceRoute + elapsed
-    X.clock = X.clock + elapsed   -- the arrow's own clock (damping, closing speed)
+    X.clock = X.clock + elapsed   -- the arrow's own clock (damping, closing speed), and the level scan's
+    if X.clock >= 60 then
+        Attempt(X.ScanTick)
+    end
     -- A burst of quest events (looting, zoning) rebuilds once, not once per frame.
     if (dirty and sinceRoute >= DIRTY_SECONDS) or sinceRoute >= K.ROUTE_SECONDS then
         dirty, sinceRoute, sinceArrow = false, 0, 0
@@ -4103,7 +4213,9 @@ for _, name in ipairs({ "PLAYER_LOGIN", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "Q
     "HEARTHSTONE_BOUND", "TAXIMAP_OPENED", "UI_INFO_MESSAGE", "BAG_UPDATE_DELAYED", "SPELLS_CHANGED",
     "LEARNED_SPELL_IN_SKILL_LINE", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST",
     -- Vendor and class-trainer side steps: only which window opened is read, nothing is bought or trained.
-    "MERCHANT_SHOW", "MERCHANT_CLOSED", "TRAINER_SHOW" }) do
+    "MERCHANT_SHOW", "MERCHANT_CLOSED", "TRAINER_SHOW",
+    -- The slow scan of server quest levels (X.ScanTick).
+    "QUEST_DATA_LOAD_RESULT" }) do
     -- Events this client doesn't have are left out rather than stopping the addon.
     if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid(name) then
         pcall(events.RegisterEvent, events, name)
@@ -4172,6 +4284,7 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         charData.flights = charData.flights or {}  -- flight node name -> known
         charData.notOffered = charData.notOffered or {}  -- quest ID (or "title#part") -> "not offered" mark
         X.PruneOffers()
+        Attempt(X.ServerStore)   -- server quest levels: starts over on a new client build
         -- Once: skips and visits saved under the old "Zone#index" keys move to stable keys, for every
         -- character on this account.
         if (db.stepKeys or 1) < 2 then
@@ -4188,7 +4301,10 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
     if not db then
         return
     end
-    if event == "UI_INFO_MESSAGE" then
+    if event == "QUEST_DATA_LOAD_RESULT" then
+        X.ScanLoaded(Safe(questID))
+        return
+    elseif event == "UI_INFO_MESSAGE" then
         -- Fires for every on-screen info line; only "new flight path" matters.
         local message = Safe(extra)
         if message and ERR_NEWTAXIPATH and message == ERR_NEWTAXIPATH then
