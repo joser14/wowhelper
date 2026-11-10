@@ -107,6 +107,9 @@ these sources:
         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
         SOFTWARE.
 
+- `BagCheck\BagCheck.lua`: the junk-value rules follow Tweaks Forever (`Bags\Junk.lua`, GPL-3.0-or-later) and
+  the "what to drop when bags are full" exclusions follow OneForAll - Forever (`QoL.lua`, GPL-3.0-or-later);
+  written in our own code, hint only (nothing is deleted).
 - Ideas only, no code: MapPins' pin spacing and minimap fade and QuestTracker's "1/1 but unfinished counts as
   0/1" rule follow behaviour described in Questie; DeathNotes' "risky / very risky" fight wording follows
   Quest Triage (GPL-3.0).

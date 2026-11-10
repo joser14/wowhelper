@@ -204,7 +204,7 @@ local TABS = {
     { label = "Auto quest", key = "AUTOQUEST", helper = "AutoQuest",
         hint = "Type: accept off   Or: handin off   Or: gray on   Or: pause ctrl   Or: ignore   Or: unignore 1" },
     { label = "Bag advice", key = "ITEMADVISOR", helper = "ItemAdvisor", hint = "To change what stats to favor, type: role healer" },
-    { label = "Bag space", key = "BAGCHECK", helper = "BagCheck" },
+    { label = "Bag space", key = "BAGCHECK", helper = "BagCheck", hint = "keep <item>: never suggest dropping it.   forget <item>: suggest it again" },
     { label = "Find an item", key = "ITEMFINDER", helper = "ItemFinder", hint = "Type part of an item name and press Enter", emptyHint = "Search your bags, bank, and gear on every character.", search = true },
     { label = "Food and drink", key = "FOODCHECK", helper = "FoodCheck" },
     { label = "Supplies", key = "SUPPLYWATCH", helper = "SupplyWatch", hint = "Item in your bags and how many: Water 20   Or: remove 1   Or: ammo 400", supplies = true },
