@@ -78,6 +78,12 @@ these sources:
 - **Ding!** (https://www.curseforge.com/wow/addons/ding-xp-and-leveling-guide), by moust4ki, GPL-3.0.
   `LevelGuide\Planner.lua` ports two small pieces: reading the last "N/M" of an objective's text when the
   game keeps its counts secret (`Core\Compat.lua`), and the rested-aware kills-left formula (`Core\Grind.lua`).
+- **MacQuest / SpeedLevel** (https://github.com/Methodologist, by Methodologist), GPL-3.0.
+  `LevelGuide\TravelPlan.lua` `P.DeathSkip` uses its death-skip numbers (`tools\tricks.py`): 45 s plus 21 s per
+  level above 10 for dying, the walk from the spirit healer, and the 75 s / 135 s thresholds up to level 20.
+- `tools\audit_questie.js` reads a local QuestieDB checkout as text to find gaps in our quest data and prints
+  them; nothing from QuestieDB is copied into the addons. `LevelGuide\QuestRules.lua` is our own code; its
+  exclusive groups are worked out from forever-db's own "one of" prerequisites (QuestDB.lua).
 - Web references for individual facts: wow4ever.quest, foreverchanges.pro, wowhead classic, warcraft.wiki.gg.
 - `RareWatch\RareWatch.lua` lists seven Zephras Isle rares (NPC ID, name, level, rare/rare-elite, one spawn
   spot). Each NPC ID, name and zone was checked by us on wowhead.com/forever, and the level, class and spot read

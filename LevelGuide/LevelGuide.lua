@@ -4567,7 +4567,7 @@ local QUEST_MOUNTS = { PALADIN = true, WARLOCK = true }
 
 local function DeathHint(level)
     local P, step = LevelGuidePlanner, steps[1]
-    if not (P and P.DeathSkip and step and level < 10) or step.corpse then
+    if not (P and P.DeathSkip and step and level <= 20) or step.corpse then
         return nil
     end
     if (UnitIsGhost and Safe(UnitIsGhost("player"))) or (UnitIsDeadOrGhost and Safe(UnitIsDeadOrGhost("player"))) then
@@ -4584,9 +4584,52 @@ local function DeathHint(level)
     if not (goal and mapID and px and py) then
         return nil
     end
-    local healer = P.DeathSkip({ map = mapID, x = px * 100, y = py * 100 }, goal)
+    local healer, saved = P.DeathSkip({ map = mapID, x = px * 100, y = py * 100 }, goal, level, X.RunSpeed and X.RunSpeed())
     if healer then
-        return "|cffccccffFaster: die and come back at the spirit healer by the next stop (no resurrection sickness below 10; not on Hardcore).|r"
+        local howMuch = saved >= 90 and string.format("about %d min", math.floor(saved / 60 + 0.5))
+            or string.format("about %d s", math.floor(saved))
+        return string.format("|cffccccffFaster: die and come back at the spirit healer by the next stop, saves %s (%s; not on Hardcore).|r",
+            howMuch, level <= 10 and "no resurrection sickness up to 10" or "counting resurrection sickness")
+    end
+end
+
+-- Dead or a ghost: how far the nearest spirit healer is from your body (Travel.lua's healers, and the game's own
+-- graveyards for the map when it lists any).
+local function HealerHint()
+    local P = LevelGuidePlanner
+    local dead = UnitIsDeadOrGhost and Safe(UnitIsDeadOrGhost("player"))
+    if not (P and P.NearestHealer and dead) then
+        return nil
+    end
+    local body
+    local corpse = X.CorpseTarget and X.CorpseTarget()
+    if corpse then
+        body = { map = corpse.mapID, x = corpse.x * 100, y = corpse.y * 100 }
+    elseif not (UnitIsGhost and Safe(UnitIsGhost("player"))) then
+        local mapID, px, py = PlayerPosition()
+        body = mapID and px and py and { map = mapID, x = px * 100, y = py * 100 } or nil
+    end
+    if not body then
+        return nil
+    end
+    local extra = {}
+    if C_DeathInfo and C_DeathInfo.GetGraveyardsForMap then
+        local ok, list = pcall(C_DeathInfo.GetGraveyardsForMap, body.map)
+        for _, info in ipairs(ok and type(list) == "table" and list or {}) do
+            local pos = info.position
+            local x, y
+            if pos and pos.GetXY then
+                x, y = pos:GetXY()
+            end
+            x, y = Safe(x), Safe(y)
+            if x and y then
+                extra[#extra + 1] = { map = body.map, x = x * 100, y = y * 100 }
+            end
+        end
+    end
+    local _, yards = P.NearestHealer(body, extra)
+    if yards then
+        return string.format("|cffccccffSpirit healer about %d yd from your body.|r", math.floor(yards + 0.5))
     end
 end
 
@@ -4614,7 +4657,7 @@ function X.HintParts()
     if type(level) ~= "number" then
         return parts
     end
-    for _, hint in ipairs({ DeathHint(level) or false, RidingHint(level) or false }) do
+    for _, hint in ipairs({ HealerHint() or false, DeathHint(level) or false, RidingHint(level) or false }) do
         if hint then
             parts[#parts + 1] = hint
         end
@@ -4979,7 +5022,8 @@ local function CorpseTarget()
         return nil
     end
     local mapID = PlayerPosition()
-    for _ = 1, 2 do
+    -- Up to the continent (you may have released into the next zone).
+    for _ = 1, 4 do
         if not mapID then
             return nil
         end
@@ -4992,12 +5036,16 @@ local function CorpseTarget()
             end
         end
         local info = C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
-        mapID = info and Safe(info.parentMapID)
+        if not info or (Safe(info.mapType) or 9) <= 2 then
+            return nil
+        end
+        mapID = Safe(info.parentMapID)
         if mapID == 0 then
             mapID = nil
         end
     end
 end
+X.CorpseTarget = CorpseTarget
 
 -- Points the arrow from you to the current step. Facing and bearing both count counterclockwise from north.
 local function UpdateArrow()
@@ -5077,6 +5125,11 @@ local function UpdateArrow()
     end
     -- ETA from how fast you're closing in (shown only above 1.5 yd/s).
     local eta = P and isYards and P.ETA(yards, P.Closing(state.closing, yards, dt))
+    -- A ghost: the time to the body at run speed, also while standing still (re_round3 rank 10).
+    if not eta and step.corpse and isYards and X.RunSpeed then
+        local speed = X.RunSpeed()
+        eta = speed and yards / speed or nil
+    end
     local etaText = eta and eta < 6000 and string.format("  %d:%02d", math.floor(eta / 60), math.floor(eta % 60)) or ""
     yardsText:SetText(isYards and (string.format(step.corpse and "Corpse %d yd" or "%d yd", math.floor(yards)) .. etaText)
         or (step.corpse and "Corpse" or ""))
@@ -5418,6 +5471,7 @@ function V.Speed()
     run = Safe(run)
     return type(run) == "number" and run > 0 and run or nil
 end
+X.RunSpeed = V.Speed
 
 -- Puts a leg on the step: its words, the arrow on its spot (none for the hearthstone or in the air).
 function V.Show(step, leg, title, note, point)

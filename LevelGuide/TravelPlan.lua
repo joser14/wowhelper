@@ -425,31 +425,53 @@ function P.TravelInn(bindName)
     end
 end
 
--- The death skip (research\guides_deep_re.md 12.18, our own code after Leveldon's rule): dying sends you to
--- the spirit healer nearest to you; worth it when that healer stands within 300 yd of where you're going and
--- saves 300 yd or more of walking. Returns that healer ({ map, x, y }) and the yards saved, or nil.
-P.DEATH = { nearGoal = 300, minSave = 300 }
-function P.DeathSkip(here, goal)
+-- The spirit healer nearest to a point on the same land (not across the sea, nor Teldrassil's top for
+-- Rut'theran): Travel.lua's healers plus any extra { map, x, y[, name] } given. Returns it and the yards, or nil.
+function P.NearestHealer(here, extra)
     local T = Data()
-    if not (T and T.healers and here and goal) then
+    if not (T and here) then
+        return nil
+    end
+    local region = T.Region and T.Region(here.map, here.x, here.y)
+    local nearest, nearestYards
+    for _, list in ipairs({ extra or {}, T.healers or {} }) do
+        for _, healer in ipairs(list) do
+            local yards = (not T.Region or T.Region(healer.map, healer.x, healer.y) == region) and P.TravelYards(here, healer)
+            if yards and (not nearestYards or yards < nearestYards) then
+                nearest, nearestYards = healer, yards
+            end
+        end
+    end
+    return nearest, nearestYards
+end
+
+-- The death skip (research\re_round3.md rank 10). The seconds are MacQuest's (SpeedLevel by Methodologist,
+-- tools\tricks.py, GPL-3.0, NOTICE.md): dying costs 45 s plus 21 s per level above 10 (resurrection sickness),
+-- plus the walk from the spirit healer you come back at (the nearest to you) to where you're going; it's worth
+-- it only when that saves at least 75 s up to level 10, or 135 s from 11 to 20; never above 20. Walking is
+-- yards x 1.25 / speed (7 yd/s unless given). Returns that healer ({ map, x, y }) and the seconds saved, or nil.
+P.DEATH = { maxLevel = 20, base = 45, perLevel = 21, freeLevel = 10, saveLow = 75, saveHigh = 135 }
+function P.DeathSkip(here, goal, level, speed)
+    local D, C = P.DEATH, P.TRAVEL
+    level = level or 1
+    if level > D.maxLevel or not (here and goal) then
         return nil
     end
     local direct = P.TravelYards(here, goal)
     if not direct then
         return nil
     end
-    -- Only healers on the same land (not across the sea, nor Teldrassil's top for Rut'theran).
-    local region = T.Region and T.Region(here.map, here.x, here.y)
-    local nearest, nearestYards
-    for _, healer in ipairs(T.healers) do
-        local yards = (not T.Region or T.Region(healer.map, healer.x, healer.y) == region) and P.TravelYards(here, healer)
-        if yards and (not nearestYards or yards < nearestYards) then
-            nearest, nearestYards = healer, yards
-        end
+    local healer = P.NearestHealer(here)
+    local after = healer and P.TravelYards(healer, goal)
+    if not after then
+        return nil
     end
-    local after = nearest and P.TravelYards(nearest, goal)
-    if after and after <= P.DEATH.nearGoal and direct - after >= P.DEATH.minSave then
-        return nearest, direct - after
+    speed = min(max(tonumber(speed) or C.speed, 4), 14)
+    local walk = function(yards) return yards * C.winding / speed end
+    local cost = D.base + D.perLevel * max(0, level - D.freeLevel) + walk(after)
+    local saved = walk(direct) - cost
+    if saved >= (level <= D.freeLevel and D.saveLow or D.saveHigh) then
+        return healer, saved
     end
     return nil
 end
