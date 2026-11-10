@@ -206,6 +206,17 @@ local DATA_TICK = 1         -- data changes are looked at no more than once a se
 local MAX_DEATHS = 30       -- the newest deaths only; older ones crowd the map
 local FARM_LEVELS = 3       -- farms within this many levels of their range
 local WORLD_SIZE, MINIMAP_SIZE = 16, 12
+-- Declutter (spacing rule after Questie's, idea only): on the world map a pin is left out when one of the
+-- same kind is already placed within SPACING of it, or one of any kind within OVERLAP; distances in map
+-- heights, with x weighted 1.5 because maps are about that much wider than tall. Higher-ranked pins are
+-- placed first and drawn on top; the kept pin's tooltip names what it covers.
+local SPACING, OVERLAP, X_WEIGHT = 0.018, 0.009, 1.5
+local RANK = { guide = 1, turnin = 2, accept = 3, rares = 4, deaths = 5, dungeons = 6, places = 7, farms = 8, camps = 9 }
+-- Minimap fade (after Questie's minimap fade, idea only): full alpha out to FADE_FROM of the view
+-- radius, then down to FADE_MIN at the rim; half alpha for a pin sitting on you.
+local FADE_FROM, FADE_MIN, ON_YOU_YARDS = 0.6, 0.35, 10
+-- Objective camps from LevelGuide's quest data: biggest camps first, a few per objective and quest.
+local CAMPS_PER_OBJECTIVE, CAMPS_PER_QUEST, MAX_CAMPS = 3, 6, 80
 
 local MINIMAP_DIAMETER = {
     indoor = { [0] = 300, 240, 180, 120, 80, 50 },
@@ -239,6 +250,8 @@ local LAYERS = {
     { key = "rares", label = "Rares", helper = "RareWatch" },
     { key = "farms", label = "Gold farms", helper = "GoldGuide" },
     { key = "dungeons", label = "Dungeons", helper = "Dungeons" },
+    -- Off until switched on: where to go for each unfinished objective of the quests in your log.
+    { key = "camps", label = "Objective camps", helper = "LevelGuide", defaultOff = true },
 }
 local LAYER = {}
 for _, layer in ipairs(LAYERS) do
@@ -264,6 +277,7 @@ local ICONS = {
     rares = { atlas = "VignetteKill", file = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1" },
     farms = { file = "Interface\\Icons\\INV_Misc_Coin_02" },
     dungeons = { atlas = "Dungeon", file = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" },
+    camps = { file = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_3", size = 12 },
 }
 
 local PLACE_LABEL = {
@@ -454,7 +468,7 @@ local function Givers(list)
             local level = Safe(giver.level)
             Add(list, "givers", {
                 mapID = ResolveMap(zone, {}), zone = zone, x = Fraction(giver.x), y = Fraction(giver.y),
-                icon = turnin and ICONS.turnin or ICONS.accept,
+                icon = turnin and ICONS.turnin or ICONS.accept, kind = turnin and "turnin" or "accept",
                 title = (turnin and "Hand in: " or "Quest: ") .. (Text(giver.title) or "?"),
                 lines = { Text(giver.npc), (not turnin and level) and ("Level " .. tostring(level)) or nil },
             })
@@ -557,10 +571,69 @@ local function Dungeons(list)
     end
 end
 
-local SOURCES = { guide = GuideStops, givers = Givers, places = Places, deaths = Deaths, rares = Rares, farms = Farms, dungeons = Dungeons }
+-- Spawn camps for the unfinished objectives of the quests in your log, from LevelGuide's quest data
+-- through its public lookup (LevelGuideQuestFacts.Quest; read only, LevelGuide is never changed).
+-- Objectives are matched to the log's rows by position; a row the game calls finished drops its camps.
+local function Camps(list)
+    local facts = LevelGuideQuestFacts
+    if not (type(facts) == "table" and type(facts.Quest) == "function" and C_QuestLog
+        and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo and C_QuestLog.GetQuestObjectives) then
+        return
+    end
+    local total = 0
+    for index = 1, Safe(C_QuestLog.GetNumQuestLogEntries()) or 0 do
+        if total >= MAX_CAMPS then
+            break
+        end
+        local info = C_QuestLog.GetInfo(index)
+        local questID = type(info) == "table" and not Safe(info.isHeader) and Safe(info.questID)
+        local complete = questID and C_QuestLog.IsComplete and Safe(C_QuestLog.IsComplete(questID))
+        local q = questID and not complete and facts.Quest(questID)
+        if type(q) == "table" then
+            local rows = C_QuestLog.GetQuestObjectives(questID)
+            rows = type(rows) == "table" and rows or {}
+            local title = Text(info.title) or Text(q.title) or "Quest"
+            local perQuest = 0
+            for objectiveIndex, objective in ipairs(type(q.objectives) == "table" and q.objectives or {}) do
+                local row = type(rows[objectiveIndex]) == "table" and rows[objectiveIndex] or nil
+                if not (row and Safe(row.finished) == true) then
+                    for spotIndex, spot in ipairs(type(objective.spots) == "table" and objective.spots or {}) do
+                        if spotIndex > CAMPS_PER_OBJECTIVE or perQuest >= CAMPS_PER_QUEST or total >= MAX_CAMPS then
+                            break
+                        end
+                        local x, y = tonumber(spot.x), tonumber(spot.y)
+                        if type(spot.map) == "number" and x and y then
+                            local before = #list
+                            Add(list, "camps", {
+                                mapID = spot.map, x = Fraction(x / 100), y = Fraction(y / 100), icon = ICONS.camps,
+                                title = "Objective: " .. title, group = questID,
+                                lines = { row and Text(row.text) or nil, tonumber(spot.n) and (tostring(spot.n) .. " spawns here") or nil },
+                            })
+                            if #list > before then
+                                perQuest, total = perQuest + 1, total + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local SOURCES = { guide = GuideStops, givers = Givers, places = Places, deaths = Deaths, rares = Rares, farms = Farms,
+    dungeons = Dungeons, camps = Camps }
+
+-- Whether you want a layer: most are on unless switched off; some are off unless switched on.
+local function LayerWanted(key)
+    local saved = db and db.layers[key]
+    if LAYER[key].defaultOff then
+        return saved == true
+    end
+    return saved ~= false
+end
 
 local function LayerOn(key)
-    return db and db.layers[key] ~= false and not IsOff(LAYER[key].helper)
+    return db and LayerWanted(key) and not IsOff(LAYER[key].helper)
 end
 
 local function Rebuild()
@@ -653,6 +726,17 @@ local function ShowTooltip(owner, record)
             tip:AddLine(line, 1, 1, 1, true)
         end
     end
+    -- Pins left out because they sat on this one.
+    local covered = type(owner) == "table" and rawget(owner, "covered")
+    if type(covered) == "table" and #covered > 0 then
+        tip:AddLine(string.format("Also here (%d):", #covered), 0.6, 0.8, 1)
+        for index = 1, math.min(#covered, 5) do
+            tip:AddLine("  " .. tostring(covered[index].title), 0.8, 0.8, 0.8)
+        end
+        if #covered > 5 then
+            tip:AddLine(string.format("  ...and %d more", #covered - 5), 0.6, 0.6, 0.6)
+        end
+    end
     tip:AddLine(LAYER[record.layer].label .. "  -  click to set a map pin here", 0.6, 0.6, 0.6)
     tip:Show()
 end
@@ -716,6 +800,45 @@ end
 
 local function NoCenter()
     return nil
+end
+
+local function RankOf(record)
+    return RANK[record.kind or ""] or RANK[record.layer] or #LAYERS + 1
+end
+
+-- Pins of one group thin each other out more than pins of different kinds.
+local function GroupOf(record)
+    return record.layer .. ":" .. tostring(record.kind or record.group or "")
+end
+
+-- The placed pin this record would sit on, or nil when there's room for it.
+local function Covering(placed, record)
+    local group = GroupOf(record)
+    for _, other in ipairs(placed) do
+        local dx = (record.x - other.record.x) * X_WEIGHT
+        local dy = record.y - other.record.y
+        local limit = other.group == group and SPACING or OVERLAP
+        if dx * dx + dy * dy < limit * limit then
+            return other
+        end
+    end
+    return nil
+end
+
+-- Minimap pin alpha for a pin this many yards from you, with the minimap showing radius yards.
+function MapPins_FadeAlpha(yards, radius)
+    if type(yards) ~= "number" or type(radius) ~= "number" or radius <= 0 then
+        return 1
+    end
+    if yards <= ON_YOU_YARDS then
+        return 0.5
+    end
+    local from = radius * FADE_FROM
+    if yards <= from then
+        return 1
+    end
+    local share = math.min((yards - from) / (radius - from), 1)
+    return 1 - share * (1 - FADE_MIN)
 end
 
 local overlay = CreateFrame("Frame", nil, UIParent)
@@ -797,25 +920,42 @@ local function AssignWorld(mapID)
     if mapID then
         local mapName = MapName(mapID)
         local gamepad = InputUtil and InputUtil.IsGamepadUIEnabled and Safe(InputUtil.IsGamepadUIEnabled())
-        for _, record in ipairs(records) do
-            if used >= WORLD_POOL then
-                break
-            end
+        local candidates = {}
+        for order, record in ipairs(records) do
             if record.x and record.y and OnMap(record, mapID, mapName) then
+                candidates[#candidates + 1] = { record = record, rank = RankOf(record), order = order }
+            end
+        end
+        table.sort(candidates, function(a, b)
+            if a.rank ~= b.rank then
+                return a.rank < b.rank
+            end
+            return a.order < b.order
+        end)
+        local placed = {}
+        for _, candidate in ipairs(candidates) do
+            local record = candidate.record
+            local cover = Covering(placed, record)
+            if cover then
+                cover.pin.covered[#cover.pin.covered + 1] = record
+            elseif used < WORLD_POOL then
                 used = used + 1
                 local pin = worldPins[used]
-                pin.record, pin.mapID = record, mapID
+                pin.record, pin.mapID, pin.covered = record, mapID, {}
+                placed[#placed + 1] = { record = record, pin = pin, group = GroupOf(record) }
                 -- Gamepad guard: Forever's gamepad cursor looks for pin centres; ours give none.
                 pin.GetCenter = gamepad and NoCenter or nil
                 local size = ApplyIcon(pin.Icon, record.icon, WORLD_SIZE)
                 pin:SetSize(size, size)
+                -- Higher-ranked pins on top (turn-ins over pick-ups over the rest).
+                pin:SetFrameLevel((overlayLevel or 1) + 1 + #LAYERS + 2 - candidate.rank)
             end
         end
     end
     for index = used + 1, worldUsed do
         local pin = worldPins[index]
         pin:Hide()
-        pin.record, pin.mapID = nil, nil
+        pin.record, pin.mapID, pin.covered = nil, nil, nil
     end
     worldUsed = used
 end
@@ -870,6 +1010,8 @@ local function UpdateWorld()
     if level ~= overlayLevel then
         overlay:SetFrameLevel(level)
         overlayLevel = level
+        -- The pins' own levels sit above the overlay's: place them again.
+        worldStale = true
     end
     local mapID = Safe(map:GetMapID())
     if mapID ~= worldMapID or worldStale or worldRecords ~= records then
@@ -1056,6 +1198,9 @@ local function UpdateMinimap(force)
                     pin:SetSize(shown, shown)
                     pin:ClearAllPoints()
                     pin:SetPoint("CENTER", Minimap, "CENTER", x, y)
+                    if pin.SetAlpha then
+                        pin:SetAlpha(MapPins_FadeAlpha(math.sqrt(east * east + north * north), radius))
+                    end
                     pin:Show()
                 end
             end
@@ -1130,6 +1275,7 @@ local AVAILABLE = {
     rares = function() return RareWatchDB ~= nil end,
     farms = function() return type(GoldGuideData) == "table" end,
     dungeons = function() return type(DungeonsData) == "table" end,
+    camps = function() return type(LevelGuideQuestFacts) == "table" end,
 }
 
 local function ShowPage(arg)
@@ -1159,7 +1305,7 @@ local function ShowPage(arg)
             targets[1] = FindLayer(what)
         end
         if not targets[1] then
-            Print("I don't know a layer called '" .. what .. "'. Try: guide, places, deaths, rares, farms, dungeons, all.")
+            Print("I don't know a layer called '" .. what .. "'. Try: guide, givers, places, deaths, rares, farms, dungeons, camps, all.")
         else
             for _, layer in ipairs(targets) do
                 db.layers[layer.key] = verb == "on"
@@ -1171,7 +1317,7 @@ local function ShowPage(arg)
             Print(string.format("%s %s.", what == "all" and "All layers" or targets[1].label, verb))
         end
     elseif verb then
-        Print("Type: off deaths   Or: on farms   Or: minimap off")
+        Print("Type: off deaths   Or: on camps   Or: minimap off")
     end
     if dirty then
         Rebuild()
@@ -1181,7 +1327,7 @@ local function ShowPage(arg)
     Print("|cffffd100Pins on your world map and minimap|r |cff999999(click a pin to set a map pin there)|r")
     for _, layer in ipairs(LAYERS) do
         local state
-        if db.layers[layer.key] == false then
+        if not LayerWanted(layer.key) then
             state = "|cff999999off|r"
         elseif IsOff(layer.helper) then
             state = "|cff999999on, but " .. layer.helper .. " is switched off|r"
@@ -1209,7 +1355,7 @@ SlashCmdList.MAPPINS = ShowPage
 
 local events = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS",
-    "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "MINIMAP_UPDATE_ZOOM" }) do
+    "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "MINIMAP_UPDATE_ZOOM", "QUEST_LOG_UPDATE" }) do
     events:RegisterEvent(event)
 end
 events:SetScript("OnEvent", function(_, event)
@@ -1225,6 +1371,14 @@ events:SetScript("OnEvent", function(_, event)
     end
     if event == "MINIMAP_UPDATE_ZOOM" then
         lastState = nil
+        return
+    end
+    if event == "QUEST_LOG_UPDATE" then
+        -- Only the objective camps follow the quest log; still at most one rebuild a second.
+        if LayerOn("camps") then
+            lastState = nil
+            MarkDirty()
+        end
         return
     end
     if event == "PLAYER_REGEN_ENABLED" then

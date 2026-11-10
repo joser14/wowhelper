@@ -374,7 +374,8 @@ check(by.places == 1 and by.dungeons == 1, "Stormwind: mailbox and Stockade (Mai
 by = show(1454)
 check(by.dungeons == nil, "Horde dungeon left out")
 by = show(1413)
-check(by.deaths == 29, "only the newest 30 deaths (29 here, 1 in Elwynn): got " .. tostring(by.deaths))
+-- Newest 30 deaths (29 here, 1 in Elwynn), 1% of the map apart: decluttered to every other one (round 3).
+check(by.deaths == 15, "only the newest 30 deaths (29 here, 1 in Elwynn), decluttered: got " .. tostring(by.deaths))
 check(by.farms == nil, "level-30 farm not shown at level 10")
 by = show(2521)
 check(by.dungeons == 1, "Forever-only zone matched by name on the world map")
