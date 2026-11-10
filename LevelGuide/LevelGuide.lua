@@ -1121,9 +1121,27 @@ local function QuestDone(id)
     return title ~= nil and (charData.done[title] or 0) > 0
 end
 
--- A quest's name for the player: our ID list, the log, then the game's own lookup.
+-- QuestDB (QuestLookup.lua, from forever-db) fills what the routes of your race lack: quest IDs,
+-- prerequisites, NPC names and spots. Once per race; what Routes/QuestIDs/Prereqs.lua say always wins.
+local dbFilledFor
+local function FillFromDB()
+    local facts = LevelGuideQuestFacts
+    local race = UnitRace and Safe(select(2, UnitRace("player")))
+    if not (facts and facts.Fill and race) or dbFilledFor == race then
+        return
+    end
+    dbFilledFor = race
+    local chains = LevelGuideRoutes and LevelGuideRoutes.chains
+    facts.Fill(chains and chains[race] or {}, race, UnitClass and Safe(select(2, UnitClass("player"))))
+    titleByID = nil
+end
+
+-- A quest's name for the player: our ID list, the log, QuestDB, then the game's own lookup.
 local function TitleOf(id)
     local title = BuildTitleByID()[id] or titlesByID[id]
+    if not title and LevelGuideQuestFacts then
+        title = LevelGuideQuestFacts.Title(id)
+    end
     if not title and C_QuestLog.GetTitleForQuestID then
         title = Safe(C_QuestLog.GetTitleForQuestID(id))
     end
@@ -1174,29 +1192,61 @@ end
 
 -- What still stands between you and a pick-up, by name: "level 12", "Tenaron's Summons",
 -- "one of: A / B". Empty when nothing is known to be missing.
-local function MissingPrereqs(title, level)
+-- With QuestDB, a missing quest is named with who gives it: "Zenn's Bidding (from Zenn Foulhoof)".
+-- When Prereqs.lua names nothing missing, QuestDB's own prerequisites for the step's quest (by part) are
+-- asked too, so "not offered here" can say what's missing.
+local function MissingPrereqs(title, level, part)
     local missing = {}
-    local data = LevelGuidePrereqs
+    local data, facts = LevelGuidePrereqs, LevelGuideQuestFacts
+    local function Named(id)
+        local giver = facts and facts.GiverName and facts.GiverName(id)
+        return TitleOf(id) .. (giver and (" (from " .. giver .. ")") or "")
+    end
+    local function Add(need)
+        if need.level and level and level < need.level then
+            missing[#missing + 1] = "level " .. need.level
+        end
+        for _, id in ipairs(need.all or {}) do
+            if not QuestDone(id) then
+                missing[#missing + 1] = Named(id)
+            end
+        end
+        if need.any and #need.any > 0 then
+            local names, anyDone = {}, false
+            for _, id in ipairs(need.any) do
+                anyDone = anyDone or QuestDone(id)
+                names[#names + 1] = Named(id)
+            end
+            if not anyDone then
+                missing[#missing + 1] = "one of: " .. table.concat(names, " / ")
+            end
+        end
+    end
     local need = title and data and (data[title] or data[RealTitle(title)])
-    if not need then
-        return missing
+    if need then
+        Add(need)
     end
-    if need.level and level and level < need.level then
-        missing[#missing + 1] = "level " .. need.level
-    end
-    for _, id in ipairs(need.all or {}) do
-        if not QuestDone(id) then
-            missing[#missing + 1] = TitleOf(id)
-        end
-    end
-    if need.any and #need.any > 0 then
-        local names, anyDone = {}, false
-        for _, id in ipairs(need.any) do
-            anyDone = anyDone or QuestDone(id)
-            names[#names + 1] = TitleOf(id)
-        end
-        if not anyDone then
-            missing[#missing + 1] = "one of: " .. table.concat(names, " / ")
+    local ids = title and LevelGuideQuestIDs and LevelGuideQuestIDs.ids
+    ids = ids and (ids[title] or ids[RealTitle(title)])
+    local id = ids and ids[tonumber(part) or 1]
+    if #missing == 0 and id and facts and facts.Prereqs then
+        local race = UnitRace and Safe(select(2, UnitRace("player")))
+        local cls = UnitClass and Safe(select(2, UnitClass("player")))
+        need = facts.Prereqs(id, race, cls)
+        if need then
+            -- An earlier part of the same chain is the route's own business, not a missing quest.
+            local own = {}
+            for _, other in ipairs(ids) do
+                own[other] = true
+            end
+            local kept = {}
+            for _, pre in ipairs(need.all or {}) do
+                if not own[pre] then
+                    kept[#kept + 1] = pre
+                end
+            end
+            need.all = kept
+            Add(need)
         end
     end
     return missing
@@ -1740,7 +1790,8 @@ local function CityMap(zoneMap, city)
 end
 
 local function CityToZone(zoneMap, step, x, y)
-    local text = step.npc or step.note or ""
+    -- "Name, Darnassus" outside parentheses; a note in parentheses ("ring to Tyrande, Darnassus") is not.
+    local text = (step.npc or step.note or ""):gsub("%b()", "")
     local city
     for _, name in ipairs(CITIES) do
         if text:find(", " .. name, 1, true) then
@@ -1860,7 +1911,7 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
     local level = Safe(UnitLevel("player"))
     local shown = {
         kind = ROUTE_KINDS[step.t], title = step.q or step.text, routeKey = RouteKey(route, index),
-        id = entry and entry.id, zone = route.zone, npc = NpcKey(step.npc), quest = step.q, stepType = step.t,
+        id = entry and entry.id, zone = route.zone, npc = NpcKey(step.npc), quest = step.q, stepType = step.t, questPart = step.part,
     }
     if step.t == "accept" then
         shown.detail = "From " .. tostring(step.npc or "?")
@@ -2185,6 +2236,7 @@ local function RouteSteps(level)
     end
     -- Old index keys written while this session runs (or left from before) move to stable keys.
     MigrateCharacter(charData)
+    FillFromDB()
     local byTitle = LogByTitle()
     lastByTitle = byTitle
     local route, stuckHere = FindRoute(level, byTitle)
@@ -2654,7 +2706,7 @@ local function StepTooltip(owner, step)
     end
     -- A pick-up the game won't offer yet: say what's missing, by name.
     if step.quest and (step.kind == "pickup" or step.kind == "level") then
-        local missing = MissingPrereqs(step.quest, Safe(UnitLevel("player")))
+        local missing = MissingPrereqs(step.quest, Safe(UnitLevel("player")), step.questPart)
         if #missing > 0 then
             Tip():AddLine("Needs first: " .. table.concat(missing, ", "), 1, 0.5, 0.25, true)
         end
@@ -2925,8 +2977,16 @@ local function StepState(route, index, step, byTitle, level)
         return "current"
     end
     if step.t == "accept" and RouteStepPending(route, index, step, byTitle, level) then
-        local missing = MissingPrereqs(step.q, level)
+        local missing = MissingPrereqs(step.q, level, step.part)
         return "blocked", #missing > 0 and ("needs " .. table.concat(missing, ", ")) or nil
+    end
+    -- You talked to the giver and the quest wasn't on offer: say so, and what QuestDB says is missing,
+    -- instead of "done".
+    local offers = step.t == "accept" and not InLog(byTitle, step.q) and offersByNpc[NpcKey(step.npc) or ""]
+    if offers and not (offers[step.q] or offers[RealTitle(step.q)]) and TurnedIn(step.q) < (tonumber(step.part) or 1)
+        and not Outleveled(step, level) then
+        local missing = MissingPrereqs(step.q, level, step.part)
+        return "blocked", "not offered here" .. (#missing > 0 and ("; needs " .. table.concat(missing, ", ")) or "")
     end
     if RouteStepDone(route, index, step, byTitle, level) then
         return "done"

@@ -7,5 +7,7 @@
 
 QuestIDs.lua
 Prereqs.lua
+QuestDB.lua
+QuestLookup.lua
 Routes.lua
 LevelGuide.lua

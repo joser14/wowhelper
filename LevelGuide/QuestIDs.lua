@@ -1189,6 +1189,20 @@ parts[#parts + 1] = {
     renamed = {},
 }
 
+-- route_check (tools\check_routes.js, research\route_check.md): titles QuestDB (forever-db, from the
+-- client's tables) spells differently from our sources. The route keeps its spelling; the game's is
+-- looked up as well, so a giver's list or the map's "!" written either way matches.
+parts[#parts + 1] = {
+    ids = {},
+    renamed = {
+        ["In Search of The Excavation Team"] = "In Search of the Excavation Team",
+        ["Plea To The Alliance"] = "Plea to the Alliance",
+        ["WANTED: Marez Cowl"] = "Wanted!  Marez Cowl",
+        ["WANTED: Otto and Falconcrest"] = "Wanted!  Otto and Falconcrest",
+        ["The Ruins of Solarsal"] = "The Ruins of Solarsal ",
+    },
+}
+
 -- These chains have more quests in Forever than the route has steps, so counting them would
 -- mark route steps done too early. They fall back to turn-ins this addon has seen.
 local MISMATCHED = {  }

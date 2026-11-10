@@ -2,6 +2,13 @@
 -- guide sites (wowhandbook.com routes, urgametips.com NPC tables, games.gg), checked against each other.
 -- Coordinates are percent of the zone's own map. "part" counts turn-ins of quests that share a title.
 -- Anything wrong can be skipped in game with a right-click.
+--
+-- Quest facts by ID come from QuestDB.lua, generated from forever-db (GPL-3.0, NOTICE.md). Regenerate it
+-- and recheck these routes against it (from the repo root):
+--     node tools\gen_questdb.js <path\to\forever-db>     -> LevelGuide\QuestDB.lua
+--     node tools\check_routes.js                         -> research\route_check.md
+-- At run time QuestLookup.lua fills what a step lacks (quest IDs, prerequisites, NPC name, coordinates);
+-- what is written here always wins.
 
 -- A few research notes landed where the part number goes; a text there is a note, not a part.
 local function A(q, npc, x, y, lvl, part) if type(part) ~= "number" then part = nil end return { t = "accept", q = q, npc = npc, x = x, y = y, lvl = lvl, part = part } end
@@ -143,7 +150,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     -- Side steps and priest stops (sources in the Night Elf side-step notes above TELDRASSIL).
     New(Class(CASTERS, Later(Buy(159, 15, "Refreshing Spring Water", "vendor", "Dellylah (food and drink, Aldrassil)", 59.6, 40.7, 1, "Mana between fights; buy it now and save a trip back.")))),
     New(Trainer(4, "PRIEST", { 589, 2052 }, "Shanda (in Aldrassil)", 59.2, 40.4, "She teaches up to level 6; Laurna in Dolanaar after that.")),
-    New(Class("PRIEST", A("In Favor of Elune", "Shanda (in Aldrassil)", 59.2, 40.4, 4))),
+    New(Class("PRIEST", A("In Favor of Elune", "Shanda (in Aldrassil)", 59.2, 40.4, 5))),
     D("The Balance of Nature", "Kill 7 Mangy Nightsabers and 7 Thistle Boars north of Aldrassil", 61.0, 35.6, 2, 2),
     T("A Good Friend", "Iverron (by the cave to the north)", 54.6, 33.0, 3),
     A("A Friend in Need", "Iverron", 54.6, 33.0, 3),
@@ -288,7 +295,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("Planting the Heart", "Denalan", 60.9, 68.4, 10),
     T("Planting the Heart", "Denalan's Planter (object next to Denalan)", 60.8, 68.6, 10),
     A("The Sprouted Fronds", "Sprouted Frond (by Denalan's planter)", 60.8, 68.6, 10),
-    T("The Sprouted Fronds", "Denalan", 60.8, 68.5, 10),
+    T("The Sprouted Fronds", "Sprouted Frond (by Denalan's planter; QuestDB: the frond takes it back)", 60.7, 68.6, 10),
     D("The Great Tree Provides", "6 Dewy Lasher Fronds from lashers around the lake", 60.7, 68.9, 10),
     T("The Great Tree Provides", "Byancie", 55.3, 56.8, 10),
     A("Easing Suffering", "Byancie", 55.3, 56.8, 10),
@@ -366,7 +373,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     T("Ursal the Mauler", "Athridas Bearmantle", 55.9, 57.4, 12),
 
     -- Out through Darnassus to Rut'theran Village
-    T("Bounty: Gnarlpine Furbolg", "Sentinel Shayla Nightbreeze (by the Darnassus road)", 38.3, 54.4, 12),
+    T("Bounty: Gnarlpine Furbolg", "Sentinel Shayla Nightbreeze (by the Darnassus road)", 42.2, 51.3, 12),
     G("Darnassus: take the purple portal on the west side down to Rut'theran Village", 36.5, 52.5, 12),
     T("Nessa Shadowsong", "Nessa Shadowsong, Rut'theran Village", 56.3, 92.3, 12),
     A("The Bounty of Teldrassil", "Nessa Shadowsong", 56.3, 92.3, 12),
@@ -916,15 +923,15 @@ local LOCH_MODAN = { zone = "Loch Modan", min = 10, max = 20, steps = {
 -- Coordinates: Loch Modan ones as the Loch Modan route above (Questie Forever data); Ironforge from
 -- research\routes_20_60.md 3.1 (Rohan 24.7, 8.2) and the Loch Modan route notes (Gnoarn, Gryth Thurden,
 -- Prospector Stormpike). Stormwind: Brother Joshua 49.5, 45.2 is Forever data (V); the harbour (Gilbert
--- Gray), Baros Alexston and the tram entrance come from a guide written on another Stormwind map and are
--- UNVERIFIED (U): check them in game.
+-- Gray) and Baros Alexston are QuestDB's spots (tools\check_routes.js; the guide they came from used another
+-- Stormwind map); the tram entrance is still UNVERIFIED (U): check it in game.
 local LOCH_MODAN_TRIP = { zone = "Loch Modan", key = "Loch Modan (Night Elf)", name = "Stormwind, Ironforge and Loch Modan",
     zones = { "Stormwind City", "Ironforge", "Dun Morogh", "Loch Modan" }, min = 14, max = 16, leg = true, steps = {
     -- Stormwind harbour and Cathedral Square
-    New(When({ hasItem = { 6529, 1 } }, On("Stormwind City", A("Fishin' Time", "Gilbert Gray (harbour, where the boat docks; U)", 8.4, 29.2, 14)))),
-    New(On("Stormwind City", T("Fishin' Time", "Gilbert Gray (harbour; U)", 8.4, 29.2, 14))),
+    New(When({ hasItem = { 6529, 1 } }, On("Stormwind City", A("Fishin' Time", "Gilbert Gray (harbour, where the boat docks)", 26.3, 47.1, 14)))),
+    New(On("Stormwind City", T("Fishin' Time", "Gilbert Gray (harbour)", 26.3, 47.1, 14))),
     New(On("Stormwind City", Trainer(14, "PRIEST", { 8122, 6074, 598, 528 }, "Brother Joshua (Cathedral of Light)", 49.5, 45.2))),
-    New(On("Stormwind City", T("Expanding Horizons", "Baros Alexston (Cathedral Square; U)", 49.2, 30.3, 14))),
+    New(On("Stormwind City", T("Expanding Horizons", "Baros Alexston (City Hall, Cathedral Square)", 57.8, 47.8, 14))),
     New(On("Stormwind City", Travel("Deeprun Tram to Ironforge (Dwarven District; U)", "Ironforge", 66.0, 34.0, 14, "Optional on the ride: Deeprun Rat Roundup from Monty on the Ironforge platform."))),
     -- Ironforge
     New(On("Ironforge", A("Find Bingles", "Gnoarn (Tinker Town)", 69.2, 50.6, 14))),
@@ -1070,11 +1077,11 @@ local REDRIDGE = { zone = "Redridge Mountains", min = 17, max = 25, steps = {
 -- The Night Elf Redridge leg at 19-20 (research\rxp_forever_guides.md phase K, facts only): Stormwind errands
 -- off the boat, the road east through Elwynn, Redridge's quests up to level 20, then a flight back to
 -- Stormwind for the level 20 spells and The Corruption Abroad, and the hearthstone home to Auberdine.
--- Stormwind coordinates other than Brother Joshua (Forever data, V) are from a guide on another Stormwind
--- map and UNVERIFIED (U); the Elwynn road exit is approximate (U).
+-- Stormwind: Brother Joshua (Forever data, V), Furen Longbeard and Argos Nightwhisper (QuestDB spots, fixed by
+-- tools\check_routes.js) are checked; Dungar Longdrink is U and the Elwynn road exit is approximate (U).
 local REDRIDGE_TRIP_STEPS = {
     New(On("Stormwind City", Trainer(18, "PRIEST", { 527, 970, 600 }, "Brother Joshua (Cathedral of Light)", 49.5, 45.2))),
-    New(On("Stormwind City", T("Stormpike's Order", "Furen Longbeard (Dwarven District; U)", 58.1, 16.5, 19))),
+    New(On("Stormwind City", T("Stormpike's Order", "Furen Longbeard (Dwarven District)", 64.6, 37.2, 19))),
     New(When({ lacksItem = { { 5210, 5211, 11288 }, 1 } }, Class({ "PRIEST", "WARLOCK" }, On("Stormwind City", Later(Buy({ 5210, 5211 }, 1, "Burning Wand or Dusk Wand (level 20)", "vendor", "Ardwyn Cailen (wand vendor)", 52.9, 74.8, 19, "Only if it beats your wand; a fire wand suits mobs that resist shadow.")))))),
     New(On("Stormwind City", FP("Stormwind", "Dungar Longdrink (U)", 66.7, 61.8, 19))),
     New(On("Elwynn Forest", Travel("East along the Elwynn road to Redridge (Three Corners; U)", "Redridge Mountains", 90.5, 71.5, 19, "Pick up the Lakeshire flight path when you get there."))),
@@ -1091,7 +1098,7 @@ for _, step in ipairs({
     New(XPShort(20, 7687, "Murlocs on the east shore of the lake", 45.2, 59.3)),
     New(Travel("Fly to Stormwind (Ariena Stormfeather)", "Stormwind City", 25.5, 59.4, 20)),
     New(On("Stormwind City", Trainer(20, "PRIEST", { 2061, 14914 }, "Brother Joshua (Cathedral of Light)", 49.5, 45.2, "Flash Heal and Holy Fire."))),
-    New(On("Stormwind City", A("The Corruption Abroad", "Argos Nightwhisper (the park; U)", 21.4, 55.8, 20))),
+    New(On("Stormwind City", A("The Corruption Abroad", "Argos Nightwhisper (the park)", 36.3, 67.6, 20))),
     New(Hearth("Auberdine", 20, "Home to Darkshore for its last quests and the road to Ashenvale.")),
 }) do
     REDRIDGE_TRIP_STEPS[#REDRIDGE_TRIP_STEPS + 1] = step
@@ -1194,16 +1201,16 @@ local ASHENVALE = { zone = "Ashenvale", min = 20, max = 30, steps = {
     G("Forest Song", 85.2, 44.7, 27),
     T("Kayneth Stillwind", "Kayneth Stillwind", 85.2, 44.7, 27),
     A("Forsaken Diseases", "Kayneth Stillwind", 85.2, 44.7, 27),
-    A("Vengeful Trail", "Maseara Autumnmoon", 81.0, 50.2, 27),
+    A("Vengeful Trail", "Maseara Autumnmoon", 86.3, 45.8, 27),
     T("Vile Satyr! Dryads in Danger!", "Anilia", 78.3, 44.8, 27),
     A("The Branch of Cenarius", "Anilia", 78.3, 44.8, 27),
     D("Vengeful Trail", "Search Satyrnaar, west of Forest Song, for signs of Kurothel", 79.5, 48.5, 27),
     D("The Tower of Althalaxx", "Free the Highborne soul in Satyrnaar", 79.5, 48.5, 27, 6),
-    T("Vengeful Trail", "Maseara Autumnmoon", 81.0, 50.2, 27),
-    A("Shared Fury", "Maseara Autumnmoon", 81.0, 50.2, 27),
+    T("Vengeful Trail", "Maseara Autumnmoon", 86.3, 45.8, 27),
+    A("Shared Fury", "Maseara Autumnmoon", 86.3, 45.8, 27),
     D("The Branch of Cenarius", "Kill Geltharis in Xavian for the Branch of Cenarius", 78.0, 42.4, 28),
     D("Shared Fury", "Kill 5 each of Xavian Rogues, Felsworn, Betrayers and Hellcallers", 76.5, 41.5, 28),
-    T("Shared Fury", "Maseara Autumnmoon", 81.0, 50.2, 28),
+    T("Shared Fury", "Maseara Autumnmoon", 86.3, 45.8, 28),
 
     -- Dor'danil Barrow Den
     D("Forsaken Diseases", "Take the Bottle of Disease from the Forsaken camp", 75.3, 71.8, 28),
@@ -2326,7 +2333,7 @@ local FERALAS = { zone = "Feralas", min = 42, max = 50, steps = {
     A("Doling Justice", "Jer'kai Moonweaver", 66.0, 45.6, 46, 1),
     D("Doling Justice", "Kill 12 Grimtotem Naturalists, 10 Grimtotem Raiders and 6 Grimtotem Shamans in the camp", 66.6, 46.2, 47, 1),
     T("Doling Justice", "Jer'kai Moonweaver", 66.0, 45.6, 47, 1),
-    A("Doling Justice", "Jer'kai Moonweaver (ring to Tyrande, Darnassus)", 66.0, 45.6, 47, 2),
+    A("Doling Justice", "Jer'kai Moonweaver (ring to Tyrande in Darnassus)", 66.0, 45.6, 47, 2),
     A("An Orphan Looking For a Home", "Kindal Moonweaver (egg to Quentin, Thousand Needles)", 65.9, 45.6, 47),
 
     -- Thalanaar
@@ -2830,7 +2837,7 @@ local WESTERN_PLAGUELANDS = { zone = "Western Plaguelands", min = 51, max = 58, 
     A("The Wildlife Suffers Too", "Mulgris Deepriver", 53.7, 64.7, 55, 2),
     D("The Wildlife Suffers Too", "Kill 8 Diseased Grizzlies east and north of the Writhing Haunt", 55.2, 64.5, 55, 2),
     T("The Wildlife Suffers Too", "Mulgris Deepriver", 53.7, 64.7, 55, 2),
-    A("Glyphed Oaken Branch", "Mulgris Deepriver (turn in to Mathrengyl Bearwalker, Darnassus)", 53.7, 64.7, 55),
+    A("Glyphed Oaken Branch", "Mulgris Deepriver (turn in to Mathrengyl Bearwalker in Darnassus)", 53.7, 64.7, 55),
 
     -- Chillwind Camp (level 55 pick-ups)
     T("Return to Chillwind Camp", "High Priestess MacDonnell", 43.0, 84.5, 55, 2),
@@ -3264,7 +3271,7 @@ local WESTFALL = { zone = "Westfall", min = 10, max = 18, steps = {
     New(D("Westfall Stew", "Vulture meat, murloc eyes (coast 32.4, 28.2), Goretusk snouts and okra", 46.4, 42.5, 13)),
     New(T("The Killing Fields", "Farmer Saldean (U)", 56.0, 31.2, 13)),
     New(T("The Forgotten Heirloom", "Farmer Furlbrow (U)", 60.0, 19.4, 13)),
-    New(T("Westfall Stew", "Verna Furlbrow (U)", 59.9, 19.4, 13)),
+    New(T("Westfall Stew", "Salma Saldean (Saldean farm)", 56.4, 30.5, 13)),
     New(T("The People's Militia", "Gryan Stoutmantle", 56.3, 47.5, 13, 1)),
     New(A("The People's Militia", "Gryan Stoutmantle", 56.3, 47.5, 13, 2)),
     New(D("Patrolling Westfall", "Gnoll paws from the Riverpaw gnolls", 48.2, 64.7, 14)),
@@ -3412,9 +3419,9 @@ local SEARING = { zone = "Searing Gorge", min = 45, max = 50, steps = {
     New(D("Fiery Menace!", "20 Greater Lava Spiders", 28.6, 61.9, 48)),
     New(D("Caught!", "8 Dark Iron Geologists", 63.8, 59.4, 48)),
     New(T("Caught!", "Wooden Outhouse", 65.6, 62.2, 48)),
-    New(T("WANTED: Overseer Maltorius", "Thorium Point (who takes it: U)", 37.6, 26.5, 49)),
-    New(T("STOLEN: Smithing Tuyere and Lookout's Spyglass", "Thorium Point (who takes it: U)", 37.6, 26.5, 49)),
-    New(T("JOB OPPORTUNITY: Culling the Competition", "Thorium Point (who takes it: U)", 37.6, 26.5, 49)),
+    New(T("WANTED: Overseer Maltorius", "Lookout Captain Lolo Longstriker, Thorium Point", 37.7, 26.6, 49)),
+    New(T("STOLEN: Smithing Tuyere and Lookout's Spyglass", "Taskmaster Scrange, Thorium Point", 39.0, 27.5, 49)),
+    New(T("JOB OPPORTUNITY: Culling the Competition", "Taskmaster Scrange, Thorium Point", 39.0, 27.5, 49)),
     New(T("What the Flux?", "Master Smith Burninate", 38.8, 28.5, 49)),
     New(T("Curse These Fat Fingers", "Hansel Heavyhands", 38.6, 27.8, 49)),
     New(T("Fiery Menace!", "Hansel Heavyhands", 38.6, 27.8, 49)),
@@ -3530,7 +3537,7 @@ do
         New(A("Seeking Caitlin", "Llana, Astranaar (optional: leads to the Excavation Site: Wetlands dungeon, 26-33)", 35.0, 48.5, 24)),
     })
     After(ASHENVALE, Is("turnin", "The Howling Vale"), {
-        New(Class(WAND_USERS, A("Velinde Starsong", "Sentinel Melyria Frostshadow (giver U; the chain runs via Darnassus, Ratchet, Booty Bay and Duskwood to the Moonbeam Wand from Thyn'tel Bladeweaver, Darnassus 61.8, 39.2)", 22.2, 53.0, 30))),
+        New(Class(WAND_USERS, A("Velinde Starsong", "Sentinel Melyria Frostshadow (giver U; the chain runs via Darnassus, Ratchet, Booty Bay and Duskwood to the Moonbeam Wand from Thyn'tel Bladeweaver in Darnassus at 61.8, 39.2)", 22.2, 53.0, 30))),
     })
     -- Wetlands: Menethil flight path, training in Ironforge, the Excavation Site breadcrumb.
     After(WETLANDS, 1, {
@@ -3636,6 +3643,24 @@ do
     After(SILITHUS, 1, { New(FP("Cenarion Hold", "Cloud Skydancer", 50.6, 34.5, 55)), DN(58, nil), DN(60, { 10938 }, "Power Word: Fortitude rank 6.") })
 end
 
+-- Zones with no written stop list get a basic route generated from QuestDB.lua (QuestLookup.lua
+-- Generated / BuildRoute): pick up -> do -> turn in, grouped by quest giver and ordered by level and
+-- distance, for your race and class, built the first time the guide looks at it. They are marked
+-- generated (shown as "<zone> (generated from quest data)") and leave out pick-ups the written routes have.
+-- Riverglades: forever-db 2026.11.1 has its NPCs but no quests yet, so its route is empty and the guide
+-- passes it by until a regenerated QuestDB.lua has them.
+local function Generated(zone, mapID, min, max, fields)
+    local facts = LevelGuideQuestFacts
+    if facts and facts.Generated then
+        return facts.Generated(zone, mapID, min, max, fields)
+    end
+    return { zone = zone, min = min, max = max, generated = true, key = zone .. " (generated)", steps = {} }
+end
+local ELWYNN_GEN = Generated("Elwynn Forest", 1429, 1, 10, { qmax = 10 })
+local COLDRIDGE_GEN = Generated("Dun Morogh", 1426, 1, 6, { qmax = 5, key = "Coldridge Valley (generated)",
+    name = "Coldridge Valley (generated from quest data)" })
+local RIVERGLADES_GEN = Generated("Riverglades", 2548, 36, 46)
+
 -- Where to level at every stage, for when no detailed route covers you yet.
 local PLAN = {
     { min = 1, max = 11, zones = { "Teldrassil", "Dun Morogh", "Elwynn Forest" }, hub = "Your starting zone" },
@@ -3685,16 +3710,16 @@ LevelGuideRoutes = {
     chains = {
         -- Ordered by route min (an optional side trip may sit a few levels early, e.g. Stonetalon after
         -- Ashenvale): the guide takes the first route that fits your level. Order from research\routes_20_60.md
-        -- 1.1, 1.2 and 4.2; Riverglades has no route until its quest givers are known (the plan names it).
+        -- 1.1, 1.2 and 4.2. Generated routes (Elwynn, Coldridge, Riverglades) come from QuestDB.lua.
         -- Night Elf 11-21 is a plan of legs (Routes.lua Leg fields leg/key/name/zones): Darkshore, the Loch
         -- Modan trip, Darkshore, the Redridge trip, Darkshore; the guide follows them in order.
         NightElf = { TELDRASSIL, DARKSHORE, LOCH_MODAN_TRIP, DARKSHORE_NORTH, REDRIDGE_TRIP, DARKSHORE_SOUTH, ASHENVALE, STONETALON, WETLANDS, DUSKWOOD,
-            HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS, FERALAS, TANARIS, HINTERLANDS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Gnome = { DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS,
+            HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS, FERALAS, TANARIS, HINTERLANDS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        Gnome = { COLDRIDGE_GEN, DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS,
             FERALAS, HINTERLANDS, TANARIS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Dwarf = { DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS,
+        Dwarf = { COLDRIDGE_GEN, DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS,
             FERALAS, HINTERLANDS, TANARIS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
-        Human = { WESTFALL, REDRIDGE, DUSKWOOD, WETLANDS, ASHENVALE, STONETALON, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, BADLANDS,
+        Human = { ELWYNN_GEN, WESTFALL, REDRIDGE, DUSKWOOD, WETLANDS, ASHENVALE, STONETALON, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS,
             FERALAS, HINTERLANDS, TANARIS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
     },
     plan = PLAN,

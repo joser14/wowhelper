@@ -41,6 +41,9 @@ these sources:
         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
         SOFTWARE.
 
+- `LevelGuide\QuestDB.lua` is generated from forever-db's GPL-3.0 tables by `tools\gen_questdb.js`; its
+  elite / timed / escort flags also use forever-db's `mechanic` table, (c) the Polestar project, licensed
+  CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); only the flag letters are used, unchanged in meaning.
 - **Questie** Forever data (Questie team), GPL, used for quest IDs, givers and coordinates.
 - Web references for individual facts: wow4ever.quest, foreverchanges.pro, wowhead classic, warcraft.wiki.gg.
 

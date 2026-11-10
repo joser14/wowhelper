@@ -73,7 +73,8 @@ for _, z in ipairs({ "Stonetalon Mountains", "Redridge Mountains", "Westfall", "
     "Searing Gorge", "Azshara", "Thousand Needles", "Blasted Lands" }) do
     assert(zones[z] and #zones[z].steps >= 10, "route for " .. z)
 end
-assert(not zones["Riverglades"], "Riverglades waits for giver data")
+-- Riverglades is a generated route (QuestDB.lua); forever-db has no quests for it yet, so it has no steps.
+assert(zones["Riverglades"] and zones["Riverglades"].generated and #zones["Riverglades"].steps == 0, "Riverglades waits for giver data")
 for race, chain in pairs(chains) do
     for i = 2, #chain do
         -- An optional side trip (Stonetalon after Ashenvale) may sit up to 4 levels early.
