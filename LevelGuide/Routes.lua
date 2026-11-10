@@ -87,6 +87,7 @@ local function Travel(text, zone, x, y, lvl, note) return { t = "zone", text = t
 -- XP gates by XP amount: "n XP short of level L" (read at level L-1) and "n XP into level L".
 local function XPShort(level, n, note, x, y) return { t = "xp", text = string.format("%d XP short of level %d", n, level), level = level, short = n, note = note, x = x, y = y, lvl = level - 1 } end
 local function XPInto(level, n, note, x, y) return { t = "xp", text = string.format("%d XP into level %d", n, level), level = level, into = n, note = note, x = x, y = y, lvl = level } end
+-- Step field inside = true: the NPC stands in a building; the in-hub order counts 60 yd to go in or out.
 
 -- Legs (route fields, LevelGuide.lua FindRoute): a race chain can be a plan of ordered legs that revisit
 -- zones (Night Elf: Darkshore, the Loch Modan trip, Darkshore, the Redridge trip, Darkshore).

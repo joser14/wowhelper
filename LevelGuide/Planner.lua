@@ -419,4 +419,163 @@ function P.Fit(points, camps, ender, yards)
     return doAfter, nil
 end
 
+-- ---- exact order inside a hub (research\guides_deep_re.md 12.11; our own code) -----------------------------
+
+-- NPC stops within 10 yd of each other are one group (one walk). With at most 7 groups the shortest walk from
+-- start through all of them is found exactly (Held-Karp over subsets), keeping every "must come after" in pre
+-- (pre[i] = { j = true }: item j before item i); entering or leaving a building (item.inside differs) costs
+-- 60 yd more. items = { { x, y, inside } }, start = { x, y, inside }, yards(a, b) measures. given = the order
+-- the caller has now (indexes into items). Returns the better order (indexes) and the yards it saves, or nil
+-- when it saves 5 yd or less, there are too many groups, or the constraints can't all be met.
+P.HUB = { groupYards = 10, maxGroups = 7, insideYards = 60, minSave = 5, radius = 100 }
+function P.HubOrder(start, items, yards, pre, given)
+    local H = P.HUB
+    pre = pre or {}
+    local groups, of = {}, {}
+    for i, item in ipairs(items) do
+        for g, group in ipairs(groups) do
+            if not of[i] and (group.lead.inside or false) == (item.inside or false) and yards(group.lead, item) <= H.groupYards then
+                of[i] = g
+                group[#group + 1] = i
+            end
+        end
+        if not of[i] then
+            groups[#groups + 1] = { lead = item, i }
+            of[i] = #groups
+        end
+    end
+    local n = #groups
+    if n < 2 or n > H.maxGroups then
+        return nil
+    end
+    local function Cost(a, b)
+        local d = yards(a, b) or 0
+        if (a.inside or false) ~= (b.inside or false) then
+            d = d + H.insideYards
+        end
+        return d
+    end
+    -- Group g needs groups need[g] (a bit set) first; a cycle between groups means no order works.
+    local need = {}
+    for g = 1, n do
+        need[g] = 0
+    end
+    for i in ipairs(items) do
+        for j in pairs(pre[i] or {}) do
+            if of[j] and of[j] ~= of[i] then
+                local bit = 2 ^ (of[j] - 1)
+                if floor(need[of[i]] / bit) % 2 == 0 then
+                    need[of[i]] = need[of[i]] + bit
+                end
+            end
+        end
+    end
+    local function Has(mask, bit)
+        return floor(mask / bit) % 2 == 1
+    end
+    local function Covers(mask, req)
+        for g = 1, n do
+            local bit = 2 ^ (g - 1)
+            if Has(req, bit) and not Has(mask, bit) then
+                return false
+            end
+        end
+        return true
+    end
+    local full = 2 ^ n - 1
+    local cost, from = {}, {}
+    for g = 1, n do
+        if need[g] == 0 then
+            local mask = 2 ^ (g - 1)
+            cost[mask] = cost[mask] or {}
+            cost[mask][g] = Cost(start, groups[g].lead)
+            from[mask] = from[mask] or {}
+        end
+    end
+    for mask = 1, full do
+        local row = cost[mask]
+        if row then
+            for last, c in pairs(row) do
+                for g = 1, n do
+                    local bit = 2 ^ (g - 1)
+                    if not Has(mask, bit) and Covers(mask, need[g]) then
+                        local nextMask = mask + bit
+                        local total = c + Cost(groups[last].lead, groups[g].lead)
+                        cost[nextMask] = cost[nextMask] or {}
+                        from[nextMask] = from[nextMask] or {}
+                        if not cost[nextMask][g] or total < cost[nextMask][g] then
+                            cost[nextMask][g], from[nextMask][g] = total, last
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local best, bestLast
+    for last, c in pairs(cost[full] or {}) do
+        if not best or c < best then
+            best, bestLast = c, last
+        end
+    end
+    if not best then
+        return nil
+    end
+    local path, mask, last = {}, full, bestLast
+    while last do
+        table.insert(path, 1, last)
+        local prev = from[mask] and from[mask][last]
+        mask = mask - 2 ^ (last - 1)
+        last = prev
+    end
+    -- Inside a group: what must come first does; else turn-ins (they can open the pick-ups) before the rest.
+    local order = {}
+    for _, g in ipairs(path) do
+        local members, placed = {}, {}
+        for _, i in ipairs(groups[g]) do
+            members[#members + 1] = i
+        end
+        table.sort(members, function(a, b)
+            local ta, tb = items[a].kind == "turnin", items[b].kind == "turnin"
+            if ta ~= tb then
+                return ta
+            end
+            return a < b
+        end)
+        for _ = 1, #members do
+            for k, i in ipairs(members) do
+                local ready = true
+                for j in pairs(pre[i] or {}) do
+                    if of[j] == g and not placed[j] then
+                        ready = false
+                    end
+                end
+                if ready then
+                    order[#order + 1] = i
+                    placed[i] = true
+                    table.remove(members, k)
+                    break
+                end
+            end
+        end
+        if #members > 0 then
+            return nil
+        end
+    end
+    -- What the order the caller has now costs, the same way.
+    local now, at = 0, start
+    for _, i in ipairs(given or order) do
+        now = now + Cost(at, items[i])
+        at = items[i]
+    end
+    local exact, at2 = 0, start
+    for _, i in ipairs(order) do
+        exact = exact + Cost(at2, items[i])
+        at2 = items[i]
+    end
+    if now - exact <= H.minSave then
+        return nil
+    end
+    return order, now - exact
+end
+
 return P

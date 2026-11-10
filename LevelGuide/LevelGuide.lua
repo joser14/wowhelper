@@ -2107,6 +2107,90 @@ function X.XPPerSecond(step, mapID, fromX, fromY)
 end
 end -- XP projection
 
+-- Exact order inside a hub (research\guides_deep_re.md 12.11; our own code, Planner.HubOrder): after the
+-- nearest-first pass, the pick-ups and turn-ins within 100 yd of the current stop are walked in the shortest
+-- order from it when they're 7 groups or fewer (NPCs within 10 yd are one), keeping a chain's later part after
+-- the turn-in before it and an accept after its prerequisite's turn-in. Stops a route marks `inside` (in a
+-- building) cost 60 yd more to reach from outside. The current stop never changes here (its hysteresis is
+-- Route()'s); nothing changes unless it saves more than 5 yd.
+do
+local function QuestIDOf(shown)
+    local ids = shown.quest and LevelGuideQuestIDs and LevelGuideQuestIDs.ids
+    ids = ids and (ids[shown.quest] or ids[RealTitle(shown.quest)])
+    return shown.id or (ids and ids[tonumber(shown.questPart) or 1]) or nil
+end
+
+function X.HubOrder(list, mapID)
+    local P = LevelGuidePlanner
+    local first = list[1]
+    if not (P and P.HubOrder and first and first.x and first.mapID == mapID) then
+        return list
+    end
+    local hub, items, positions = {}, {}, {}
+    for position = 2, #list do
+        local shown = list[position]
+        if (shown.kind == "pickup" or shown.kind == "turnin") and shown.x and shown.mapID == mapID then
+            local yards, isYards = Distance(mapID, first.x, first.y, shown.x, shown.y)
+            if isYards and yards <= P.HUB.radius then
+                hub[#hub + 1] = shown
+                positions[#positions + 1] = position
+            end
+        end
+    end
+    if #hub < 2 then
+        return list
+    end
+    local scale = MapScale(mapID)
+    local function Point(shown)
+        return { x = shown.x * scale[1], y = shown.y * scale[2], inside = shown.inside, kind = shown.kind }
+    end
+    for i, shown in ipairs(hub) do
+        items[i] = Point(shown)
+    end
+    -- What must come first: a chain's earlier part's turn-in, or a prerequisite's turn-in.
+    local pre = {}
+    for i, b in ipairs(hub) do
+        if b.kind == "pickup" then
+            local need = b.quest and LevelGuidePrereqs and (LevelGuidePrereqs[b.quest] or LevelGuidePrereqs[RealTitle(b.quest)])
+            for j, a in ipairs(hub) do
+                if a.kind == "turnin" then
+                    local earlierPart = a.quest == b.quest and (tonumber(a.questPart) or 1) == (tonumber(b.questPart) or 1) - 1
+                    local id, needed = QuestIDOf(a), false
+                    for _, want in ipairs(need and need.all or {}) do
+                        needed = needed or want == id
+                    end
+                    if earlierPart or needed then
+                        pre[i] = pre[i] or {}
+                        pre[i][j] = true
+                    end
+                end
+            end
+        end
+    end
+    local given = {}
+    for i = 1, #hub do
+        given[i] = i
+    end
+    local order = P.HubOrder(Point(first), items, function(a, b)
+        return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2)
+    end, pre, given)
+    if not order then
+        return list
+    end
+    local out, taken = { first }, {}
+    for _, i in ipairs(order) do
+        out[#out + 1] = hub[i]
+        taken[positions[i]] = true
+    end
+    for position = 2, #list do
+        if not taken[position] then
+            out[#out + 1] = list[position]
+        end
+    end
+    return out
+end
+end -- hub order
+
 -- Target hysteresis (Polestar's currentGoal rule, research\guides_deep_re.md 1.7; our own code): the step the
 -- arrow points at stays while you fight, for 5 s after objective progress, and until another is more than
 -- 25% and more than 40 yd nearer (Planner.Switch), so two nearly equal stops don't take turns.
@@ -2527,6 +2611,7 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
     end
     -- For the XP projection and ordering: where on the route, the quest's level, what it's worth to you now.
     shown.stepIndex = index
+    shown.inside = step.inside   -- in a building (X.HubOrder)
     if step.q then
         local questID = X.QuestIDFor(step, byTitle)
         local logLevel
@@ -3045,7 +3130,7 @@ local function RouteSteps(level)
     end
     local playerX, playerY = PositionOn(zoneMap)
     if playerX and playerY then
-        ready = Route(ready, zoneMap, playerX, playerY)
+        ready = X.HubOrder(Route(ready, zoneMap, playerX, playerY), zoneMap)
     end
     local list = ready
     for _, shown in ipairs(waiting) do
