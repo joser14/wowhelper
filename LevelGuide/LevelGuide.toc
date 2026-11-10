@@ -11,5 +11,6 @@ QuestDB.lua
 QuestLookup.lua
 Routes.lua
 QuestXP.lua
+Travel.lua
 Planner.lua
 LevelGuide.lua
