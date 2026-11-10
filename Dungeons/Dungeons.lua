@@ -565,8 +565,24 @@ local function ResolveMap(entrance)
     return found
 end
 
+-- An entrance learned in game (where you stood just before going in), for dungeons whose stored
+-- entrance is only approximate. Saved in DungeonsDB.entrances[short] = { mapID, x, y }.
+local function LearnedEntrance(dungeon)
+    local db = type(DungeonsDB) == "table" and type(DungeonsDB.entrances) == "table" and DungeonsDB.entrances
+    local learned = db and dungeon.short and db[dungeon.short]
+    if type(learned) == "table" and tonumber(learned.mapID) and tonumber(learned.x) and tonumber(learned.y) then
+        return learned
+    end
+    return nil
+end
+
 local function EntranceText(dungeon)
     local entrance = dungeon.entrance or {}
+    local learned = LearnedEntrance(dungeon)
+    if learned then
+        return string.format("%s %.1f, %.1f", entrance.zone or dungeon.zone or "?", learned.x * 100, learned.y * 100)
+            .. GRAY .. " (learned when you went in)|r"
+    end
     local text = string.format("%s %.1f, %.1f", entrance.zone or dungeon.zone or "?", (entrance.x or 0) * 100, (entrance.y or 0) * 100)
     if entrance.note then
         text = text .. GRAY .. " (" .. entrance.note .. ")|r"
@@ -579,6 +595,10 @@ local function Pin(dungeon)
     local entrance = dungeon.entrance
     if not (entrance and entrance.x and entrance.y and C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then
         return false
+    end
+    local learned = LearnedEntrance(dungeon)
+    if learned then
+        return (ForeverWaypoint_Set(learned.mapID, learned.x, learned.y, dungeon.name))
     end
     local mapID = ResolveMap(entrance)
     if not mapID then
@@ -992,6 +1012,179 @@ local function RefreshReady()
     end
 end
 
+-- Kills by NPC ID ----------------------------------------------------------------------------------
+-- Some bosses never fire ENCOUNTER_END / BOSS_KILL. UNIT_DIED(unitGUID) and PARTY_KILL(attackerGUID,
+-- targetGUID) (UnitDocumentation; plain events, not CallbackEvents, but their GUIDs can be secret, so
+-- they go through Safe()) name the creature that died; its NPC ID maps to a boss from Data.lua's npcs
+-- or one learned in game. The kill is recorded under the boss's name, so the 30 s dedupe also covers
+-- ENCOUNTER_END and BOSS_KILL for the same kill.
+
+local function NpcID(guid)
+    guid = Safe(guid)
+    if type(guid) ~= "string" then
+        return nil
+    end
+    local kind, id = guid:match("^(%a+)%-%d+%-%d+%-%d+%-%d+%-(%d+)%-")
+    if kind == "Creature" or kind == "Vehicle" then
+        return tonumber(id)
+    end
+    return nil
+end
+
+local function InInstance()
+    if not IsInInstance then
+        return nil
+    end
+    local ok, inside = pcall(IsInInstance)
+    if not ok then
+        return nil
+    end
+    return Safe(inside)
+end
+
+-- The dungeon you're in, from GetInstanceInfo's name, or nil.
+local function CurrentDungeon()
+    if not GetInstanceInfo then
+        return nil
+    end
+    local ok, name = pcall(GetInstanceInfo)
+    name = ok and Safe(name) or nil
+    if type(name) ~= "string" then
+        return nil
+    end
+    for _, dungeon in ipairs(List()) do
+        if SameDungeon(dungeon, name) then
+            return dungeon
+        end
+    end
+    return nil
+end
+
+local function LearnedNpcs()
+    DungeonsDB = type(DungeonsDB) == "table" and DungeonsDB or {}
+    DungeonsDB.learnedNpcs = type(DungeonsDB.learnedNpcs) == "table" and DungeonsDB.learnedNpcs or {}
+    return DungeonsDB.learnedNpcs
+end
+
+local bossByNpc
+local function BossForNpc(npc)
+    if not bossByNpc then
+        bossByNpc = {}
+        for _, dungeon in ipairs(List()) do
+            for name, id in pairs(dungeon.npcs or {}) do
+                bossByNpc[id] = name
+            end
+        end
+    end
+    local learned = LearnedNpcs()[npc]
+    if type(learned) == "table" and type(learned.boss) == "string" then
+        return learned.boss
+    end
+    return bossByNpc[npc]
+end
+
+local function KillByGUID(guid)
+    local npc = NpcID(guid)
+    -- Bosses live in dungeons; outdoors a creature with the same ID is not that kill.
+    if not npc or InInstance() == false then
+        return
+    end
+    local boss = BossForNpc(npc)
+    if boss then
+        RecordKill(boss)
+    end
+end
+
+-- Your target inside a dungeon is one of its bosses by name, and its NPC ID isn't the one we have:
+-- remember it (covers bosses without an ID and ones whose live ID differs).
+local function LearnFromTarget()
+    if not (UnitGUID and UnitName) then
+        return
+    end
+    local npc = NpcID(UnitGUID("target"))
+    local name = Safe(UnitName("target"))
+    if not npc or type(name) ~= "string" or name == "" or BossForNpc(npc) then
+        return
+    end
+    local dungeon = CurrentDungeon()
+    if not dungeon then
+        return
+    end
+    local key = BossKey(name)
+    for _, boss in ipairs(dungeon.bosses or {}) do
+        if BossKey(boss) == key then
+            LearnedNpcs()[npc] = { boss = boss, dungeon = dungeon.short }
+            return
+        end
+    end
+end
+
+-- Learned entrances -------------------------------------------------------------------------------
+-- For dungeons whose entrance is marked "approx": every ENTRANCE_SAMPLE seconds outdoors, your map
+-- position is noted; when you're then inside that dungeon (within ENTRANCE_FRESH seconds, on the
+-- entrance's own zone map), the last spot is saved as its entrance.
+local ENTRANCE_SAMPLE, ENTRANCE_FRESH = 2, 30
+local lastSpot, entranceTicker, approxMaps
+
+local function Approx(dungeon)
+    local note = dungeon.entrance and dungeon.entrance.note
+    return type(note) == "string" and note:lower():find("^approx") ~= nil
+end
+
+local function SampleSpot()
+    if InInstance() ~= false or not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then
+        return
+    end
+    local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+    mapID = ok and Safe(mapID) or nil
+    if type(mapID) ~= "number" then
+        return
+    end
+    -- Only on a zone that has an approximate entrance.
+    if not approxMaps then
+        approxMaps = {}
+        for _, dungeon in ipairs(List()) do
+            local zoneMap = Approx(dungeon) and ResolveMap(dungeon.entrance)
+            if zoneMap then
+                approxMaps[zoneMap] = true
+            end
+        end
+    end
+    if not approxMaps[mapID] then
+        return
+    end
+    local okPos, pos = pcall(C_Map.GetPlayerMapPosition, mapID, "player")
+    local x, y = okPos and type(pos) == "table" and Safe(pos.x), okPos and type(pos) == "table" and Safe(pos.y)
+    if type(x) == "number" and type(y) == "number" and (x > 0 or y > 0) then
+        lastSpot = { mapID = mapID, x = x, y = y, at = GetTime and tonumber(Safe(GetTime())) }
+    end
+end
+
+local function LearnEntrance()
+    if InInstance() ~= true or not lastSpot then
+        return
+    end
+    local dungeon = CurrentDungeon()
+    if not (dungeon and dungeon.short and Approx(dungeon)) then
+        return
+    end
+    local now = GetTime and tonumber(Safe(GetTime()))
+    if not (now and lastSpot.at and now - lastSpot.at <= ENTRANCE_FRESH) then
+        return
+    end
+    if ResolveMap(dungeon.entrance) ~= lastSpot.mapID then
+        return
+    end
+    DungeonsDB = type(DungeonsDB) == "table" and DungeonsDB or {}
+    DungeonsDB.entrances = type(DungeonsDB.entrances) == "table" and DungeonsDB.entrances or {}
+    DungeonsDB.entrances[dungeon.short] = {
+        mapID = lastSpot.mapID,
+        x = math.floor(lastSpot.x * 1000 + 0.5) / 1000,
+        y = math.floor(lastSpot.y * 1000 + 0.5) / 1000,
+    }
+    lastSpot = nil
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("QUEST_LOG_UPDATE")
@@ -999,8 +1192,25 @@ events:RegisterEvent("QUEST_TURNED_IN")
 -- pcall: a client without one of these events must still load the addon.
 pcall(events.RegisterEvent, events, "ENCOUNTER_END")
 pcall(events.RegisterEvent, events, "BOSS_KILL")
+pcall(events.RegisterEvent, events, "UNIT_DIED")
+pcall(events.RegisterEvent, events, "PARTY_KILL")
+pcall(events.RegisterEvent, events, "PLAYER_TARGET_CHANGED")
+pcall(events.RegisterEvent, events, "PLAYER_ENTERING_WORLD")
 events:SetScript("OnEvent", function(_, event, ...)
-    if event == "ENCOUNTER_END" then
+    if event == "UNIT_DIED" then
+        KillByGUID((...))
+        return
+    elseif event == "PARTY_KILL" then
+        local _, targetGUID = ...
+        KillByGUID(targetGUID)
+        return
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        LearnFromTarget()
+        return
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        LearnEntrance()
+        return
+    elseif event == "ENCOUNTER_END" then
         -- encounterID, encounterName, difficultyID, groupSize, success (1 on a kill).
         local _, encounterName, _, _, success = ...
         success = Safe(success)
@@ -1017,6 +1227,10 @@ events:SetScript("OnEvent", function(_, event, ...)
         -- Saved variables are read by now; pick up this character's kills on next use. The game's
         -- dungeon ranges are read again on next use too.
         charKills, gameRanges = nil, nil
+        -- Entrance samples: a cheap ticker (one map read every 2 s), not an OnUpdate.
+        if not entranceTicker and C_Timer and C_Timer.NewTicker then
+            entranceTicker = C_Timer.NewTicker(ENTRANCE_SAMPLE, SampleSpot)
+        end
     end
     statusDirty = true
 end)
