@@ -6,4 +6,5 @@
 ## SavedVariables: FoodCheckDB
 
 FoodIDs.lua
+CampObjects.lua
 FoodCheck.lua

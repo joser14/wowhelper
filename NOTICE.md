@@ -199,6 +199,10 @@ these sources:
 - `LevelLog\LevelLog.lua` (way to 60): the Classic XP-per-level curve replaced level by level by the
   `UnitXPMax` any character of the account has seen follows XP Horizon by thejvfdev (GPL-3.0-or-later);
   written in our own code, without its XP-bar hook or /played request.
+- `FoodCheck\CampObjects.lua`: camp-object buff spell IDs and base effects from Tweaks Forever
+  (`Data\CampBenefits.lua`, GPL-3.0-or-later, generated from Blizzard client tables); which class buffs each
+  object is exclusive with from Firekeeper (https://github.com/Brattlof/Firekeeper, `docs/SOURCES.md`, MIT
+  License, Copyright (c) 2026 Firekeeper contributors). Facts in our own table, no code copied.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.

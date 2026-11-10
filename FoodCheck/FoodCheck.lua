@@ -128,6 +128,10 @@ local function ShowCheck()
     end
     if CampfireNearby() then
         Print("A campfire is nearby: you can cook here.")
+        -- The camp objects you could still use, and which ones a class buff of yours makes pointless.
+        for _, line in ipairs(FoodCheck_CampLines and FoodCheck_CampLines() or {}) do
+            Print(line)
+        end
     end
 end
 
