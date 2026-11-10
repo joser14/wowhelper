@@ -104,6 +104,71 @@ function P.TravelDanger(zone, level)
     return 1
 end
 
+-- ---- boat departures (research\re_round3.md rank 5; Boats.lua's timetable is from Shortest Path Forever, GPL) ----
+-- A ship's position in its loop is (server time - epoch) mod period; the epoch is learned from your own boardings.
+P.BOAT = { keepSeconds = 6 * 3600, matchSeconds = 8 }
+
+local function BoatStops(linkID, back)
+    local B = LevelGuideBoats
+    local link = B and B.links and B.links[linkID]
+    local route = link and B.routes[link.route]
+    if not route then
+        return nil
+    end
+    local from, to = route.stops[back and link.b or link.a], route.stops[back and link.a or link.b]
+    if not (from and to) then
+        return nil
+    end
+    return route, link.route, from, to
+end
+
+-- Seconds to wait for the ship at the link's start (back: from its b end), the ride, and whether the wait is
+-- exact (a departure seen within 6 hours, anchors[ship] = { epoch, seen }); else half a period.
+function P.BoatTimes(linkID, back, now, anchors)
+    local route, ship, from, to = BoatStops(linkID, back)
+    if not route then
+        return nil
+    end
+    local period = route.period
+    local ride = (to[1] - from[2]) % period
+    local anchor = anchors and anchors[ship]
+    if now and type(anchor) == "table" and anchor.epoch and anchor.seen and now - anchor.seen <= P.BOAT.keepSeconds
+        and now >= anchor.seen - 60 then
+        local phase = (now - anchor.epoch) % period
+        local stay = (from[2] - from[1]) % period
+        local since = (phase - from[1]) % period
+        if since < stay then
+            return stay - since, ride, true, true
+        end
+        return (from[2] - phase) % period, ride, true, false
+    end
+    return period / 2, ride, false
+end
+
+-- A departure ("depart", at the link's start) or a landing ("arrive", at its end) seen at server time now:
+-- the ship's epoch, averaged with one already known when within 8 s.
+function P.BoatLearn(anchors, linkID, back, event, now)
+    local route, ship, from, to = BoatStops(linkID, back)
+    if not (route and anchors and now) then
+        return
+    end
+    local period = route.period
+    local epoch = now - (event == "depart" and from[2] or to[1])
+    local old = anchors[ship]
+    if type(old) == "table" and old.epoch and old.seen and now - old.seen <= P.BOAT.keepSeconds then
+        local d = (epoch - old.epoch + period / 2) % period - period / 2
+        if math.abs(d) <= P.BOAT.matchSeconds then
+            epoch = old.epoch + d / 2
+        end
+    end
+    anchors[ship] = { epoch = epoch, seen = now }
+end
+
+local function Clock(seconds)
+    seconds = max(0, floor(seconds + 0.5))
+    return string.format("%d:%02d", floor(seconds / 60), seconds % 60)
+end
+
 -- A place in the graph: map spot plus its world position, region and zone.
 local function Vertex(p, extra)
     local T = Data()
@@ -243,14 +308,18 @@ local function LegText(leg)
             return string.format("Learn the flight path at %s, then fly to %s, ~%d min", from.name, to.name, Minutes(leg.seconds))
         end
         return string.format("Fly %s to %s, ~%d min", from.name, to.name, Minutes(leg.seconds))
-    elseif kind == "boat" then
-        return string.format("Take the boat at %s to %s, ~%d min", from.name, to.name, Minutes(leg.seconds))
+    elseif kind == "boat" or kind == "zeppelin" then
+        -- With a departure learned (Boats.lua): when it leaves, from now; else the usual estimate.
+        local what = kind == "boat" and ("the boat at " .. from.name) or from.name
+        if leg.anchored and leg.departs then
+            return string.format("Take %s to %s, leaves in %s", what, to.name, Clock(leg.departs))
+        end
+        return string.format("Take %s to %s, ~%d min", what, to.name, Minutes(leg.seconds))
     elseif kind == "tram" then
         return string.format("Take the Deeprun Tram to %s, ~%d min", T.names[to.map] or to.name, Minutes(leg.seconds))
     elseif kind == "portal" then
         return string.format("Take %s to %s", from.name, to.name)
-    elseif kind == "zeppelin" then
-        return string.format("Take %s to %s, ~%d min", from.name, to.name, Minutes(leg.seconds))
+
     elseif kind == "hearth" then
         return "Use your hearthstone to " .. tostring(to.name)
     end
@@ -337,7 +406,17 @@ local function Run(opts, withHearth)
         end
         for _, edge in ipairs(u.links or {}) do
             if not done[edge.to.index] then
-                Relax(u, edge.to, edge.seconds, { kind = edge.link.kind, link = edge.link })
+                -- A ship with a timetable (Boats.lua): the wait when you'd get to the pier.
+                local seconds, info = edge.seconds, { kind = edge.link.kind, link = edge.link, back = edge.back }
+                local wait, ride, anchored = nil, nil, nil
+                if opts.now then
+                    wait, ride, anchored = P.BoatTimes(edge.link.id, edge.back, opts.now + dist[u.index], opts.anchors)
+                end
+                if wait then
+                    seconds = wait + ride
+                    info.anchored, info.departs = anchored, dist[u.index] + wait
+                end
+                Relax(u, edge.to, seconds, info)
             end
         end
         if u == start and inn then
@@ -363,7 +442,7 @@ local function Run(opts, withHearth)
             last.seconds = last.seconds + edge.seconds
         else
             local leg = { kind = edge.kind, from = Point(edge.from), to = Point(edge.to), seconds = edge.seconds,
-                learn = edge.learn, link = edge.link }
+                learn = edge.learn, link = edge.link, back = edge.back, anchored = edge.anchored, departs = edge.departs }
             if edge.kind == "hearth" then
                 usesHearth = true
             end

@@ -13,6 +13,7 @@ QuestRules.lua
 Routes.lua
 QuestXP.lua
 Travel.lua
+Boats.lua
 Planner.lua
 TravelPlan.lua
 LevelGuide.lua

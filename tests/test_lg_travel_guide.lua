@@ -1,4 +1,4 @@
--- The travel planner in the guide (research\guides_deep_re.md 12.7): a step on another map shows the next leg
+﻿-- The travel planner in the guide (research\guides_deep_re.md 12.7): a step on another map shows the next leg
 -- of the quickest way there ("Take the portal ...", "Fly Rut'theran Village to Auberdine", "Use your hearthstone
 -- to Auberdine", "Take the boat at ...") with the arrow on that leg's spot, and moves on by itself as you
 -- arrive, fly or ride. A Way() written in Routes.lua still wins. It never acts: it only says what to do.
@@ -80,8 +80,8 @@ print("5 ok")
 -- 6. At the harbour, then off on the boat: "On the boat to ..." until you land.
 at(1453, 0.225, 0.56)
 assert(title():find("^Take the boat", 1), "at the dock: " .. title())
-M.pos[1453] = { 0.15, 0.56 }
-M.update()
+M.pos[1453] = { 0.15, 0.56 }   -- leaving at boat speed (walking off isn't riding: test_lg_boats.lua)
+M.now = M.now + 3; M.update()
 assert(title() == "On the boat to Auberdine pier", "riding: " .. title())
 M.now = M.now + 40; M.update()
 assert(title() == "On the boat to Auberdine pier", "still riding: " .. title())

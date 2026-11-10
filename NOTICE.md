@@ -78,6 +78,12 @@ these sources:
 - **Ding!** (https://www.curseforge.com/wow/addons/ding-xp-and-leveling-guide), by moust4ki, GPL-3.0.
   `LevelGuide\Planner.lua` ports two small pieces: reading the last "N/M" of an objective's text when the
   game keeps its counts secret (`Core\Compat.lua`), and the rested-aware kills-left formula (`Core\Grind.lua`).
+- **Shortest Path Forever** (https://github.com/cjber/shortest-path-forever, by cjber), GPL-3.0-or-later.
+  `LevelGuide\Boats.lua` takes its boat and zeppelin timetable (`Data\Routes.lua`: each ship's period and the
+  arrive / depart seconds at its stops, which it built from Blizzard's TaxiPathNode table and the CMaNGOS
+  mangos-classic transport model, GPL-3.0, on CMaNGOS classic-db's measured periods). `LevelGuide\TravelPlan.lua`
+  `P.BoatTimes` / `P.BoatLearn` follow its loop arithmetic (`Transport\Model.lua`) in our own code; the
+  departure is learned only from your own boardings, never shared.
 - **MacQuest / SpeedLevel** (https://github.com/Methodologist, by Methodologist), GPL-3.0.
   `LevelGuide\TravelPlan.lua` `P.DeathSkip` uses its death-skip numbers (`tools\tricks.py`): 45 s plus 21 s per
   level above 10 for dying, the walk from the spirit healer, and the 75 s / 135 s thresholds up to level 20.

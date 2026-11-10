@@ -5515,6 +5515,25 @@ function V.Speed()
     return type(run) == "number" and run > 0 and run or nil
 end
 X.RunSpeed = V.Speed
+V.boatSpeed = 12
+
+-- This realm's learned ship departures (LevelGuideDB.boats[realm][ship] = { epoch, seen }), old ones dropped.
+function V.Anchors()
+    if not db then
+        return nil
+    end
+    local realm = GetRealmName and Safe(GetRealmName()) or "?"
+    db.boats = type(db.boats) == "table" and db.boats or {}
+    local list = type(db.boats[realm]) == "table" and db.boats[realm] or {}
+    db.boats[realm] = list
+    local server = GetServerTime and Safe(GetServerTime())
+    for ship, anchor in pairs(list) do
+        if type(anchor) ~= "table" or not (anchor.epoch and anchor.seen) or (server and server - anchor.seen > 6 * 3600) then
+            list[ship] = nil
+        end
+    end
+    return list
+end
 
 -- Puts a leg on the step: its words, the arrow on its spot (none for the hearthstone or in the air).
 function V.Show(step, leg, title, note, point)
@@ -5557,20 +5576,40 @@ function X.ApplyTravel(list)
         S.atDock, S.ride = nil, nil
         return
     end
-    -- On a boat (you were at its pier and moved off): held until you land, walk back to the pier, or it
-    -- should have arrived.
+    -- On a boat (you were at its pier and moved off at boat speed, 12 yd/s or more; walking off is not
+    -- riding, review 3): held until you land, walk back to the pier, or it should have arrived. Leaving and
+    -- landing teach when that ship sails (Boats.lua, TravelPlan.lua P.BoatLearn), per realm for 6 hours.
+    local server = GetServerTime and Safe(GetServerTime())
+    local anchors = V.Anchors()
+    local speed
+    if S.last and now > S.last.at then
+        local moved = P.TravelYards(here, S.last.here)
+        speed = moved and moved / (now - S.last.at)
+    end
+    S.last = { here = here, at = now }
     if S.atDock and not S.ride then
         local yards = P.TravelYards(here, S.atDock.from)
         if yards and yards > V.leftYards then
-            S.ride, S.atDock = { leg = S.atDock, at = now }, nil
+            if speed and speed >= V.boatSpeed then
+                S.ride, S.atDock = { leg = S.atDock, at = now }, nil
+                if server and anchors and S.ride.leg.link and P.BoatLearn then
+                    P.BoatLearn(anchors, S.ride.leg.link.id, S.ride.leg.back, "depart", server - yards / speed)
+                end
+            else
+                S.atDock = nil
+            end
         end
     end
     local ride = S.ride
     if ride then
         local toYards = P.TravelYards(here, ride.leg.to)
         local fromYards = P.TravelYards(here, ride.leg.from)
-        if (toYards and toYards < 60) or (fromYards and fromYards <= V.dockYards) or mapID == ride.leg.to.map
+        local landed = (toYards and toYards < 60) or mapID == ride.leg.to.map
+        if landed or (fromYards and fromYards <= V.dockYards)
             or now - ride.at > ride.leg.seconds + V.holdExtra or X.travelReplan then
+            if landed and toYards and toYards < 60 and server and anchors and ride.leg.link and P.BoatLearn then
+                P.BoatLearn(anchors, ride.leg.link.id, ride.leg.back, "arrive", server)
+            end
             S.ride = nil
         else
             V.Show(step, ride.leg, "On the " .. ride.leg.kind .. " to " .. tostring(ride.leg.to.name), "The guide goes on when you get off", ride.leg.to)
@@ -5596,7 +5635,8 @@ function X.ApplyTravel(list)
         X.travelReplan = false
         S.key, S.map, S.region, S.at, S.here = key, mapID, region, now, here
         S.plan = P.TravelPlan({ from = here, to = goal, level = level, speed = V.Speed(),
-            known = P.TravelKnown(charData.flights), hearth = hearth, learned = V.Learned() })
+            known = P.TravelKnown(charData.flights), hearth = hearth, learned = V.Learned(),
+            now = server, anchors = anchors })
     end
     local plan = S.plan
     local legs = plan and plan.legs or {}
