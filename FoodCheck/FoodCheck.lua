@@ -22,7 +22,8 @@ local function ReadRestores(link)
     for _, line in ipairs(data and data.lines or {}) do
         local text = Safe(line.leftText)
         if type(text) == "string" then
-            text = text:lower()
+            -- A well-fed buff ("...become well fed and gain 3 Mana every 5 seconds") isn't what it restores.
+            text = text:lower():gsub("if you spend.*$", ""):gsub("well fed.*$", "")
             if text:find("restores", 1, true) or text:find("use:", 1, true) then
                 health = health or text:find("health", 1, true) ~= nil
                 mana = mana or text:find("mana", 1, true) ~= nil

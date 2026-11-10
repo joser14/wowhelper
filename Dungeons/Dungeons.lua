@@ -468,8 +468,25 @@ local function RecordKill(encounterName)
     kills[key] = entry
 end
 
+-- Every boss on our list by key, built on first use: a kill saved under one of them is that boss's.
+local listedBosses
+local function ListedBoss(key)
+    if not listedBosses then
+        listedBosses = {}
+        for _, dungeon in ipairs(List()) do
+            for _, boss in ipairs(dungeon.bosses or {}) do
+                if type(boss) == "string" then
+                    listedBosses[BossKey(boss)] = true
+                end
+            end
+        end
+    end
+    return listedBosses[key] == true
+end
+
 -- How often this character killed a boss from our list, or nil. Names the game reports a little
--- differently (a title added or dropped) match when one contains the other.
+-- differently (a title added or dropped) match when one contains the other, unless that name is
+-- another boss on our list ("The Baron" is part of "Baron Silverlaine", a different boss).
 local function KillsOf(boss)
     local kills = CharKills()
     if not kills or type(boss) ~= "string" then
@@ -480,7 +497,8 @@ local function KillsOf(boss)
     if not entry and #key >= 5 then
         for otherKey, other in pairs(kills) do
             -- Skip the record's own notes (migratedFrom), which are not kills.
-            if type(other) == "table" and type(otherKey) == "string" and #otherKey >= 5 and (otherKey:find(key, 1, true) or key:find(otherKey, 1, true)) then
+            if type(other) == "table" and type(otherKey) == "string" and #otherKey >= 5 and not ListedBoss(otherKey)
+                and (otherKey:find(key, 1, true) or key:find(otherKey, 1, true)) then
                 entry = other
                 break
             end

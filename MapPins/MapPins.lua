@@ -1033,10 +1033,12 @@ driver:SetScript("OnUpdate", function(_, elapsed)
     sinceTick = sinceTick + (elapsed or 0)
     sinceData = sinceData + (elapsed or 0)
     if sinceTick < TICK then
-        -- Between checks, keep our pins under the map while it pans or zooms (reads only; nothing
-        -- moves unless the map's rectangle changed).
-        if overlay:IsShown() and WorldMapFrame then
-            LayoutWorld(WorldMapFrame)
+        -- Between checks, keep our pins under the map while it pans or zooms, and drop them the
+        -- moment it closes or shows another zone (the overlay is on UIParent, so it would otherwise
+        -- stay on screen, or show the last zone's pins, until the next check). Reads only; nothing
+        -- moves unless the map, its zone or its rectangle changed.
+        if overlay:IsShown() then
+            UpdateWorld()
         end
         return
     end

@@ -742,8 +742,9 @@ end
 local function SlotTargets(equipLoc, classID, slots)
     local targets = {}
     for _, slot in ipairs(slots) do
-        local isOffWeapon = slot == OFF_HAND and classID == CLASS_WEAPON
-        targets[#targets + 1] = { slot = slot, scale = isOffWeapon and OFF_HAND_DPS_SCALE or 1 }
+        -- The off hand's rate applies to both sides: the new item, and a weapon worn there today, even
+        -- when the new item is a shield or held item (which has no weapon damage to scale).
+        targets[#targets + 1] = { slot = slot, scale = slot == OFF_HAND and OFF_HAND_DPS_SCALE or 1 }
     end
     if equipLoc == "INVTYPE_WEAPON" and CanDualWieldNow() then
         targets[#targets + 1] = { slot = OFF_HAND, scale = OFF_HAND_DPS_SCALE }
@@ -1600,7 +1601,13 @@ local function PaintBagButton(button)
     local verdict
     if button:IsVisible() then
         -- Read directly: Blizzard's own item lists fill caches that addon code must not be first to touch.
-        local bagID = button.bagID or button:GetParent():GetID()
+        -- Combined bags put every slot under one parent whose ID is 0, so ask the button itself first.
+        local bagID
+        if type(button.GetBagID) == "function" then
+            local ok, id = pcall(button.GetBagID, button)
+            bagID = ok and Safe(id) or nil
+        end
+        bagID = bagID or button.bagID or button:GetParent():GetID()
         local info = C_Container.GetContainerItemInfo(bagID, button:GetID())
         local link = info and Safe(info.hyperlink)
         if link then

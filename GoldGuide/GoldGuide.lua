@@ -185,7 +185,6 @@ local PROFESSION_NAME = { [186] = "Mining", [182] = "Herbalism", [393] = "Skinni
 local MAX_PROFESSION_SLOTS = 5
 
 local loggedIn = false
-local lastShown          -- the farm list the numbers on the page refer to
 local cache = { dirty = true, at = nil }
 
 local function Safe(value)
@@ -479,6 +478,43 @@ local function BestFarms(level)
     return list
 end
 
+local BANDS = { { 10, 19 }, { 20, 29 }, { 30, 39 }, { 40, 49 }, { 50, 60 } }
+
+-- Every farm in the "all" order (by band, then level, then name). A farm's number is its place here,
+-- the same on every list: the hub redraws the best-for-you list right under an "all" list, so a number
+-- typed after either one must name the same farm.
+local function AllFarms()
+    local farms = Data()
+    local ordered = {}
+    for _, band in ipairs(BANDS) do
+        local inBand = {}
+        for _, farm in ipairs(farms) do
+            -- Each farm sits in the band its range starts in.
+            if farm.minLevel >= band[1] and farm.minLevel <= band[2] then
+                inBand[#inBand + 1] = farm
+            end
+        end
+        table.sort(inBand, function(a, b)
+            if a.minLevel ~= b.minLevel then
+                return a.minLevel < b.minLevel
+            end
+            return a.name < b.name
+        end)
+        for _, farm in ipairs(inBand) do
+            ordered[#ordered + 1] = farm
+        end
+    end
+    return ordered
+end
+
+local function FarmNumbers()
+    local numbers = {}
+    for number, farm in ipairs(AllFarms()) do
+        numbers[farm] = number
+    end
+    return numbers
+end
+
 local function DropsText(farm)
     local parts = {}
     for _, drop in ipairs(farm.drops or {}) do
@@ -620,15 +656,16 @@ local function ShowBest()
         return
     end
     local have = Professions()
-    lastShown = BestFarms(level)
+    local best = BestFarms(level)
+    local numbers = FarmNumbers()
     Print(string.format("|cffeecc55Best for you now|r |cff999999(level %d)|r", level))
-    if #lastShown == 0 then
+    if #best == 0 then
         Print("No farm in this guide fits your level yet; they start at level 10. Questing and selling greys is the best money now.")
     end
-    for number, farm in ipairs(lastShown) do
-        ShowFarm(number, farm, have)
+    for _, farm in ipairs(best) do
+        ShowFarm(numbers[farm], farm, have)
     end
-    if #lastShown > 0 then
+    if #best > 0 then
         Print("|cff999999Type a farm's number to pin it on your map.|r")
     end
     ShowTips(level)
@@ -636,33 +673,17 @@ local function ShowBest()
     Print("|cff999999Saving for riding? See the Gold goal page.|r")
 end
 
-local BANDS = { { 10, 19 }, { 20, 29 }, { 30, 39 }, { 40, 49 }, { 50, 60 } }
-
 local function ShowAll()
-    local farms = Data()
     local have = Professions()
-    lastShown = {}
-    for _, band in ipairs(BANDS) do
-        local inBand = {}
-        for _, farm in ipairs(farms) do
-            -- Each farm sits in the band its range starts in.
-            if farm.minLevel >= band[1] and farm.minLevel <= band[2] then
-                inBand[#inBand + 1] = farm
+    local band
+    for number, farm in ipairs(AllFarms()) do
+        for _, candidate in ipairs(BANDS) do
+            if farm.minLevel >= candidate[1] and farm.minLevel <= candidate[2] and candidate ~= band then
+                band = candidate
+                Print(string.format("|cffeecc55Levels %d-%d|r", band[1], band[2]))
             end
         end
-        table.sort(inBand, function(a, b)
-            if a.minLevel ~= b.minLevel then
-                return a.minLevel < b.minLevel
-            end
-            return a.name < b.name
-        end)
-        if #inBand > 0 then
-            Print(string.format("|cffeecc55Levels %d-%d|r", band[1], band[2]))
-            for _, farm in ipairs(inBand) do
-                lastShown[#lastShown + 1] = farm
-                Print(FarmLine(#lastShown, farm, have[farm.profession]) .. "  " .. DropsText(farm))
-            end
-        end
+        Print(FarmLine(number, farm, have[farm.profession]) .. "  " .. DropsText(farm))
     end
     Print("|cff999999Type a farm's number to pin it on your map.|r")
 end
@@ -675,13 +696,9 @@ local function ShowAllTips()
 end
 
 local function PinNumber(number)
-    if not lastShown then
-        local level = PlayerLevel()
-        lastShown = level and BestFarms(level) or {}
-    end
-    local farm = lastShown[number]
+    local farm = AllFarms()[number]
     if not farm then
-        Print(string.format("There's no farm number %d on the last list. Open the page again and pick a number from it.", number))
+        Print(string.format("There's no farm number %d. Type all to see every farm and its number.", number))
         return
     end
     local where = string.format("%s (%.1f, %.1f)", farm.zone, farm.x * 100, farm.y * 100)

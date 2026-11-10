@@ -310,10 +310,11 @@ local function TraitTalents()
                         tree = type(sub) == "table" and Text(sub.name) or nil
                     end
                     if not tree and #treeIDs > 1 then
-                        tree = treeTitle or TabName(treeIndex)
+                        -- Each tree ID has its own positions, so a tree is never split into columns.
+                        tree = treeTitle or TabName(treeIndex) or ("Tree " .. treeIndex)
                     end
                     nodes[#nodes + 1] = { name = name, tree = tree, treeIndex = treeIndex, subTreeID = subTreeID,
-                        rank = math.max(Number(node.currentRank) or Number(node.activeRank) or 0, 0),
+                        rank = math.max(Number(node.activeRank) or Number(node.currentRank) or 0, 0),
                         maxRank = Number(node.maxRanks), x = Number(node.posX) or 0, y = Number(node.posY) or 0 }
                 end
             end
@@ -331,14 +332,45 @@ local function TraitTalents()
         end
     end
     if unnamed > 0 then
+        local xs, seenX = {}, {}
         local minX, maxX = math.huge, -math.huge
         for _, node in ipairs(nodes) do
-            minX, maxX = math.min(minX, node.x), math.max(maxX, node.x)
+            if not node.tree then
+                minX, maxX = math.min(minX, node.x), math.max(maxX, node.x)
+                if not seenX[node.x] then
+                    seenX[node.x] = true
+                    xs[#xs + 1] = node.x
+                end
+            end
+        end
+        table.sort(xs)
+        -- The space between two trees is wider than between columns of one tree: when the two widest
+        -- gaps clearly stand out, they are the borders. Otherwise equal thirds of the width (a tree with
+        -- an empty outer column would shift those, so they are only the fallback).
+        local cut1, cut2
+        local gaps = {}
+        for index = 2, #xs do
+            gaps[#gaps + 1] = { size = xs[index] - xs[index - 1], at = index }
+        end
+        table.sort(gaps, function(a, b)
+            if a.size ~= b.size then
+                return a.size > b.size
+            end
+            return a.at < b.at
+        end)
+        if gaps[2] and gaps[2].size > 0 and (not gaps[3] or gaps[2].size > gaps[3].size) then
+            local a, b = math.min(gaps[1].at, gaps[2].at), math.max(gaps[1].at, gaps[2].at)
+            cut1, cut2 = (xs[a - 1] + xs[a]) / 2, (xs[b - 1] + xs[b]) / 2
         end
         local width = math.max(maxX - minX, 1)
         for _, node in ipairs(nodes) do
             if not node.tree then
-                local column = math.min(3, math.floor((node.x - minX) / width * 3) + 1)
+                local column
+                if cut1 then
+                    column = node.x < cut1 and 1 or node.x < cut2 and 2 or 3
+                else
+                    column = math.min(3, math.floor((node.x - minX) / width * 3) + 1)
+                end
                 node.tree = TabName(column) or ("Tree " .. column)
                 node.treeIndex = column
             end
@@ -454,10 +486,28 @@ local function DefaultRole(classFile, talents)
         for _, entry in ipairs(talents.list) do
             perTree[entry.tree] = (perTree[entry.tree] or 0) + entry.rank
         end
+        -- A build's tree: its spec word, or the tree most of its points go to. The two can differ
+        -- ("Shadow" and the game's "Shadow Magic"), so both are tried.
+        local function PointsIn(build)
+            local count, mainTree, mainCount = {}, nil, 0
+            for _, point in ipairs(type(build.points) == "table" and build.points or {}) do
+                if type(point.tree) == "string" then
+                    count[point.tree] = (count[point.tree] or 0) + 1
+                    if count[point.tree] > mainCount then
+                        mainTree, mainCount = point.tree, count[point.tree]
+                    end
+                end
+            end
+            local points = perTree[build.spec] or 0
+            if mainTree and mainTree ~= build.spec then
+                points = math.max(points, perTree[mainTree] or 0)
+            end
+            return points
+        end
         local bestRole, bestPoints
         for _, role in ipairs(DEFAULT_ROLE_ORDER) do
             local build = pve[role]
-            local points = build and perTree[build.spec] or 0
+            local points = build and PointsIn(build) or 0
             if build and points > 0 and points > (bestPoints or 0) then
                 bestRole, bestPoints = role, points
             end
@@ -689,7 +739,7 @@ end
 local events = type(CreateFrame) == "function" and CreateFrame("Frame") or nil
 if events then
     for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_LEVEL_UP", "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "SPELLS_CHANGED",
-        "TRAIT_CONFIG_UPDATED", "TRAIT_NODE_CHANGED", "TRAIT_TREE_CURRENCY_INFO_UPDATED", "ACTIVE_TALENT_GROUP_CHANGED" }) do
+        "TRAIT_CONFIG_UPDATED", "TRAIT_CONFIG_LIST_UPDATED", "TRAIT_NODE_CHANGED", "TRAIT_TREE_CURRENCY_INFO_UPDATED", "ACTIVE_TALENT_GROUP_CHANGED" }) do
         pcall(events.RegisterEvent, events, event)
     end
     events:SetScript("OnEvent", function()
@@ -864,11 +914,11 @@ local function MakePanel()
     return panel
 end
 
+-- Returns true when the panel has text to show.
 local function RefreshPanel()
     local ok, lines = pcall(Builds_TalentPanelLines)
     if not ok or not lines then
-        panel:Hide()
-        return
+        return false
     end
     while #lines > PANEL_LINES do
         table.remove(lines, #lines - 1)
@@ -876,6 +926,7 @@ local function RefreshPanel()
     panelText:SetText(table.concat(lines, "\n"))
     local height = Number(SafeCall(function() return panelText:GetStringHeight() end)) or (#lines * 14)
     panel:SetHeight(height + 16)
+    return true
 end
 
 local watcher = type(CreateFrame) == "function" and CreateFrame("Frame") or nil
@@ -888,6 +939,7 @@ if watcher then
         end
     end)
     local elapsedSince = 0
+    local hasText = false  -- the last redraw had something to show
     watcher:SetScript("OnUpdate", function(_, elapsed)
         elapsedSince = elapsedSince + (elapsed or 0)
         if elapsedSince < 0.25 then
@@ -909,9 +961,17 @@ if watcher then
         if not MakePanel() or not PlacePanel(window) then
             return
         end
-        if panelDirty or not panel:IsShown() then
-            RefreshPanel()
+        -- Redrawn when something changed (closing the window marks it too); with nothing to show the
+        -- panel stays hidden until the next change, never an empty box.
+        if panelDirty then
+            hasText = RefreshPanel()
             panelDirty = false
+        end
+        if not hasText then
+            if panel:IsShown() then
+                panel:Hide()
+            end
+            return
         end
         panel:Show()
     end)
@@ -1110,6 +1170,7 @@ SlashCmdList.BUILDS = function(msg)
         end
         Record().goal = goal
         dirty = true
+        panelDirty = true
         return ShowMain(GREEN .. "Goal set: " .. GOAL_LABELS[goal] .. "|r")
     end
     local alt = ClassFromArg(arg)

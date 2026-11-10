@@ -362,12 +362,35 @@ end
 
 -- The combat log is closed to addons on Forever, so the enemy you were targeting is the best guess.
 -- The game may hide the name during combat, and then the death is saved without one.
-local function Killer()
+-- Once you are dead the game may stop calling your target attackable, so the last hostile target seen
+-- while alive is also remembered for a few seconds.
+local FOE_MEMORY_SECONDS = 15
+local lastFoe
+
+local function HostileTargetName()
     if UnitExists and UnitCanAttack and Safe(UnitExists("target")) and Safe(UnitCanAttack("player", "target")) then
         local name = UnitName and Safe(UnitName("target"))
         if type(name) == "string" and name ~= "" then
             return name
         end
+    end
+    return nil
+end
+
+local function NoteFoe()
+    local name = HostileTargetName()
+    if name and GetTime then
+        lastFoe = { name = name, when = GetTime() }
+    end
+end
+
+local function Killer()
+    local name = HostileTargetName()
+    if name then
+        return name
+    end
+    if lastFoe and GetTime and GetTime() - lastFoe.when <= FOE_MEMORY_SECONDS then
+        return lastFoe.name
     end
     return nil
 end
@@ -560,6 +583,8 @@ end
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_DEAD")
+events:RegisterEvent("PLAYER_TARGET_CHANGED")
+events:RegisterEvent("PLAYER_REGEN_DISABLED")
 -- Never register COMBAT_LOG_EVENT_UNFILTERED: Forever (Midnight rules) forbids it, and even inside
 -- pcall the attempt raises ADDON_ACTION_FORBIDDEN ("blocked from an action", logged as UNKNOWN()).
 -- The killer is taken from your hostile target instead (see Killer).
@@ -587,6 +612,9 @@ events:SetScript("OnEvent", function(_, event)
         end
         if C_Timer and C_Timer.NewTicker then
             C_Timer.NewTicker(CHECK_SECONDS, function()
+                if not (UnitIsDeadOrGhost and Safe(UnitIsDeadOrGhost("player"))) then
+                    pcall(NoteFoe)
+                end
                 local ok, err = pcall(CheckNearby)
                 if not ok and geterrorhandler then
                     geterrorhandler()(err)
@@ -595,6 +623,9 @@ events:SetScript("OnEvent", function(_, event)
         end
     elseif event == "PLAYER_DEAD" then
         RecordDeath()
+        lastFoe = nil
+    elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_DISABLED" then
+        NoteFoe()
     end
 end)
 

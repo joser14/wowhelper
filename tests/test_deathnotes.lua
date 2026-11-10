@@ -162,6 +162,20 @@ fire("PLAYER_DEAD")
 check(not has(" to "), "secret target name is left out")
 UnitName = realUnitName
 
+-- Dead, the game may stop calling the target attackable: the hostile target seen just before counts.
+foe = "Gnoll Brute"
+fire("PLAYER_TARGET_CHANGED")
+UnitCanAttack = function() return false end
+out = {}
+fire("PLAYER_DEAD")
+need("to Gnoll Brute", "last hostile target remembered for the death")
+out = {}
+gametime = gametime + 60
+fire("PLAYER_DEAD")
+check(not has(" to "), "an old foe is not blamed for a later death")
+UnitCanAttack = function() return true end
+foe = nil
+
 if #failures > 0 then
     print("FAILURES (" .. #failures .. "):")
     for _, why in ipairs(failures) do print(" - " .. why) end
