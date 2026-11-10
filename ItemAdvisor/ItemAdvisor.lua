@@ -844,15 +844,68 @@ local function Score(link, dpsScale)
     return total + (weights.dmg or 0) * damage + (weights.heal or 0) * healing, unknown
 end
 
+-- "id:suffix" for a link: random-suffix variants ("of the Owl", "of the Monkey") share the base item ID but
+-- not the suffix field (the 7th after "item:"). Items without a suffix give "id:0".
+local function ItemVariant(link)
+    local fields = link:match("item:([%-%d:]*)")
+    if not fields then
+        return nil
+    end
+    local parts, index = {}, 0
+    for value in (fields .. ":"):gmatch("([^:]*):") do
+        index = index + 1
+        parts[index] = value
+        if index >= 7 then
+            break
+        end
+    end
+    local suffix = tonumber(parts[7] or "") or 0
+    return (parts[1] or "") .. ":" .. suffix, suffix ~= 0
+end
+
+-- Round 4 R8: the sets only list base item IDs (C_EquipmentSet.GetItemIDs, indexed by slot), so an ID match is
+-- proof only for items without a random suffix. A suffixed item counts when an identical variant is worn in the
+-- set's slot, or sits in a bag slot the game marks as in a set (C_Container.GetContainerItemEquipmentSetInfo,
+-- ContainerDocumentation:158).
 local function InEquipmentSet(link)
-    if not C_EquipmentSet then
+    if not (C_EquipmentSet and C_EquipmentSet.GetEquipmentSetIDs and C_EquipmentSet.GetItemIDs) then
         return false
     end
     local id = tonumber(link:match("item:(%d+)"))
-    for _, setID in ipairs(C_EquipmentSet.GetEquipmentSetIDs() or {}) do
-        for _, itemID in pairs(C_EquipmentSet.GetItemIDs(setID) or {}) do
-            if itemID == id then
-                return true
+    local slots = {}
+    for _, setID in ipairs(Safe(C_EquipmentSet.GetEquipmentSetIDs()) or {}) do
+        for slot, itemID in pairs(Safe(C_EquipmentSet.GetItemIDs(setID)) or {}) do
+            if Safe(itemID) == id then
+                slots[#slots + 1] = slot
+            end
+        end
+    end
+    if #slots == 0 then
+        return false
+    end
+    local variant, hasSuffix = ItemVariant(link)
+    if not hasSuffix then
+        return true
+    end
+    for _, slot in ipairs(slots) do
+        local worn = Safe(GetInventoryItemLink("player", slot))
+        if type(worn) == "string" and ItemVariant(worn) == variant then
+            return true
+        end
+    end
+    local setInfo = C_Container and C_Container.GetContainerItemEquipmentSetInfo
+    if not setInfo then
+        return false
+    end
+    for bag = 0, (NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4) do
+        for slot = 1, Safe(C_Container.GetContainerNumSlots(bag)) or 0 do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            local bagLink = info and Safe(info.hyperlink)
+            if type(bagLink) == "string" and ItemVariant(bagLink) == variant then
+                local ok, inSet = pcall(setInfo, bag, slot)
+                if ok and Safe(inSet) == true then
+                    return true
+                end
             end
         end
     end
@@ -2199,6 +2252,9 @@ local TALENT_EVENTS = { TRAIT_CONFIG_UPDATED = true, PLAYER_TALENT_UPDATE = true
 for name in pairs(TALENT_EVENTS) do
     pcall(events.RegisterEvent, events, name)
 end
+-- Saving or deleting a set changes which items are kept (EquipmentManagerDocumentation; handled by the
+-- generic repaint below).
+pcall(events.RegisterEvent, events, "EQUIPMENT_SETS_CHANGED")
 events:SetScript("OnEvent", function(_, event, arg1)
     if event == "GET_ITEM_INFO_RECEIVED" then
         -- Only items this addon asked for; the game loads items for many other reasons.
