@@ -193,6 +193,9 @@ local RATING_PER_PERCENT = { crit = 14, hit = 10, haste = 10, exp = 10, dodge = 
 local PERCENT_LABELS = {
     hit = "hit", crit = "crit", ["critical strike"] = "crit", ["critical hit"] = "crit", ["critically hit"] = "crit",
     haste = "haste", expertise = "exp", dodge = "dodge", parry = "parry", block = "block",
+    -- Forever's haste wordings (game text, re_round4.md 3.1): "your attack speed" reduces to "speed",
+    -- "your casting speed" to "casting speed", "your attack speed and casting speed" to "speed casting speed".
+    speed = "haste", ["casting speed"] = "haste", ["speed casting speed"] = "haste",
 }
 -- Words a stat line can add around its label. Anything else, such as "gain" in a proc, makes it not a stat line.
 local PERCENT_FILLER = {
@@ -223,16 +226,19 @@ local PROFILES = {
     -- Cat (DRUID.md): Forever feral scales with weapon damage and IV/Method rank Weapon DPS first: melee 0 -> 14.
     -- Hit > Expertise > Crit in IV and WT: hit 2 -> 4.5, exp 2 -> 4 (45/40 per 1%, crit 35). Str vs Agi
     -- disagree (Method Str, IV Agi): kept.
-    feral = { str = 2, feralap = 1, ap = 1, agi = 1.5, sta = 1.5, int = 0.3, spi = 0.2, armor = 0.1, crit = 2.5, hit = 4.5, exp = 4, melee = 14 },
+    -- Haste (round 4): Forever items carry a generic "attack speed" haste line (re_round4.md 3.1). No Forever
+    -- source ranks it for these specs, so it sits a little under Crit per 1 % (haste rating 10 per 1 %, crit 14):
+    -- cat 1.8, enhancement and retribution 1.8 (seal/Windfury procs per swing), tanks 0.5 (threat only).
+    feral = { str = 2, feralap = 1, ap = 1, agi = 1.5, sta = 1.5, int = 0.3, spi = 0.2, armor = 0.1, crit = 2.5, hit = 4.5, exp = 4, haste = 1.8, melee = 14 },
     -- IV and Method both put Hit at the top and Crit below Str/Int (SHAMAN.md): hit 3 -> 4.5, crit 3 -> 2.
     -- Int vs Str disagree (IV Int, Method Str): kept.
-    enhancement = { str = 2.2, ap = 1, int = 1, agi = 0.8, sta = 1, dmg = 0.3, armor = 0.05, crit = 2, hit = 4.5, exp = 3, melee = 19 },
+    enhancement = { str = 2.2, ap = 1, int = 1, agi = 0.8, sta = 1, dmg = 0.3, armor = 0.05, crit = 2, hit = 4.5, exp = 3, haste = 1.8, melee = 19 },
     -- IV and Method: Hit > Expertise > Str ~ Spell Power, Crit last (PALADIN.md): hit 3 -> 4.5, exp 2.5 -> 3.5,
     -- dmg 0.5 -> 2 (just under Str: IV has Str first, Method SP first), crit 3 -> 2.
-    retribution = { str = 2.2, ap = 1, int = 0.8, agi = 0.8, sta = 1, dmg = 2, armor = 0.05, crit = 2, hit = 4.5, exp = 3.5, melee = 19 },
+    retribution = { str = 2.2, ap = 1, int = 0.8, agi = 0.8, sta = 1, dmg = 2, armor = 0.05, crit = 2, hit = 4.5, exp = 3.5, haste = 1.8, melee = 19 },
     -- Shared by warrior, paladin and druid tanks; per-class changes are in CLASS_PROFILE_OVERRIDES below.
     -- Warrior tanks: IV and Method both rank Agility above Strength and Defense low; not changed (shared profile).
-    tank = { sta = 2, armor = 0.15, str = 1.5, agi = 1.2, ap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, melee = 8 },
+    tank = { sta = 2, armor = 0.15, str = 1.5, agi = 1.2, ap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, haste = 0.5, melee = 8 },
     -- Casters: Hit (to 17%) first, then Spell Damage, then Crit (MAGE.md, WARLOCK.md: IV and Method; WT puts
     -- Crit before Hit but its sims value them about equal). hit 1 -> 1.2 (mage), 0.9 -> 1.2 (warlock).
     -- Spell Penetration ranks above Int for Method/IV but is still ignored (IGNORED_KEYS).
@@ -264,11 +270,11 @@ local CLASS_PROFILE_OVERRIDES = {
     },
     tank = {
         -- Protection paladin (PALADIN.md): IV and Method both put Spell Power in the top five: dmg 0 -> 1.
-        PALADIN = { sta = 2, armor = 0.15, str = 1.5, agi = 1.2, ap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, melee = 8, dmg = 1 },
+        PALADIN = { sta = 2, armor = 0.15, str = 1.5, agi = 1.2, ap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, haste = 0.5, melee = 8, dmg = 1 },
         -- Bear (DRUID.md): IV, WT and Method all rank Armor among the top three (bear form multiplies it):
         -- armor 0.15 -> 0.3; feral attack power counts like attack power (feralap 0.7). Defense vs Dodge vs
         -- Stamina order disagrees: kept.
-        DRUID = { sta = 2, armor = 0.3, str = 1.5, agi = 1.2, ap = 0.7, feralap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, melee = 8 },
+        DRUID = { sta = 2, armor = 0.3, str = 1.5, agi = 1.2, ap = 0.7, feralap = 0.7, defense = 1.5, dodge = 2, parry = 2, block = 1.5, blockvalue = 0.5, hit = 1.5, exp = 2, crit = 1, haste = 0.5, melee = 8 },
     },
 }
 
@@ -516,6 +522,11 @@ local function ParsePercentLine(text)
     if not label then label, amount = text:match("^improves%s+(.+)%s+by%s+([%d%.]+)%%$") end
     if not label then amount, label = text:match("^%+?([%d%.]+)%%%s+(.+)$") end
     if not label then label, amount = text:match("^(.-)%s*%+([%d%.]+)%%$") end
+    -- Forever's expertise line: "Equip: Reduces chance to be Dodged or Parried by N%." (melee only).
+    local parried = text:match("^reduces%s+chance%s+to%s+be%s+dodged%s+or%s+parried%s+by%s+([%d%.]+)%%$")
+    if parried and tonumber(parried) then
+        return "exp", tonumber(parried), "attack"
+    end
     amount = tonumber(amount)
     if not label or not amount then
         return nil
@@ -530,7 +541,7 @@ local function ParsePercentLine(text)
     if not stat then
         return nil
     end
-    local spell = label:find("spell", 1, true)
+    local spell = label:find("spell", 1, true) or label:find("casting", 1, true)
     local attack = label:find("melee", 1, true) or label:find("ranged", 1, true) or label:find("attack", 1, true)
     -- Vanilla's unqualified wording ("your chance to hit") is physical; spells always say so.
     if spell and attack then
