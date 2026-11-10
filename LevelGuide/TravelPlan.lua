@@ -6,6 +6,7 @@
 --
 --   TravelWorld(map, x, y) -> continent, wx, wy      TravelYards(a, b) -> yards or nil
 --   TravelZoneAt(continent, wx, wy) -> uiMap          TravelDanger(zone, level) -> 1, 3 or 20
+--   DeathSkip(here, goal) -> the spirit healer you'd come back at, when it's by the goal and saves walking
 --   TravelPlan(opts) -> { legs = { { kind, text, from, to, seconds, learn } }, total, usesHearth } or nil
 --     opts = { from, to = { map, x, y (percent)[, name] }, level, speed (yd/s, default 7),
 --              known = function(flight master name) -> bool, hearth = { map, x, y, name } (ready and bound),
@@ -411,6 +412,35 @@ function P.TravelInn(bindName)
             end
         end
     end
+end
+
+-- The death skip (research\guides_deep_re.md 12.18, our own code after Leveldon's rule): dying sends you to
+-- the spirit healer nearest to you; worth it when that healer stands within 300 yd of where you're going and
+-- saves 300 yd or more of walking. Returns that healer ({ map, x, y }) and the yards saved, or nil.
+P.DEATH = { nearGoal = 300, minSave = 300 }
+function P.DeathSkip(here, goal)
+    local T = Data()
+    if not (T and T.healers and here and goal) then
+        return nil
+    end
+    local direct = P.TravelYards(here, goal)
+    if not direct then
+        return nil
+    end
+    -- Only healers on the same land (not across the sea, nor Teldrassil's top for Rut'theran).
+    local region = T.Region and T.Region(here.map, here.x, here.y)
+    local nearest, nearestYards
+    for _, healer in ipairs(T.healers) do
+        local yards = (not T.Region or T.Region(healer.map, healer.x, healer.y) == region) and P.TravelYards(here, healer)
+        if yards and (not nearestYards or yards < nearestYards) then
+            nearest, nearestYards = healer, yards
+        end
+    end
+    local after = nearest and P.TravelYards(nearest, goal)
+    if after and after <= P.DEATH.nearGoal and direct - after >= P.DEATH.minSave then
+        return nearest, direct - after
+    end
+    return nil
 end
 
 return P

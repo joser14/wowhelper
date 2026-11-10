@@ -3600,6 +3600,10 @@ end
 
 local function ChoresText(later)
     local parts = {}
+    -- The death-skip and riding-money hints (X.HintParts).
+    for _, hint in ipairs(X.HintParts()) do
+        parts[#parts + 1] = hint
+    end
     if later and #later > 0 then
         table.sort(later)
         parts[#parts + 1] = string.format("%d quest(s) for level %d+", #later, later[1] - K.HARD_LEVELS + 1)
@@ -4461,6 +4465,75 @@ function X.RenderFork()
     card:Show()
 end
 end -- route choice
+
+-- Death-skip and riding-money hints (research\guides_deep_re.md 12.18; our own code after Leveldon's ideas),
+-- text only, in the "Also" line:
+-- * below level 10, alive, with the current stop on this land: when the spirit healer you'd come back at (the
+--   nearest to you) is within 300 yd of the stop and saves 300 yd or more (Planner.DeathSkip);
+-- * from level 38 to 59 without Apprentice Riding (skill line 762 below 75): what riding at 40 costs, about
+--   120 g with a mount (Warcraft Tavern's Forever riding guide, as GoldGoal; not yet checked in game), and your
+--   gold (GetMoney); paladins and warlocks get their mount from a class quest.
+do
+local RIDING_SKILL, RIDING_RANK, RIDING_GOLD = 762, 75, 120
+local QUEST_MOUNTS = { PALADIN = true, WARLOCK = true }
+
+local function DeathHint(level)
+    local P, step = LevelGuidePlanner, steps[1]
+    if not (P and P.DeathSkip and step and level < 10) or step.corpse then
+        return nil
+    end
+    if (UnitIsGhost and Safe(UnitIsGhost("player"))) or (UnitIsDeadOrGhost and Safe(UnitIsDeadOrGhost("player"))) then
+        return nil
+    end
+    local goal
+    local goalMap = step.goalMap and X.MapIDNamed(step.goalMap)
+    if goalMap and step.goalX and step.goalY then
+        goal = { map = goalMap, x = step.goalX, y = step.goalY }
+    elseif step.mapID and step.x and step.y then
+        goal = { map = step.mapID, x = step.x * 100, y = step.y * 100 }
+    end
+    local mapID, px, py = PlayerPosition()
+    if not (goal and mapID and px and py) then
+        return nil
+    end
+    local healer = P.DeathSkip({ map = mapID, x = px * 100, y = py * 100 }, goal)
+    if healer then
+        return "|cffccccffFaster: die and come back at the spirit healer by the next stop (no resurrection sickness below 10; not on Hardcore).|r"
+    end
+end
+
+local function RidingHint(level)
+    if level < 38 or level >= 60 then
+        return nil
+    end
+    local info = C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID and Safe(C_SkillInfo.GetSkillLineInfoByID(RIDING_SKILL))
+    local rank = type(info) == "table" and Safe(info.rank) or 0
+    if type(rank) == "number" and rank >= RIDING_RANK then
+        return nil
+    end
+    local copper = GetMoney and Safe(GetMoney())
+    local have = type(copper) == "number" and string.format("; you have %d g", math.floor(copper / 10000)) or ""
+    local class = UnitClass and Safe(select(2, UnitClass("player")))
+    if QUEST_MOUNTS[class] then
+        return string.format("|cffccccffRiding at 40: your class mount comes from a class quest; training costs gold too%s (not checked in game).|r", have)
+    end
+    return string.format("|cffccccffRiding at 40: about %d g with a mount%s (not checked in game).|r", RIDING_GOLD, have)
+end
+
+function X.HintParts()
+    local parts = {}
+    local level = Safe(UnitLevel("player"))
+    if type(level) ~= "number" then
+        return parts
+    end
+    for _, hint in ipairs({ DeathHint(level) or false, RidingHint(level) or false }) do
+        if hint then
+            parts[#parts + 1] = hint
+        end
+    end
+    return parts
+end
+end -- hints
 
 -- The guide's own tooltip, so it never changes Blizzard's shared one.
 local tooltip
