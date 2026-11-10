@@ -10,7 +10,7 @@
 --   XP:      Share(plevel, qlevel), GreyLevel(L), ZeroDiff(L), MobXP(L, mob, elite), Trivial(L, q, range),
 --            QuestXP(id) -> xp, kills, Run(entries, p) -> summary
 --   Arrow:   Damp(current, target, dt), Closing(state, yards, dt), ETA(yards, speed), Radius(kind, r),
---            Arrived(state, key, yards, r), Switch(curYards, newYards)
+--            Arrived(state, key, yards, r), Switch(curYards, newYards), ArrowColor(angle)
 --   Here:    DetourSeconds(dPN, dNW, dPW), TurninShows(...), Mute(...)/Muted(...)
 --   Camps:   PickCamp(camps, distances, state, now, sample)
 --   Maps:    MapYards(mapID, x1, y1, x2, y2) on QuestDB frames (map percent 0-100)
@@ -236,6 +236,22 @@ function P.Arrived(state, key, yards, r)
         return true
     end
     return false
+end
+
+-- The arrow's colour for a relative bearing (radians, 0 = straight ahead): p = 1 - |angle|/pi runs from 0
+-- (behind) to 1 (ahead) through red -> yellow -> green; within about 3.6 degrees of dead ahead (p > 0.98) an
+-- "exact" colour of its own. A three-stop gradient after TomTom's arrow (idea only; our own numbers).
+local ARROW_BAD, ARROW_MID, ARROW_GOOD, ARROW_EXACT = { 1, 0.15, 0.15 }, { 1, 0.82, 0 }, { 0.3, 1, 0.3 }, { 0.2, 1, 0.85 }
+function P.ArrowColor(angle)
+    local p = 1 - abs(Wrap(angle or 0)) / pi
+    if p > 0.98 then
+        return ARROW_EXACT[1], ARROW_EXACT[2], ARROW_EXACT[3]
+    end
+    local from, to, t = ARROW_BAD, ARROW_MID, p * 2
+    if p > 0.5 then
+        from, to, t = ARROW_MID, ARROW_GOOD, (p - 0.5) * 2
+    end
+    return from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t, from[3] + (to[3] - from[3]) * t
 end
 
 -- Whether a new nearest target should replace the current one: only when more than 25% and more than

@@ -159,6 +159,9 @@ these sources:
 - Ideas only, no code: MapPins' pin spacing and minimap fade and QuestTracker's "1/1 but unfinished counts as
   0/1" rule follow behaviour described in Questie; DeathNotes' "risky / very risky" fight wording follows
   Quest Triage (GPL-3.0).
+- Ideas only, no code or art: LevelGuide's saved death spot as a corpse fallback, the red-yellow-green arrow
+  colour and the arrival sound follow behaviour described in TomTom (all rights reserved; its arrow art is
+  non-commercial and is not shipped).
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.

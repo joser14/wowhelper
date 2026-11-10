@@ -5087,8 +5087,16 @@ end
 
 -- While you're a ghost, where your corpse is: on your zone's map, else on the continent's (you may have
 -- released into the next zone). Nil when alive or when the game doesn't say.
+-- When the game gives no position (it can lag after a release, or not say at all), the spot you died at,
+-- saved at PLAYER_DEAD (X.SavedCorpse, round 4 item 5).
 local function CorpseTarget()
-    if not (UnitIsGhost and Safe(UnitIsGhost("player")) and C_DeathInfo and C_DeathInfo.GetCorpseMapPosition) then
+    if not (UnitIsGhost and Safe(UnitIsGhost("player"))) then
+        return nil
+    end
+    return X.CorpseFromGame() or X.SavedCorpse()
+end
+function X.CorpseFromGame()
+    if not (C_DeathInfo and C_DeathInfo.GetCorpseMapPosition) then
         return nil
     end
     local mapID = PlayerPosition()
@@ -5116,6 +5124,90 @@ local function CorpseTarget()
     end
 end
 X.CorpseTarget = CorpseTarget
+
+-- Round 4 item 5 (research\re_round4.md R5, TomTom ideas only): the death spot, "Resurrect in N s" at the
+-- corpse, and an optional sound on arriving at the arrow's target (off unless you switch it on).
+do -- (a block, so its helpers don't count toward the file's 200-local limit)
+    -- PLAYER_DEAD outdoors: where you lie, per character. Cleared once you're alive again: PLAYER_UNGHOST, or
+    -- PLAYER_ALIVE while not a ghost (a resurrection; releasing your spirit fires PLAYER_ALIVE too).
+    function X.DeathEvent(event)
+        if not charData then
+            return
+        end
+        if event == "PLAYER_DEAD" then
+            if IsInInstance and Safe(IsInInstance()) then
+                return
+            end
+            local mapID, x, y = PlayerPosition()
+            if mapID and x and y and (x > 0 or y > 0) then
+                charData.deathSpot = { map = mapID, x = x, y = y, t = (time and Safe(time())) or Now() }
+            end
+        elseif event == "PLAYER_UNGHOST" or not (UnitIsGhost and Safe(UnitIsGhost("player"))) then
+            charData.deathSpot = nil
+        end
+    end
+
+    function X.SavedCorpse()
+        local spot = charData and charData.deathSpot
+        if type(spot) == "table" and spot.map and spot.x and spot.y then
+            return { corpse = true, saved = true, kind = "travel", title = "Your corpse", mapID = spot.map, x = spot.x, y = spot.y }
+        end
+    end
+
+    -- At the corpse: the seconds the game still makes you wait before you can resurrect.
+    function X.CorpseArrivedText()
+        local wait = GetCorpseRecoveryDelay and Safe(GetCorpseRecoveryDelay())
+        if type(wait) == "number" and wait > 0 then
+            return string.format("|cffffd100Resurrect in %d s|r", math.ceil(wait))
+        end
+        return "|cff33ff33Your corpse|r"
+    end
+
+    -- Once per arrival (the false -> true edge of the arrow's arrival), and only when switched on.
+    function X.ArrivalEdge(arrived)
+        local state = X.arrow
+        if arrived and not state.pinged then
+            state.pinged = true
+            if db and db.arrivalSound and PlaySound and SOUNDKIT then
+                local kit = SOUNDKIT.UI_MAP_WAYPOINT_SUPER_TRACK_ON or SOUNDKIT.RAID_WARNING
+                if kit then
+                    pcall(PlaySound, kit, "Master")
+                end
+            end
+        elseif not arrived then
+            state.pinged = false
+        end
+    end
+
+    -- A small "Snd" button on the guide: arrival sound on (bright) or off (dim).
+    function X.MakeSoundButton(parent, anchor)
+        local button = CreateFrame("Button", nil, parent)
+        button:SetSize(26, 18)
+        button:SetPoint("RIGHT", anchor, "LEFT", -1, 0)
+        button:SetNormalFontObject(GameFontDisableSmall)
+        button:SetHighlightFontObject(GameFontHighlightSmall)
+        button:SetText("Snd")
+        local function Look()
+            button:SetNormalFontObject(db and db.arrivalSound and GameFontNormalSmall or GameFontDisableSmall)
+        end
+        Look()
+        button:SetScript("OnClick", function()
+            db.arrivalSound = not db.arrivalSound or nil
+            Look()
+        end)
+        button:SetScript("OnEnter", function(self)
+            Tip():SetOwner(self, "ANCHOR_LEFT")
+            Tip():SetText("Arrival sound")
+            Tip():AddLine("A short sound when you reach the arrow's target. Click to switch it "
+                .. (db and db.arrivalSound and "off." or "on."), 1, 1, 1, true)
+            Tip():Show()
+        end)
+        button:SetScript("OnLeave", function()
+            Tip():Hide()
+        end)
+        return button
+    end
+end
 
 -- Points the arrow from you to the current step. Facing and bearing both count counterclockwise from north.
 local function UpdateArrow()
@@ -5163,11 +5255,12 @@ local function UpdateArrow()
     else
         arrived = isYards and yards <= radius
     end
+    X.ArrivalEdge(arrived)
     if arrived then
         arrow:Hide()
         state.bearing = nil
         if step.corpse then
-            yardsText:SetText("|cff33ff33Your corpse|r")
+            yardsText:SetText(X.CorpseArrivedText())
             return
         end
         yardsText:SetText("|cff33ff33You're there|r")
@@ -5217,7 +5310,10 @@ local function UpdateArrow()
     local relative = bearing - facing
     arrow:SetRotation(relative)
     local wrapped = (relative + math.pi) % (2 * math.pi) - math.pi
-    if math.abs(wrapped) < K.AHEAD_RADIANS then
+    -- Red behind, yellow sideways, green ahead (Planner.ArrowColor); two colours without the planner.
+    if P and P.ArrowColor then
+        arrow:SetVertexColor(P.ArrowColor(wrapped))
+    elseif math.abs(wrapped) < K.AHEAD_RADIANS then
         arrow:SetVertexColor(0.3, 1, 0.3)
     else
         arrow:SetVertexColor(1, 0.82, 0)
@@ -5879,6 +5975,7 @@ local function Build()
     listButton:SetScript("OnLeave", function()
         Tip():Hide()
     end)
+    X.MakeSoundButton(frame, listButton)
 
     -- Blizzard's own navigation arrow art, which points up when unrotated.
     arrow = frame:CreateTexture(nil, "OVERLAY")
@@ -6152,6 +6249,10 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         -- The way is worked out again with the new level (the event's: UnitLevel can lag behind it).
         X.levelUpTo = Safe(questID)
         X.travelReplan = true
+    elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
+        Attempt(function()
+            X.DeathEvent(event)
+        end)
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         requestedMap = nil
         X.travelReplan = true   -- off a boat, through a portal, landed: the next leg
