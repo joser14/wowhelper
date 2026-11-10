@@ -1598,10 +1598,18 @@ local function Attempt(step)
     end
 end
 
+-- Some lines change with no event the hub hears (walking away from a death spot, a rare leaving the
+-- minimap, a buff running out, a talent point spent), so the lines are also read again every few seconds.
+local ROWS_REFRESH_SECONDS = 5
+local rowsAt
+
 local function OnTick()
     Attempt(RefreshStats)
-    if rowsDirty and panel and panel:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
+    local now = GetTime()
+    local due = rowsDirty or not rowsAt or now - rowsAt >= ROWS_REFRESH_SECONDS
+    if due and panel and panel:IsShown() and not (InCombatLockdown and InCombatLockdown()) then
         rowsDirty = false
+        rowsAt = now
         Attempt(RefreshRows)
     end
 end

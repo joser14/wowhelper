@@ -164,6 +164,42 @@ issecretvalue = function() return false end
 assert(db.profile == "tank", "secret tab name keeps the role")
 flush()
 
+-- 1b. Forever's window shows three trees: as three tree IDs (no sub-trees), named by titleText or by
+-- tab order, or as one tree with the tabs side by side (split by posX). Nothing there may stay unread.
+local trees = { [61] = {}, [62] = {}, [63] = {} }
+local titles = {}
+C_Traits = {
+    GetConfigInfo = function() return { treeIDs = { 61, 62, 63 } } end,
+    GetTreeNodes = function(tree) local ids = {}; for id in pairs(trees[tree]) do ids[#ids + 1] = id end; table.sort(ids); return ids end,
+    GetNodeInfo = function(_, id) for _, t in pairs(trees) do if t[id] then return { ID = id, ranksPurchased = t[id], posX = 0 } end end end,
+    GetTreeInfo = function(_, tree) return { ID = tree, titleText = titles[tree] } end,
+}
+trees[61], trees[62], trees[63] = { [1] = 3 }, { [2] = 2 }, { [3] = 11, [4] = 1 }
+fire("TRAIT_CONFIG_UPDATED")
+assert(db.profile == "tank", "three untitled trees: tab order puts 12 points in Protection")
+trees[61], trees[63] = { [1] = 14 }, { [3] = 0 }
+fire("TRAIT_CONFIG_UPDATED")
+assert(db.profile == "warrior", "three untitled trees: Arms")
+titles = { [61] = "Protection", [62] = "Fury", [63] = "Arms" }
+fire("TRAIT_CONFIG_UPDATED")
+assert(db.profile == "tank", "tree titles win over tab order")
+titles = {}
+flush()
+-- One tree, no sub-trees: columns by position.
+local single = { [1] = { 0, 0 }, [2] = { 100, 0 }, [3] = { 200, 6 }, [4] = { 300, 0 }, [5] = { 400, 0 }, [6] = { 500, 2 } }
+C_Traits = {
+    GetConfigInfo = function() return { treeIDs = { 70 } } end,
+    GetTreeNodes = function() return { 1, 2, 3, 4, 5, 6 } end,
+    GetNodeInfo = function(_, id) return { ID = id, posX = single[id][1], ranksPurchased = single[id][2] } end,
+}
+fire("TRAIT_CONFIG_UPDATED")
+assert(db.profile == "warrior", "single tree: 6 points in the middle column (Fury)")
+single[6][2], single[3][2] = 9, 0
+fire("TRAIT_CONFIG_UPDATED")
+assert(db.profile == "tank", "single tree: 9 points in the right column (Protection)")
+useTraits()
+flush()
+
 -- 2. The older tab API as a fallback, with either return layout.
 C_ClassTalents, C_Traits = nil, nil
 GetTalentTabInfo = function(i) return ({ "Arms", "Fury", "Protection" })[i], "icon", ({ 2, 21, 0 })[i] end

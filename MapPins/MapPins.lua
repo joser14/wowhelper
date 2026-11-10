@@ -555,18 +555,24 @@ end
 -- A cheap fingerprint of the other helpers' data, so a new death or place shows within a second.
 local function Signature()
     local parts = {}
-    local function Count(t)
-        local n = 0
+    -- The count, and the newest time stamp: a full list (places, deaths) gains an entry without growing,
+    -- and a rare seen again moves in place, so the count alone would miss both.
+    local function Count(t, stamp)
+        local n, newest = 0, 0
         if type(t) == "table" then
-            for _ in pairs(t) do
+            for _, entry in pairs(t) do
                 n = n + 1
+                local at = type(entry) == "table" and entry[stamp]
+                if type(at) == "number" and at > newest then
+                    newest = at
+                end
             end
         end
-        parts[#parts + 1] = n
+        parts[#parts + 1] = n .. "/" .. newest
     end
-    Count(RealmTable(LandmarksDB, "places"))
-    Count(RealmTable(DeathNotesDB, "deaths"))
-    Count(RealmTable(RareWatchDB, "rares"))
+    Count(RealmTable(LandmarksDB, "places"), "seen")
+    Count(RealmTable(DeathNotesDB, "deaths"), "when")
+    Count(RealmTable(RareWatchDB, "rares"), "seen")
     parts[#parts + 1] = UnitLevel and Safe(UnitLevel("player")) or 0
     -- A helper switched on or off in the hub shows or hides its layer.
     for _, layer in ipairs(LAYERS) do

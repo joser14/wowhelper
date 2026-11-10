@@ -29,16 +29,18 @@ local function TraitPoints()
     end
     local configID = SafeCall(C_ClassTalents.GetActiveConfigID)
     local config = configID and SafeCall(C_Traits.GetConfigInfo, configID)
-    if type(config) ~= "table" or type(config.treeIDs) ~= "table" then
+    local treeIDs = type(config) == "table" and Safe(config.treeIDs)
+    if type(treeIDs) ~= "table" then
         return nil
     end
     local total, seen = nil, {}
-    for _, treeID in ipairs(config.treeIDs) do
+    for _, treeID in ipairs(treeIDs) do
         -- Exclude staged changes: points placed but never applied are still unspent.
-        local currencies = SafeCall(C_Traits.GetTreeCurrencyInfo, configID, treeID, true)
+        local currencies = Safe(treeID) and SafeCall(C_Traits.GetTreeCurrencyInfo, configID, Safe(treeID), true)
         for _, currency in ipairs(type(currencies) == "table" and currencies or {}) do
-            local id, quantity = Safe(currency.traitCurrencyID), Safe(currency.quantity)
-            if id and quantity and not seen[id] then
+            local id = type(currency) == "table" and Safe(currency.traitCurrencyID)
+            local quantity = type(currency) == "table" and Safe(currency.quantity)
+            if id and type(quantity) == "number" and not seen[id] then
                 seen[id] = true
                 total = (total or 0) + quantity
             end

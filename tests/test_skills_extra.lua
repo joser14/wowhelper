@@ -104,6 +104,11 @@ fire(tn, "TRAIT_TREE_CURRENCY_INFO_UPDATED", 1)
 need("You have 1 unspent", "applied state counts, staged points don't hide it")
 assert(staged[1] == true, "staged changes excluded")
 assert(tn.registered.TRAIT_CONFIG_LIST_UPDATED, "late config load watched")
+-- Three trees sharing one currency: counted once. A malformed entry is skipped, never an error.
+C_Traits.GetConfigInfo = function() return { treeIDs = { 1, 2, 3 } } end
+C_Traits.GetTreeCurrencyInfo = function() return { "junk", { traitCurrencyID = 1, quantity = 4 } } end
+local rows = ForeverHubStatus.TalentNudge()
+assert(rows and rows[1].text:find("Spend|r 4 talent", 1, true), "shared currency counted once, junk skipped")
 
 ----- ProfessionCap
 reset()

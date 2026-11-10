@@ -259,9 +259,122 @@ local function SpecTalent(tab, index, group)
     return Text(info.name), Number(info.rank), Number(info.maxRank)
 end
 
--- Every talent the game lists: { byName = { [lower name] = { name, tree, rank, maxRank } }, list = {...},
+-- Forever's talent window is the trait system (C_ClassTalents / C_Traits): one config with the three
+-- trees either as separate tree IDs or as sub-trees of one tree. The legacy calls above return nothing
+-- there, so this is the reading that works in game. Read-only: only Get* calls.
+local function TraitName(configID, node)
+    local entryID = type(node.activeEntry) == "table" and Safe(node.activeEntry.entryID)
+    if not entryID and type(node.entryIDs) == "table" then
+        entryID = Safe(node.entryIDs[1])
+    end
+    local entry = entryID and SafeCall(C_Traits.GetEntryInfo, configID, entryID)
+    local definitionID = type(entry) == "table" and Safe(entry.definitionID)
+    local definition = definitionID and SafeCall(C_Traits.GetDefinitionInfo, definitionID)
+    if type(definition) ~= "table" then
+        return nil
+    end
+    local name = Text(definition.overrideName)
+    local spellID = Number(definition.spellID)
+    if not name and spellID then
+        name = (C_Spell and Text(SafeCall(C_Spell.GetSpellName, spellID))) or Text(SafeCall(GetSpellInfo, spellID))
+    end
+    return name
+end
+
+local function TraitTalents()
+    if not (C_ClassTalents and C_Traits and type(C_Traits.GetTreeNodes) == "function" and type(C_Traits.GetNodeInfo) == "function") then
+        return nil
+    end
+    local configID = SafeCall(C_ClassTalents.GetActiveConfigID)
+    local config = configID and SafeCall(C_Traits.GetConfigInfo, configID)
+    if type(config) ~= "table" or type(Safe(config.treeIDs)) ~= "table" then
+        return nil
+    end
+    local treeIDs = config.treeIDs
+    local nodes = {}
+    for treeIndex, rawTree in ipairs(treeIDs) do
+        local treeID = Safe(rawTree)
+        local treeInfo = treeID and SafeCall(C_Traits.GetTreeInfo, configID, treeID)
+        local treeTitle = type(treeInfo) == "table" and Text(treeInfo.titleText) or nil
+        local nodeIDs = treeID and SafeCall(C_Traits.GetTreeNodes, treeID)
+        for _, rawNode in ipairs(type(nodeIDs) == "table" and nodeIDs or {}) do
+            local nodeID = Safe(rawNode)
+            local node = nodeID and SafeCall(C_Traits.GetNodeInfo, configID, nodeID)
+            if type(node) == "table" and Safe(node.isVisible) ~= false and Number(node.maxRanks) and Number(node.maxRanks) > 0 then
+                local name = TraitName(configID, node)
+                if name then
+                    local tree
+                    local subTreeID = Number(node.subTreeID)
+                    if subTreeID and type(C_Traits.GetSubTreeInfo) == "function" then
+                        local sub = SafeCall(C_Traits.GetSubTreeInfo, configID, subTreeID)
+                        tree = type(sub) == "table" and Text(sub.name) or nil
+                    end
+                    if not tree and #treeIDs > 1 then
+                        tree = treeTitle or TabName(treeIndex)
+                    end
+                    nodes[#nodes + 1] = { name = name, tree = tree, treeIndex = treeIndex, subTreeID = subTreeID,
+                        rank = math.max(Number(node.currentRank) or Number(node.activeRank) or 0, 0),
+                        maxRank = Number(node.maxRanks), x = Number(node.posX) or 0, y = Number(node.posY) or 0 }
+                end
+            end
+        end
+    end
+    if #nodes == 0 then
+        return nil
+    end
+    -- One tree holding all three: split it into three columns of the window, left to right, and name each
+    -- column after the class's talent tabs.
+    local unnamed = 0
+    for _, node in ipairs(nodes) do
+        if not node.tree then
+            unnamed = unnamed + 1
+        end
+    end
+    if unnamed > 0 then
+        local minX, maxX = math.huge, -math.huge
+        for _, node in ipairs(nodes) do
+            minX, maxX = math.min(minX, node.x), math.max(maxX, node.x)
+        end
+        local width = math.max(maxX - minX, 1)
+        for _, node in ipairs(nodes) do
+            if not node.tree then
+                local column = math.min(3, math.floor((node.x - minX) / width * 3) + 1)
+                node.tree = TabName(column) or ("Tree " .. column)
+                node.treeIndex = column
+            end
+        end
+    end
+    -- Row numbers within each tree, from the nodes' heights (top row = 1).
+    local heights = {}
+    for _, node in ipairs(nodes) do
+        heights[node.tree] = heights[node.tree] or {}
+        heights[node.tree][node.y] = true
+    end
+    local rowOf = {}
+    for tree, set in pairs(heights) do
+        local sorted = {}
+        for y in pairs(set) do
+            sorted[#sorted + 1] = y
+        end
+        table.sort(sorted)
+        rowOf[tree] = {}
+        for index, y in ipairs(sorted) do
+            rowOf[tree][y] = index
+        end
+    end
+    local result = { byName = {}, list = {}, spent = 0 }
+    for _, node in ipairs(nodes) do
+        local entry = { name = node.name, tree = node.tree, rank = node.rank, maxRank = node.maxRank, row = rowOf[node.tree][node.y] }
+        result.list[#result.list + 1] = entry
+        result.byName[node.name:lower()] = entry
+        result.spent = result.spent + entry.rank
+    end
+    return result
+end
+
+-- Every talent the game lists: { byName = { [lower name] = { name, tree, rank, maxRank, row? } }, list = {...},
 -- spent = total points }, or nil when no talent could be read at all.
-local function ReadTalents()
+local function LegacyTalents()
     local hasLegacy = type(GetTalentInfo) == "function"
     local hasSpec = C_SpecializationInfo and type(C_SpecializationInfo.GetTalentInfo) == "function"
     if not (hasLegacy or hasSpec) then
@@ -289,6 +402,10 @@ local function ReadTalents()
         end
     end
     return #result.list > 0 and result or nil
+end
+
+local function ReadTalents()
+    return LegacyTalents() or TraitTalents()
 end
 
 -- ---------------------------------------------------------------------------------------------------
@@ -537,6 +654,7 @@ end
 -- Status row (cached; refreshed when level, talents or spells change)
 
 local dirty, cachedRows = true, nil
+local panelDirty = true  -- the talent-window panel's text needs redrawing
 
 local function ComputeStatus()
     local classFile = PlayerClass()
@@ -571,11 +689,231 @@ end
 local events = type(CreateFrame) == "function" and CreateFrame("Frame") or nil
 if events then
     for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_LEVEL_UP", "CHARACTER_POINTS_CHANGED", "PLAYER_TALENT_UPDATE", "SPELLS_CHANGED",
-        "TRAIT_CONFIG_UPDATED", "ACTIVE_TALENT_GROUP_CHANGED" }) do
+        "TRAIT_CONFIG_UPDATED", "TRAIT_NODE_CHANGED", "TRAIT_TREE_CURRENCY_INFO_UPDATED", "ACTIVE_TALENT_GROUP_CHANGED" }) do
         pcall(events.RegisterEvent, events, event)
     end
     events:SetScript("OnEvent", function()
         dirty = true
+        panelDirty = true
+    end)
+end
+
+-- ---------------------------------------------------------------------------------------------------
+-- Beside the talent window: our own small panel, shown while the game's talent window is open.
+-- Rule-safe by construction: the panel is parented to UIParent and placed by reading the talent window's
+-- position. Nothing is anchored to, parented to, shown, hidden, hooked or changed on Blizzard's frames.
+
+local TALENT_WINDOWS = { "PlayerTalentFrame", "TalentFrame", "ClassTalentFrame", "PlayerSpellsFrame" }
+local PANEL_WIDTH, PANEL_LINES = 260, 9
+
+-- The next few points the build still wants, in order: { { name, tree, rank, level } }.
+local function Upcoming(build, talents, count)
+    local list = {}
+    if type(build.points) ~= "table" or not talents then
+        return list
+    end
+    for _, point in ipairs(build.points) do
+        if SpentRank(talents, point.talent) < (point.rank or 1) then
+            list[#list + 1] = { name = point.talent, tree = point.tree, rank = point.rank or 1, level = point.level }
+            if #list >= count then
+                break
+            end
+        end
+    end
+    return list
+end
+
+local function TalentWhere(talents, name, tree)
+    local _, entry = SpentRank(talents, name)
+    local where = (entry and entry.tree) or tree
+    if entry and entry.row then
+        where = (where and (where .. ", ") or "") .. "row " .. entry.row
+    end
+    return where and (GRAY .. " (" .. where .. ")|r") or ""
+end
+
+-- The panel's text lines (also used by the tests).
+function Builds_TalentPanelLines()
+    local classFile = PlayerClass()
+    if not classFile then
+        return nil
+    end
+    local level = PlayerLevel() or FIRST_TALENT_LEVEL
+    local talents = ReadTalents()
+    local goal = CurrentGoal(classFile, level, talents)
+    local build = BuildFor(classFile, goal)
+    if not build then
+        return nil
+    end
+    local lines = { GOLD .. "Build:|r " .. (build.name or GOAL_LABELS[goal] or goal) }
+    if not talents then
+        lines[#lines + 1] = GRAY .. "Your talents can't be read right now." .. "|r"
+    end
+    local unspent = UnspentPoints() or 0
+    local upcoming = Upcoming(build, talents, unspent > 0 and math.max(unspent, 3) or 3)
+    if #upcoming > 0 then
+        lines[#lines + 1] = unspent > 0 and (GREEN .. "Spend now:|r") or (GOLD .. "Coming up:|r")
+        for index, point in ipairs(upcoming) do
+            local label = string.format("%s%s %d|r%s", index <= unspent and GREEN or "", point.name, point.rank, TalentWhere(talents, point.name, point.tree))
+            if index > unspent and point.level then
+                label = label .. GRAY .. " at " .. point.level .. "|r"
+            end
+            lines[#lines + 1] = label
+        end
+    else
+        local nextTalent, step = NextTalent(build, talents, level)
+        if nextTalent then
+            lines[#lines + 1] = (unspent > 0 and GREEN .. "Spend now:|r " or GOLD .. "Next:|r ") .. nextTalent.name .. TalentWhere(talents, nextTalent.name, nextTalent.tree)
+        elseif step and step.text then
+            lines[#lines + 1] = GOLD .. "Now:|r " .. step.text
+        elseif talents then
+            lines[#lines + 1] = GREEN .. "Everything the build asks for is taken.|r"
+        end
+    end
+    local off = OffBuild(build, talents)
+    if #off > 0 then
+        lines[#lines + 1] = "|cffff8800Not in this build:|r " .. table.concat(off, ", ")
+    end
+    lines[#lines + 1] = GRAY .. "Click for the full build (Forever Hub > Builds).|r"
+    return lines
+end
+
+local panel, panelText
+
+-- Forever's talent window name isn't in the UI source we have, so besides the known names, look once
+-- (and again when a Blizzard talent addon loads) for top-level frames named "...Talent...Frame".
+local function DiscoverTalentWindows()
+    local known = {}
+    for _, name in ipairs(TALENT_WINDOWS) do
+        known[name] = true
+    end
+    for key, value in pairs(_G) do
+        if type(key) == "string" and not known[key] and key:find("Talent", 1, true) and key:sub(-5) == "Frame"
+            and not key:find("^Builds") and type(value) == "table" and type(value.GetParent) == "function" then
+            local ok, parent = pcall(value.GetParent, value)
+            if ok and parent ~= nil and parent == UIParent then
+                TALENT_WINDOWS[#TALENT_WINDOWS + 1] = key
+                known[key] = true
+            end
+        end
+    end
+end
+
+local function TalentWindow()
+    for _, name in ipairs(TALENT_WINDOWS) do
+        local frame = _G[name]
+        if type(frame) == "table" and type(frame.IsShown) == "function" then
+            local ok, shown = pcall(frame.IsShown, frame)
+            if ok and Safe(shown) == true then
+                return frame
+            end
+        end
+    end
+end
+
+local function Rect(frame)
+    local ok, left, right, top, scale = pcall(function()
+        return frame:GetLeft(), frame:GetRight(), frame:GetTop(), frame:GetEffectiveScale()
+    end)
+    if not ok then
+        return nil
+    end
+    left, right, top, scale = Number(left), Number(right), Number(top), Number(scale)
+    if left and right and top and scale and scale > 0 then
+        return left * scale, right * scale, top * scale
+    end
+end
+
+local function PlacePanel(window)
+    local left, right, top = Rect(window)
+    local uiScale = Number(SafeCall(function() return UIParent:GetEffectiveScale() end)) or 1
+    local screenWidth = Number(SafeCall(function() return UIParent:GetWidth() end)) or 1920
+    if not left then
+        return false
+    end
+    local x = right / uiScale + 4
+    if x + PANEL_WIDTH > screenWidth then
+        x = left / uiScale - PANEL_WIDTH - 4
+    end
+    panel:ClearAllPoints()
+    panel:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", math.max(x, 0), top / uiScale)
+    return true
+end
+
+local function MakePanel()
+    if panel or type(CreateFrame) ~= "function" or not UIParent then
+        return panel
+    end
+    panel = CreateFrame("Button", "BuildsTalentPanel", UIParent)
+    panel:SetSize(PANEL_WIDTH, 40)
+    panel:SetFrameStrata("HIGH")
+    panel:Hide()
+    local bg = panel:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0, 0, 0, 0.8)
+    panelText = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    panelText:SetPoint("TOPLEFT", 8, -8)
+    panelText:SetWidth(PANEL_WIDTH - 16)
+    panelText:SetJustifyH("LEFT")
+    panelText:SetSpacing(2)
+    panel:SetScript("OnClick", function()
+        if ForeverHub_OpenPage then
+            pcall(ForeverHub_OpenPage, "Builds")
+        end
+    end)
+    return panel
+end
+
+local function RefreshPanel()
+    local ok, lines = pcall(Builds_TalentPanelLines)
+    if not ok or not lines then
+        panel:Hide()
+        return
+    end
+    while #lines > PANEL_LINES do
+        table.remove(lines, #lines - 1)
+    end
+    panelText:SetText(table.concat(lines, "\n"))
+    local height = Number(SafeCall(function() return panelText:GetStringHeight() end)) or (#lines * 14)
+    panel:SetHeight(height + 16)
+end
+
+local watcher = type(CreateFrame) == "function" and CreateFrame("Frame") or nil
+if watcher then
+    pcall(watcher.RegisterEvent, watcher, "PLAYER_LOGIN")
+    pcall(watcher.RegisterEvent, watcher, "ADDON_LOADED")
+    watcher:SetScript("OnEvent", function(_, event, addon)
+        if event == "PLAYER_LOGIN" or (type(Safe(addon)) == "string" and addon:find("Talent", 1, true)) then
+            pcall(DiscoverTalentWindows)
+        end
+    end)
+    local elapsedSince = 0
+    watcher:SetScript("OnUpdate", function(_, elapsed)
+        elapsedSince = elapsedSince + (elapsed or 0)
+        if elapsedSince < 0.25 then
+            return
+        end
+        elapsedSince = 0
+        local window = (not (ForeverHub_IsOff and ForeverHub_IsOff("Builds"))) and TalentWindow() or nil
+        if not window then
+            if panel and panel:IsShown() then
+                panel:Hide()
+            end
+            panelDirty = true
+            return
+        end
+        -- The panel is made once, out of combat (the talent window can't be opened in combat anyway).
+        if not panel and InCombatLockdown and InCombatLockdown() then
+            return
+        end
+        if not MakePanel() or not PlacePanel(window) then
+            return
+        end
+        if panelDirty or not panel:IsShown() then
+            RefreshPanel()
+            panelDirty = false
+        end
+        panel:Show()
     end)
 end
 

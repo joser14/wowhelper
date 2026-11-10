@@ -99,8 +99,9 @@ events:RegisterEvent("BAG_UPDATE_DELAYED")
 events:RegisterEvent("MERCHANT_SHOW")
 events:SetScript("OnEvent", function(_, event)
     if event == "MERCHANT_SHOW" then
-        -- ItemAdvisor's vendor pop-up already includes junk.
-        if not (ForeverHubStatus and ForeverHubStatus.ItemAdvisor) then
+        -- ItemAdvisor's vendor pop-up already includes junk, unless it's switched off on the hub's Manage page.
+        local advisorOff = ForeverHub_IsOff and ForeverHub_IsOff("ItemAdvisor")
+        if advisorOff or not (ForeverHubStatus and ForeverHubStatus.ItemAdvisor) then
             ReportJunk()
         end
     else

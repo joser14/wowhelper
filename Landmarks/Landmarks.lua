@@ -700,7 +700,14 @@ events:SetScript("OnEvent", function(_, event)
             place.nodeID = flightNode
         end
     elseif event == "TRAINER_SHOW" then
-        local profession = IsTradeskillTrainer and Safe(IsTradeskillTrainer())
+        -- C_Trainer.GetTrainerType is this client's documented answer; the old global is only a fallback.
+        local profession
+        local tradeskills = Enum and Enum.TrainerType and Enum.TrainerType.Tradeskills
+        if C_Trainer and C_Trainer.GetTrainerType and tradeskills then
+            profession = Safe(C_Trainer.GetTrainerType()) == tradeskills
+        elseif IsTradeskillTrainer then
+            profession = Safe(IsTradeskillTrainer())
+        end
         Remember(profession and "profession" or "trainer", NpcName("Trainer"), spot)
     elseif event == "BANKFRAME_OPENED" then
         Remember("bank", NpcName("Banker"), spot)

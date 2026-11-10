@@ -2,10 +2,11 @@ local LOW_BEHIND = 15
 local WATCHED_SLOTS = { [16] = "main hand", [17] = "off hand", [18] = "ranged" }
 local CLASS_WEAPON = 2
 
--- Weapon subclass ID = skill line ID, from Blizzard's Forever SkillsFrame.
+-- Weapon subclass ID = skill line ID, from Blizzard's Forever SkillsFrame. Subclass 13 (the enum's
+-- "Unarmed") is fist weapons, which train the Fist Weapons line (473), not the bare-handed Unarmed one (162).
 local SKILL_BY_SUBCLASS = {
     [0] = 44, [1] = 172, [2] = 45, [3] = 46, [4] = 54, [5] = 160, [6] = 229, [7] = 43,
-    [8] = 55, [10] = 136, [13] = 162, [15] = 173, [16] = 176, [18] = 226, [19] = 228,
+    [8] = 55, [10] = 136, [13] = 473, [15] = 173, [16] = 176, [18] = 226, [19] = 228,
 }
 
 local warned = {}
@@ -53,7 +54,8 @@ local function ReadSkill(line)
         return nil
     end
     local name, rank, maxRank = Safe(info.name), Safe(info.rank), Safe(info.maxRank)
-    if not (name and rank and maxRank) then
+    -- An untrained line can come back with a zero cap; that's "not learned", not "0/0".
+    if not (name and rank and maxRank and maxRank > 0) then
         return nil
     end
     return name, rank, maxRank

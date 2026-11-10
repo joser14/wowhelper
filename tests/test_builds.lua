@@ -387,6 +387,86 @@ check(has(p, "Affliction leveling"), "secret level still renders")
 fire("PLAYER_LEVEL_UP")
 check(status() ~= nil, "row with secret level")
 
+-- 8b. Forever's talent window: the trait system. The legacy calls return nothing (as in game on
+-- 2026-11-09: "Your talents can't be read right now"); talents come from C_Traits, trees from sub-trees.
+do
+    local savedLegacy, savedSpec2, savedClassTalents = GetTalentInfo, C_SpecializationInfo, C_ClassTalents
+    GetTalentInfo = function() return nil end
+    C_SpecializationInfo = nil
+    classFile, level, unspent = "PRIEST", 11, 1
+    -- node = { name, subtree, rank, max, x, y }
+    local nodes = {
+        [1] = { "Unbreakable Will", 1, 0, 5, 100, 100 }, [2] = { "Wand Specialization", 1, 1, 5, 200, 100 },
+        [3] = { "Spirit Tap", 3, 0, 5, 1100, 100 }, [4] = { "Improved Shadow Word: Pain", 3, 0, 2, 1200, 300 },
+        [5] = { "Holy Specialization", 2, 0, 5, 600, 100 },
+    }
+    local subNames = { "Discipline", "Holy", "Shadow Magic" }
+    C_ClassTalents = { GetActiveConfigID = function() return 7 end, CommitConfig = LearnTalent }
+    C_Traits = {
+        GetConfigInfo = function(id) assert(id == 7); return { treeIDs = { 50 } } end,
+        GetTreeCurrencyInfo = function() return { { traitCurrencyID = 1, quantity = unspent } } end,
+        GetTreeInfo = function() return { titleText = "" } end,
+        GetTreeNodes = function(tree) assert(tree == 50); return { 1, 2, 3, 4, 5 } end,
+        GetNodeInfo = function(_, id)
+            local n = nodes[id]
+            return { ID = id, isVisible = true, maxRanks = n[4], currentRank = n[3], activeRank = n[3], posX = n[5], posY = n[6],
+                activeEntry = { entryID = id * 10, rank = n[3] }, entryIDs = { id * 10 }, subTreeID = 900 + n[2] }
+        end,
+        GetEntryInfo = function(_, entryID) return { definitionID = entryID * 10 } end,
+        GetDefinitionInfo = function(def) return { spellID = def } end,
+        GetSubTreeInfo = function(_, sub) return { name = subNames[sub - 900] } end,
+        PurchaseRank = LearnTalent, RefundRank = LearnTalent, CommitConfig = LearnTalent,
+    }
+    C_Spell = { GetSpellName = function(spell) local n = nodes[spell // 100]; return n and n[1] end }
+    p = page()
+    check(not has(p, "can't be read"), "trait talents are read")
+    check(has(p, "Wand Specialization"), "next talent named from the build")
+    local lines = Builds_TalentPanelLines()
+    local text = lines and table.concat(lines, "\n") or ""
+    check(has(text, "Shadow leveling"), "panel names the build: " .. text)
+    check(has(text, "Spend now:"), "panel says to spend the point: " .. text)
+    check(has(text, "Wand Specialization 2|r") and has(text, "(Discipline, row 1)"), "panel: next point with tree and row: " .. text)
+    check(has(text, "Spirit Tap 1|r") and has(text, "Shadow Magic"), "panel: the points after it: " .. text)
+    -- Spent off-build points are called out.
+    nodes[5][3] = 2
+    fire("TRAIT_NODE_CHANGED")
+    text = table.concat(Builds_TalentPanelLines(), "\n")
+    check(has(text, "Not in this build:|r Holy Specialization (2)"), "panel flags off-build talents: " .. text)
+    nodes[5][3] = 0
+    -- The panel beside the talent window: our own frame, Blizzard's window only read.
+    local made, shown, point = {}, false, nil
+    local function ours()
+        local f = setmetatable({}, { __index = function(t, k)
+            return function(self, ...)
+                if k == "Show" then shown = true elseif k == "Hide" then shown = false
+                elseif k == "IsShown" then return shown elseif k == "SetPoint" then point = { ... }
+                elseif k == "GetStringHeight" then return 70
+                elseif k == "CreateTexture" or k == "CreateFontString" then return ours() end
+            end
+        end })
+        made[#made + 1] = f
+        return f
+    end
+    local savedCreate = CreateFrame
+    CreateFrame = function() return ours() end
+    UIParent = { GetEffectiveScale = function() return 1 end, GetWidth = function() return 1920 end }
+    local blizzOpen = true
+    PlayerTalentFrame = setmetatable({
+        IsShown = function() return blizzOpen end, GetLeft = function() return 100 end, GetRight = function() return 900 end,
+        GetTop = function() return 800 end, GetEffectiveScale = function() return 1 end,
+    }, { __index = function(_, k) failures[#failures + 1] = "touched PlayerTalentFrame." .. tostring(k) end })
+    local watcher = frames[#frames]
+    watcher.fn(watcher, 1)
+    check(shown, "panel shown while the talent window is open")
+    check(point and point[3] == "BOTTOMLEFT" and point[4] == 904 and point[5] == 800, "panel placed to the right of the window")
+    blizzOpen = false
+    watcher.fn(watcher, 1)
+    check(not shown, "panel hidden with the talent window")
+    CreateFrame, UIParent, PlayerTalentFrame = savedCreate, nil, nil
+    GetTalentInfo, C_SpecializationInfo, C_ClassTalents, C_Traits, C_Spell = savedLegacy, savedSpec2, savedClassTalents, nil, nil
+    classFile = "WARLOCK"
+end
+
 -- 9. Read-only and quiet.
 check(#chat == 0, "no chat output: " .. table.concat(chat, " | "))
 check(learned == 0, "never learns talents")

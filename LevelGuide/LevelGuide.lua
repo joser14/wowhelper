@@ -362,10 +362,13 @@ local function MapScale(mapID)
             local ox, oy = origin:GetXY()
             local ex, ey = east:GetXY()
             local sx, sy = south:GetXY()
-            local width = math.sqrt((ex - ox) ^ 2 + (ey - oy) ^ 2)
-            local height = math.sqrt((sx - ox) ^ 2 + (sy - oy) ^ 2)
-            if width > 0 and height > 0 then
-                scale = { width, height }
+            ox, oy, ex, ey, sx, sy = Safe(ox), Safe(oy), Safe(ex), Safe(ey), Safe(sx), Safe(sy)
+            if ox and oy and ex and ey and sx and sy then
+                local width = math.sqrt((ex - ox) ^ 2 + (ey - oy) ^ 2)
+                local height = math.sqrt((sx - ox) ^ 2 + (sy - oy) ^ 2)
+                if width > 0 and height > 0 then
+                    scale = { width, height }
+                end
             end
         end
     end
@@ -607,6 +610,18 @@ local function Route(candidates, mapID, playerX, playerY)
         end)
         return remaining
     end
+    -- A step with no point on this map (a move written on another zone's map, Routes.lua On()) can't be
+    -- measured: it keeps its place in front, as written.
+    local placed = {}
+    for _, step in ipairs(remaining) do
+        if step.x and step.y then
+            placed[#placed + 1] = step
+        else
+            route[#route + 1] = step
+        end
+    end
+    remaining = placed
+    local unplaced = #route
     local fromX, fromY = playerX, playerY
     while #remaining > 0 do
         local bestIndex, bestCost
@@ -616,7 +631,7 @@ local function Route(candidates, mapID, playerX, playerY)
                 bestIndex, bestCost = index, cost
             end
         end
-        if #route == 0 and currentKey then
+        if #route == unplaced and currentKey then
             for index, step in ipairs(remaining) do
                 if StepKey(step) == currentKey and Cost(step, mapID, fromX, fromY) <= bestCost * KEEP_RATIO then
                     bestIndex = index

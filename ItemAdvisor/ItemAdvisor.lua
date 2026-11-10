@@ -270,6 +270,15 @@ local TAB_PROFILES = {
     SHAMAN = { elemental = "caster", enhancement = "enhancement", restoration = "healer" },
     DRUID = { balance = "caster", ["feral combat"] = "feral", feral = "feral", restoration = "healer" },
 }
+-- The talent window's tabs left to right, for a trait tree that doesn't name its parts.
+local TAB_ORDER = {
+    WARRIOR = { "Arms", "Fury", "Protection" },
+    PALADIN = { "Holy", "Protection", "Retribution" },
+    HUNTER = { "Beast Mastery", "Marksmanship", "Survival" },
+    PRIEST = { "Discipline", "Holy", "Shadow" },
+    SHAMAN = { "Elemental", "Enhancement", "Restoration" },
+    DRUID = { "Balance", "Feral Combat", "Restoration" },
+}
 -- Fewer points than this says little about where a character is heading.
 local MIN_TALENT_POINTS = 5
 
@@ -1197,7 +1206,9 @@ end
 
 -- Points per talent tab as { name, points }, or nil when the game gives no way to tell.
 -- Forever keeps talents as a trait tree (C_ClassTalents / C_Traits, documented in the client's API
--- docs): each purchased node counts its ranks toward the sub-tree (tab) it belongs to.
+-- docs): each purchased node counts its ranks toward the tab it belongs to. Fields used, all in
+-- SharedTraitsDocumentation: TraitConfigInfo.treeIDs, TraitNodeInfo.ranksPurchased/subTreeID/posX,
+-- TraitSubTreeInfo.name, TraitTreeInfo.titleText.
 local function TraitTabs()
     if not (C_ClassTalents and C_Traits and C_Traits.GetConfigInfo and C_Traits.GetTreeNodes and C_Traits.GetNodeInfo) then
         return nil
@@ -1215,27 +1226,77 @@ local function TraitTabs()
     if type(treeIDs) ~= "table" then
         return nil
     end
-    local points, order = {}, {}
-    for _, treeID in ipairs(treeIDs) do
-        local nodes = call(C_Traits.GetTreeNodes, Safe(treeID))
+    -- The three tabs can be sub-trees of one tree (subTreeID on each node), separate tree IDs, or one
+    -- tree with the tabs side by side. Each purchased node is grouped by whichever of these applies.
+    local tabOrder = TAB_ORDER[playerClass] or {}
+    local points, order, names = {}, {}, {}
+    local loose = {}   -- purchased nodes with no sub-tree in a single tree: { x, ranks }
+    local function add(key, name, ranks)
+        if not points[key] then
+            order[#order + 1] = key
+            names[key] = name
+        end
+        points[key] = (points[key] or 0) + ranks
+    end
+    for treeIndex, rawTree in ipairs(treeIDs) do
+        local treeID = Safe(rawTree)
+        local treeName
+        if #treeIDs > 1 then
+            local treeInfo = treeID and call(C_Traits.GetTreeInfo, configID, treeID)
+            local title = type(treeInfo) == "table" and Safe(treeInfo.titleText)
+            if type(title) == "string" and TAB_PROFILES[playerClass] and TAB_PROFILES[playerClass][title:lower()] then
+                treeName = title
+            elseif #treeIDs == #tabOrder then
+                treeName = tabOrder[treeIndex]
+            end
+        end
+        local nodes = treeID and call(C_Traits.GetTreeNodes, treeID)
         for _, nodeID in ipairs(type(nodes) == "table" and nodes or {}) do
             local node = call(C_Traits.GetNodeInfo, configID, Safe(nodeID))
             local ranks = type(node) == "table" and Safe(node.ranksPurchased)
             local subTree = type(node) == "table" and Safe(node.subTreeID)
-            if type(ranks) == "number" and ranks > 0 and subTree then
-                if not points[subTree] then
-                    order[#order + 1] = subTree
+            if type(ranks) == "number" and ranks > 0 then
+                if subTree then
+                    add("sub" .. tostring(subTree), nil, ranks)
+                    names["sub" .. tostring(subTree)] = subTree
+                elseif treeName then
+                    add("tree" .. treeIndex, treeName, ranks)
+                elseif #treeIDs == 1 then
+                    loose[#loose + 1] = { x = Safe(node.posX), ranks = ranks }
                 end
-                points[subTree] = (points[subTree] or 0) + ranks
+            end
+        end
+    end
+    -- One tree holding all three tabs: split it into three columns, left to right, in tab order.
+    -- Unpurchased nodes still count for the column edges, so the width is read from every node.
+    if #loose > 0 and #tabOrder > 0 then
+        local minX, maxX = math.huge, -math.huge
+        local nodes = call(C_Traits.GetTreeNodes, Safe(treeIDs[1]))
+        for _, nodeID in ipairs(type(nodes) == "table" and nodes or {}) do
+            local node = call(C_Traits.GetNodeInfo, configID, Safe(nodeID))
+            local x = type(node) == "table" and Safe(node.posX)
+            if type(x) == "number" then
+                minX, maxX = math.min(minX, x), math.max(maxX, x)
+            end
+        end
+        if maxX > minX then
+            for _, node in ipairs(loose) do
+                if type(node.x) == "number" then
+                    local column = math.min(#tabOrder, math.floor((node.x - minX) / (maxX - minX) * #tabOrder) + 1)
+                    add("col" .. column, tabOrder[column], node.ranks)
+                end
             end
         end
     end
     local tabs = {}
-    for _, subTree in ipairs(order) do
-        local info = call(C_Traits.GetSubTreeInfo, configID, subTree)
-        local name = type(info) == "table" and Safe(info.name)
+    for _, key in ipairs(order) do
+        local name = names[key]
+        if type(name) == "number" then
+            local info = call(C_Traits.GetSubTreeInfo, configID, name)
+            name = type(info) == "table" and Safe(info.name)
+        end
         if type(name) == "string" and name ~= "" then
-            tabs[#tabs + 1] = { name = name, points = points[subTree] }
+            tabs[#tabs + 1] = { name = name, points = points[key] }
         end
     end
     return #tabs > 0 and tabs or nil

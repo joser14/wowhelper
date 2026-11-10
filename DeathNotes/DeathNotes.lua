@@ -1,6 +1,6 @@
 -- DeathNotes: remembers where you died, what killed you and at what level, and warns you when you
 -- walk back into one of those spots while it can still hurt. Read-only: it listens for your death,
--- reads the combat log for the last thing that hit you, and reads your map position.
+-- takes your hostile target as the killer (the combat log is closed to addons), and reads your map position.
 
 -- Shared Forever waypoint (the same copy is in every helper that pins places; whichever loads first
 -- defines it, so all helpers share one remembered pin). Sets the game's own map pin and tracks it,
