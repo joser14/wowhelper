@@ -176,6 +176,27 @@ check(not has(" to "), "an old foe is not blamed for a later death")
 UnitCanAttack = function() return true end
 foe = nil
 
+-- Dying ends combat a moment before PLAYER_DEAD: the foe must survive that.
+foe = "Moonkin Oracle"
+fire("PLAYER_REGEN_DISABLED")
+UnitCanAttack = function() return false end
+fire("PLAYER_REGEN_ENABLED")
+out = {}
+fire("PLAYER_DEAD")
+need("to Moonkin Oracle", "foe kept when combat ends just before death")
+-- A fight that ended long before a fall is not blamed.
+foe = "Moonkin Oracle"
+UnitCanAttack = function() return true end
+fire("PLAYER_REGEN_DISABLED")
+fire("PLAYER_REGEN_ENABLED")
+gametime = gametime + 10
+UnitCanAttack = function() return false end
+out = {}
+fire("PLAYER_DEAD")
+check(not has(" to "), "an ended fight is not blamed for a later death")
+UnitCanAttack = function() return true end
+foe = nil
+
 if #failures > 0 then
     print("FAILURES (" .. #failures .. "):")
     for _, why in ipairs(failures) do print(" - " .. why) end

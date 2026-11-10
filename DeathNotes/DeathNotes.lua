@@ -396,6 +396,9 @@ local function Killer()
     if name then
         return name
     end
+    if lastFoe and lastFoe.combatEnded and GetTime and GetTime() - lastFoe.combatEnded > 3 then
+        lastFoe = nil
+    end
     if lastFoe and GetTime and GetTime() - lastFoe.when <= FOE_MEMORY_SECONDS then
         return lastFoe.name
     end
@@ -635,8 +638,11 @@ events:SetScript("OnEvent", function(_, event)
     elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_DISABLED" then
         NoteFoe()
     elseif event == "PLAYER_REGEN_ENABLED" then
-        -- A fight that ended didn't kill you: a later fall or drowning isn't that foe's doing.
-        lastFoe = nil
+        -- A fight that ended didn't kill you: a later fall or drowning isn't that foe's doing. Dying also
+        -- ends combat, often just before PLAYER_DEAD, so the foe is kept for a few more seconds.
+        if lastFoe and GetTime then
+            lastFoe.combatEnded = GetTime()
+        end
     end
 end)
 
