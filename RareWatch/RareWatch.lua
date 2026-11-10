@@ -183,6 +183,21 @@ local RARE_ATLAS, TREASURE_ATLAS = "VignetteKill", "VignetteLoot"
 local RARE_CLASSES = { rare = true, rareelite = true, worldboss = true }
 local DIRECTIONS = { "east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east" }
 
+-- Forever-only rares we checked ourselves (2026-11-10): each NPC ID, name and zone confirmed on
+-- wowhead.com/forever, level, rare/rare-elite and one spawn spot (map percent) from warcraft.wiki.gg.
+-- Facts only, no third-party table copied. Still to confirm in game. Zephras Isle is uiMapID 2521.
+local KNOWN_RARES = {
+    [255887] = { name = "Slydris", level = 6, class = "rareelite", mapID = 2521, x = 50.6, y = 51.2 },
+    [256028] = { name = "The Lost One", level = 6, class = "rareelite", mapID = 2521, x = 53.2, y = 48.0 },
+    [256492] = { name = "Fernfeather", level = 10, class = "rare", mapID = 2521, x = 51.4, y = 82.4 },
+    [259398] = { name = "Galemender Delanea", level = 11, class = "rare", mapID = 2521, x = 63.0, y = 61.2 },
+    [250936] = { name = "Den'dralass", level = 13, class = "rare", mapID = 2521, x = 60.1, y = 33.5 },
+    [259388] = { name = "Mystmane", level = 13, class = "rare", mapID = 2521, x = 60.7, y = 36.1 },
+    [259385] = { name = "Tel'daeor the Stormspeaker", level = 13, class = "rare", mapID = 2521, x = 66.0, y = 53.8 },
+}
+local KNOWN_ZONE_NAMES = { [2521] = "Zephras Isle" }
+local NAMEPLATES = 40
+
 local active = {}
 local announced = {}
 local db
@@ -595,6 +610,11 @@ local function SeeUnit(unit, deathOnly)
         NoteLayer(guid, parsed)
     end
     local class = UnitClassification and Safe(UnitClassification(unit))
+    local known = KNOWN_RARES[parsed.npcID]
+    -- A verified Forever rare counts even when the game hides its classification.
+    if known and class == nil then
+        class = known.class
+    end
     if not RARE_CLASSES[class] or (UnitIsPlayer and Safe(UnitIsPlayer(unit))) then
         return
     end
@@ -602,14 +622,63 @@ local function SeeUnit(unit, deathOnly)
     if deathOnly and not dead then
         return
     end
-    local name = UnitName and Safe(UnitName(unit))
-    local level = UnitLevel and Safe(UnitLevel(unit))
+    local name = UnitName and Safe(UnitName(unit)) or (known and known.name)
+    local level = UnitLevel and Safe(UnitLevel(unit)) or (known and known.level)
     local rare = Record(parsed.npcID, name, {
         level = tonumber(level), class = class, dead = dead, spot = not dead and Here() or nil, exact = false,
     })
     if rare and not dead then
         AnnounceUnit(rare)
     end
+end
+
+-- In combat the game hides unit IDs and names (and marker names), so rares seen then were skipped.
+-- Once combat ends, look again at every nameplate, the target, the mouseover and the minimap markers.
+local function Rescan()
+    for index = 1, NAMEPLATES do
+        local unit = "nameplate" .. index
+        if UnitExists and Safe(UnitExists(unit)) then
+            pcall(SeeUnit, unit)
+        end
+    end
+    pcall(SeeUnit, "target")
+    pcall(SeeUnit, "mouseover")
+    if C_VignetteInfo and C_VignetteInfo.GetVignettes then
+        pcall(ReadAllMarkers)
+    end
+end
+
+-- The verified rares of a map (by ID, or by the zone's name for a map numbered differently).
+local function KnownOn(mapID)
+    local list = {}
+    if not mapID then
+        return list
+    end
+    local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
+    local name = type(info) == "table" and Safe(info.name) or nil
+    for npcID, rare in pairs(KNOWN_RARES) do
+        if rare.mapID == mapID or (name and KNOWN_ZONE_NAMES[rare.mapID] == name) then
+            list[#list + 1] = { npcID = npcID, rare = rare }
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.rare.level ~= b.rare.level then
+            return a.rare.level < b.rare.level
+        end
+        return a.rare.name < b.rare.name
+    end)
+    return list
+end
+
+-- For MapPins: the verified Forever rares, { npcID, name, level, class, mapID, x, y (0-1) }.
+function RareWatch_KnownRares()
+    local list = {}
+    for npcID, rare in pairs(KNOWN_RARES) do
+        list[#list + 1] = { npcID = npcID, name = rare.name, level = rare.level, class = rare.class,
+            mapID = rare.mapID, x = rare.x / 100, y = rare.y / 100 }
+    end
+    table.sort(list, function(a, b) return a.npcID < b.npcID end)
+    return list
 end
 
 ---------------------------------------------------------------------------- page
@@ -718,6 +787,17 @@ local function ShowPage(arg)
     if #list > 0 then
         Print(string.format("|cff999999%d rare(s) remembered.%s|r", #list, showAll and "" or " Type all to see every one."))
     end
+    -- Known rares of the zone you're in that you haven't seen in the last day.
+    local missing = {}
+    for _, entry in ipairs(KnownOn(spot and spot.mapID or (C_Map and C_Map.GetBestMapForUnit and Safe(C_Map.GetBestMapForUnit("player"))))) do
+        local seen = db.rares[entry.npcID]
+        if not (seen and now - (seen.seen or 0) <= RECENT_SECONDS) then
+            missing[#missing + 1] = string.format("%s (%s, %.0f, %.0f)", entry.rare.name, LevelText(entry.rare), entry.rare.x, entry.rare.y)
+        end
+    end
+    if #missing > 0 then
+        Print("|cffffd100Known rares here, not seen today:|r " .. table.concat(missing, "; "))
+    end
 end
 
 ---------------------------------------------------------------------------- events
@@ -728,7 +808,8 @@ events:RegisterEvent("PLAYER_ENTERING_WORLD")
 events:RegisterEvent("VIGNETTES_UPDATED")
 events:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
 -- Unit events are optional: if one is refused, the minimap alerts keep working.
-for _, name in ipairs({ "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "UNIT_HEALTH", "ZONE_CHANGED_NEW_AREA" }) do
+for _, name in ipairs({ "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "UNIT_HEALTH", "ZONE_CHANGED_NEW_AREA",
+    "PLAYER_REGEN_ENABLED" }) do
     pcall(events.RegisterEvent, events, name)
 end
 events:SetScript("OnEvent", function(_, event, guid, onMinimap)
@@ -752,6 +833,11 @@ events:SetScript("OnEvent", function(_, event, guid, onMinimap)
         return
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         return ResetLayer()
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        if db then
+            Rescan()
+        end
+        return
     end
     if not C_VignetteInfo then
         return

@@ -71,6 +71,15 @@ these sources:
   `LevelGuide\Planner.lua` ports two small pieces: reading the last "N/M" of an objective's text when the
   game keeps its counts secret (`Core\Compat.lua`), and the rested-aware kills-left formula (`Core\Grind.lua`).
 - Web references for individual facts: wow4ever.quest, foreverchanges.pro, wowhead classic, warcraft.wiki.gg.
+- `RareWatch\RareWatch.lua` lists seven Zephras Isle rares (NPC ID, name, level, rare/rare-elite, one spawn
+  spot). Each NPC ID, name and zone was checked by us on wowhead.com/forever, and the level, class and spot read
+  from the creature's warcraft.wiki.gg page (CC BY-SA 4.0); only these individual facts are used, no list or
+  table was copied. HandyNotes_WoWForever (no licence) only told us the names to look up.
+- `ZoneLevels\ZoneLevels.lua` zone level ranges are the usual Classic quest ranges written by us; the
+  Forever-only zones (Zephras Isle, Riverglades, Shen'dralas, Mount Hyjal) come from our own research notes.
+- Ideas only, no code: MapPins' pin spacing and minimap fade and QuestTracker's "1/1 but unfinished counts as
+  0/1" rule follow behaviour described in Questie; DeathNotes' "risky / very risky" fight wording follows
+  Quest Triage (GPL-3.0).
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.

@@ -514,7 +514,22 @@ local function Deaths(list)
 end
 
 local function Rares(list)
-    for _, rare in pairs(RealmTable(RareWatchDB, "rares") or {}) do
+    local seen = RealmTable(RareWatchDB, "rares") or {}
+    -- RareWatch's verified Forever rares you haven't seen yet, at their known spawn spot.
+    if type(RareWatch_KnownRares) == "function" then
+        local ok, known = pcall(RareWatch_KnownRares)
+        for _, rare in ipairs(ok and type(known) == "table" and known or {}) do
+            if type(rare) == "table" and not (rare.npcID and seen[rare.npcID]) then
+                local level = Safe(rare.level)
+                Add(list, "rares", {
+                    mapID = Safe(rare.mapID), x = Fraction(rare.x), y = Fraction(rare.y), icon = ICONS.rares,
+                    title = "Rare: " .. (Text(rare.name) or "?"),
+                    lines = { level and ("Level " .. tostring(level)) or nil, "Known spawn; not seen by you yet" },
+                })
+            end
+        end
+    end
+    for _, rare in pairs(seen) do
         if type(rare) == "table" then
             local level = Safe(rare.level)
             Add(list, "rares", {

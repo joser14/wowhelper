@@ -323,6 +323,21 @@ for _, f in ipairs(frames) do
 end
 check(near and near.alpha == 1, "minimap pin alpha set: " .. tostring(near and near.alpha))
 
+---------------------------------------------------------------------------- RareWatch's verified rares
+RareWatch_KnownRares = function() return { { npcID = 777, name = "Known One", level = 8, mapID = 1429, x = 0.9, y = 0.1 } } end
+RareWatchDB = { R = { rares = {} } }
+fire("ZONE_CHANGED")
+tick(1.1)
+show(1429)
+check(pinTitled("Rare: Known One"), "a verified rare not yet seen gets a pin at its known spawn")
+RareWatchDB.R.rares[777] = { name = "Known One", mapID = 1429, x = 0.2, y = 0.9, seen = 5 }
+fire("ZONE_CHANGED")
+tick(1.1)
+show(1429)
+local knownPins = 0
+for _, pin in ipairs(shownPins()) do if pin.record.title == "Rare: Known One" then knownPins = knownPins + 1 end end
+check(knownPins == 1, "once seen, only your own sighting is pinned: " .. knownPins)
+
 check(chat == 0, "nothing printed to chat")
 if #failures > 0 then
     error(#failures .. " failure(s):\n- " .. table.concat(failures, "\n- "), 0)
