@@ -765,9 +765,115 @@ local function GameRangeText(dungeon)
     return ""
 end
 
+-- Upgrades per dungeon ----------------------------------------------------------------------------
+-- Each loot row is asked of ItemAdvisor's public ItemAdvisor_IsUpgrade(link) (ItemAdvisor's own
+-- verdict, nothing reimplemented here), UPGRADE_PER_FRAME items per frame. Items the client hasn't
+-- loaded are requested (C_Item.RequestLoadItemDataByID) and checked on ITEM_DATA_LOAD_RESULT; items
+-- that don't exist (C_Item.DoesItemExistByID) are skipped. New gear or a level resets the answers.
+local UPGRADE_PER_FRAME = 5
+local upgradeOf = {}                  -- itemID -> true / false once checked
+local upgradeQueue, upgradeQueued, upgradeRunning = {}, {}, false
+local waitingItems = {}
+
+local function CanJudge()
+    return type(ItemAdvisor_IsUpgrade) == "function" and C_Item and C_Item.GetItemInfo
+end
+
+local function JudgeItem(id)
+    if not CanJudge() then
+        return
+    end
+    if C_Item.DoesItemExistByID then
+        local ok, exists = pcall(C_Item.DoesItemExistByID, id)
+        if ok and exists == false then
+            upgradeOf[id] = false
+            return
+        end
+    end
+    local ok, _, link = pcall(C_Item.GetItemInfo, id)
+    link = ok and Safe(link) or nil
+    if type(link) ~= "string" then
+        waitingItems[id] = true
+        if C_Item.RequestLoadItemDataByID then
+            pcall(C_Item.RequestLoadItemDataByID, id)
+        end
+        return
+    end
+    local okJudge, yes = pcall(ItemAdvisor_IsUpgrade, link)
+    upgradeOf[id] = okJudge and Safe(yes) == true
+end
+
+local function RunUpgradeQueue()
+    for _ = 1, UPGRADE_PER_FRAME do
+        local id = table.remove(upgradeQueue, 1)
+        if not id then
+            upgradeRunning = false
+            return
+        end
+        upgradeQueued[id] = nil
+        JudgeItem(id)
+    end
+    if #upgradeQueue == 0 then
+        upgradeRunning = false
+    elseif C_Timer and C_Timer.After then
+        C_Timer.After(0, RunUpgradeQueue)
+    else
+        return RunUpgradeQueue()
+    end
+end
+
+local function QueueItem(id)
+    if type(id) ~= "number" or upgradeOf[id] ~= nil or upgradeQueued[id] or waitingItems[id] then
+        return
+    end
+    upgradeQueued[id] = true
+    upgradeQueue[#upgradeQueue + 1] = id
+    if not upgradeRunning then
+        upgradeRunning = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0, RunUpgradeQueue)
+        else
+            RunUpgradeQueue()
+        end
+    end
+end
+
+local function QueueDungeon(dungeon)
+    if not CanJudge() then
+        return
+    end
+    for _, item in ipairs(dungeon.loot or {}) do
+        QueueItem(item[1])
+    end
+end
+
+-- Slot words of the loot rows that are upgrades (not ones you already have), or an empty list.
+local function UpgradeSlots(dungeon)
+    local slots = {}
+    if not CanJudge() then
+        return slots
+    end
+    for _, item in ipairs(dungeon.loot or {}) do
+        local have = item[1] and C_Item.GetItemCount and (tonumber(Safe(C_Item.GetItemCount(item[1], true))) or 0) > 0
+        if item[1] and upgradeOf[item[1]] and not have then
+            slots[#slots + 1] = type(item[4]) == "string" and item[4]:match("^([^,]+)"):lower() or "?"
+        end
+    end
+    return slots
+end
+
+local function UpgradeText(dungeon)
+    local slots = UpgradeSlots(dungeon)
+    if #slots == 0 then
+        return ""
+    end
+    return string.format(" %s%d upgrade%s (%s)|r", GREEN, #slots, #slots == 1 and "" or "s", table.concat(slots, ", "))
+end
+
 local function ShortLine(index, dungeon, level)
-    return string.format("%s%d.|r %s%s %s(%d-%d, %s)|r%s %s", GOLD, index, dungeon.name, Tags(dungeon), GRAY,
-        dungeon.minLevel or 0, dungeon.maxLevel or 0, dungeon.zone or "?", GameRangeText(dungeon), CountsText(dungeon, level))
+    return string.format("%s%d.|r %s%s %s(%d-%d, %s)|r%s %s%s", GOLD, index, dungeon.name, Tags(dungeon), GRAY,
+        dungeon.minLevel or 0, dungeon.maxLevel or 0, dungeon.zone or "?", GameRangeText(dungeon), CountsText(dungeon, level),
+        UpgradeText(dungeon))
 end
 
 local STATE_TEXT = {
@@ -832,6 +938,8 @@ local function LootLine(item, classFile, level)
     end
     if itemID and Owned(itemID) then
         text = text .. " " .. GREEN .. "(you have it)|r"
+    elseif itemID and upgradeOf[itemID] and CanJudge() then
+        text = text .. " " .. GREEN .. "(upgrade for you)|r"
     else
         local wear = WearNote(slot, classFile, level)
         if wear then
@@ -883,7 +991,8 @@ local function ShowDetails(index, dungeon, level)
         Print(GOLD .. "Quests:|r none known for the Alliance.")
     end
     if #(dungeon.loot or {}) > 0 then
-        Print(GOLD .. "Notable loot:|r")
+        QueueDungeon(dungeon)
+        Print(GOLD .. "Notable loot:|r" .. UpgradeText(dungeon))
         local classFile = MyClass()
         for _, item in ipairs(dungeon.loot) do
             Print(LootLine(item, classFile, level))
@@ -913,6 +1022,7 @@ local function ShowSuited(level)
     for index, dungeon in ipairs(list) do
         if Suits(dungeon, level) then
             any = true
+            QueueDungeon(dungeon)
             Print(ShortLine(index, dungeon, level))
         end
     end
@@ -1196,6 +1306,7 @@ pcall(events.RegisterEvent, events, "UNIT_DIED")
 pcall(events.RegisterEvent, events, "PARTY_KILL")
 pcall(events.RegisterEvent, events, "PLAYER_TARGET_CHANGED")
 pcall(events.RegisterEvent, events, "PLAYER_ENTERING_WORLD")
+-- Upgrade checks: an item the client loaded, new gear, a new level.(events.RegisterEvent, events, "ITEM_DATA_LOAD_RESULT")(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")(events.RegisterEvent, events, "PLAYER_LEVEL_UP")
 events:SetScript("OnEvent", function(_, event, ...)
     if event == "UNIT_DIED" then
         KillByGUID((...))
@@ -1209,6 +1320,18 @@ events:SetScript("OnEvent", function(_, event, ...)
         return
     elseif event == "PLAYER_ENTERING_WORLD" then
         LearnEntrance()
+        return
+    elseif event == "ITEM_DATA_LOAD_RESULT" then
+        -- itemID, success.
+        local id = Safe((...))
+        if id and waitingItems[id] then
+            waitingItems[id] = nil
+            QueueItem(id)
+        end
+        return
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_LEVEL_UP" then
+        -- Answers depend on what you wear and your level: ask again on the next look.
+        upgradeOf = {}
         return
     elseif event == "ENCOUNTER_END" then
         -- encounterID, encounterName, difficultyID, groupSize, success (1 on a kill).
