@@ -235,8 +235,8 @@ assert(text:find("Second Turnin|r |cff33ff33Level up!", 1, true) or text:find("S
 assert(not text:find("First Turnin |cff33ff33Level up", 1, true), "only the one that crosses")
 assert(text:find("Group 3", 1, true), "group tag")
 local headerFont
-for _, f in ipairs(FONTS) do if f.text:find("ready to turn in", 1, true) then headerFont = f end end
-assert(headerFont and headerFont.text:find("+70%", 1, true), "ready share in the header")
+for _, f in ipairs(FONTS) do if f.text:find("XP waiting", 1, true) then headerFont = f end end
+assert(headerFont and headerFont.text:find("+700 XP waiting (70%)", 1, true), "ready XP in the header")
 -- Only gray quests here and real ones elsewhere: go there first.
 log, data = {}, {}
 quest(30, "Gray Thing", { trivial = true, x = 0.5, y = 0.45, objectives = { obj("d: 0/1") } })

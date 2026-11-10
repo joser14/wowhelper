@@ -803,6 +803,16 @@ local function Route(candidates, mapID, playerX, playerY)
                 bestIndex, bestCost = index, cost
             end
         end
+        -- Near-ties on distance (within 10%) go to the most XP per second (X.XPPerSecond).
+        local bestRate = X.XPPerSecond(remaining[bestIndex], mapID, fromX, fromY)
+        for index, step in ipairs(remaining) do
+            if index ~= bestIndex and Cost(step, mapID, fromX, fromY) <= bestCost * 1.1 then
+                local rate = X.XPPerSecond(step, mapID, fromX, fromY)
+                if rate > bestRate then
+                    bestIndex, bestRate = index, rate
+                end
+            end
+        end
         if #route == unplaced and currentKey then
             for index, step in ipairs(remaining) do
                 if StepKey(step) == currentKey and Cost(step, mapID, fromX, fromY) <= bestCost * K.KEEP_RATIO then
@@ -1978,6 +1988,114 @@ function X.PruneOffers()
     Clear(function(_, mark) return type(mark) ~= "table" or Clock() - (mark.t or 0) >= OFFER_HOLD end)
 end
 end -- "not offered" marks
+
+-- XP projection (research\guides_deep_re.md 12.4; the formulas are Planner.lua's, ported from Polestar):
+-- the rest of the route simulated in order from your level and XP. Turn-ins add their reward (the game's
+-- figure for quests you hold, else QuestXP.lua's reduced by the level gap at that point), work adds its
+-- kills (what's left of them for quests under way), one at a time so level-ups lower later gains. Gives
+-- the route's end level, the level the route has you at each step, and XP per second for ordering.
+do
+-- A route step's quest ID: the one you hold, else the route's ID for that part.
+function X.QuestIDFor(step, byTitle)
+    local entry = step.q and HeldPart(byTitle or {}, step)
+    if entry and entry.id then
+        return entry.id
+    end
+    local ids = step.q and LevelGuideQuestIDs and LevelGuideQuestIDs.ids
+    ids = ids and (ids[step.q] or ids[RealTitle(step.q)])
+    return ids and ids[tonumber(step.part) or 1] or nil
+end
+
+-- A quest's level: the log's, else the server's (X.ServerLevel), else QuestDB's.
+function X.QuestLevel(id, logLevel)
+    if logLevel then
+        return logLevel
+    end
+    local server = id and X.ServerLevel and X.ServerLevel(id)
+    if server then
+        return server
+    end
+    local q = id and LevelGuideQuestFacts and LevelGuideQuestFacts.Quest and LevelGuideQuestFacts.Quest(id)
+    return q and q.level or nil
+end
+
+local function LeftToDo(questID)
+    local need, left = 0, 0
+    for _, objective in ipairs(C_QuestLog.GetQuestObjectives(questID) or {}) do
+        local have, want = Safe(objective.numFulfilled), Safe(objective.numRequired)
+        if type(have) == "number" and type(want) == "number" and want > 0 then
+            need, left = need + want, left + math.max(want - have, 0)
+        end
+    end
+    return need > 0 and left / need or 1
+end
+
+-- Sets X.projection = { at = { [step index] = fractional level }, final } for the route, or nil.
+function X.Project(route, byTitle, level)
+    local P = LevelGuidePlanner
+    X.projection = nil
+    if not (P and route and level) then
+        return
+    end
+    local entries, seen = {}, {}
+    for index, step in ipairs(route.steps) do
+        entries[#entries + 1] = { kind = "mark", index = index }
+        local part = tonumber(step.part) or 1
+        if step.q and not step.side and (step.t == "do" or step.t == "turnin") and ClassMatches(step.cls)
+            and not charData.skips[RouteKey(route, index)] and TurnedIn(step.q) < part then
+            local id = X.QuestIDFor(step, byTitle)
+            local once = step.t .. "|" .. tostring(id or (step.q .. "#" .. part))
+            local entry = HeldPart(byTitle, step)
+            if not seen[once] then
+                seen[once] = true
+                if step.t == "do" and id and not (entry and entry.ready) then
+                    local left = entry and LeftToDo(entry.id) or 1
+                    for _, kill in ipairs(select(2, P.QuestXP(id))) do
+                        entries[#entries + 1] = { kind = "kill", n = math.ceil(kill.n * left), mob = kill.mob, elite = kill.elite }
+                    end
+                elseif step.t == "turnin" then
+                    local reward = entry and RewardXP(entry.id) or 0
+                    if reward > 0 then
+                        entries[#entries + 1] = { kind = "quest", xp = reward, share = false }
+                    elseif id then
+                        entries[#entries + 1] = { kind = "quest", xp = (P.QuestXP(id)), level = X.QuestLevel(id) }
+                    end
+                end
+            end
+        end
+    end
+    local summary = P.Run(entries, { level = level, xp = Safe(UnitXP("player")) or 0, xpMax = MaxXP() })
+    local at = {}
+    for _, e in ipairs(entries) do
+        if e.kind == "mark" then
+            at[e.index] = e.at
+        end
+    end
+    X.projection = { at = at, final = summary.at, route = route }
+end
+
+-- Work or a pick-up for a quest 3+ levels above where the route has you then: step.hard = its level.
+function X.MarkHard(list)
+    local projection = X.projection
+    for _, step in ipairs(list) do
+        local planned = projection and step.stepIndex and projection.at[step.stepIndex]
+        if planned and step.questLevel and (step.kind == "work" or step.kind == "pickup")
+            and step.questLevel - math.floor(planned) >= 3 then
+            step.hard = step.questLevel
+        end
+    end
+end
+
+-- XP per second of a candidate step from a point: its XP over the walk there (1.25 winding, 7 yd/s)
+-- plus a few seconds of talking.
+function X.XPPerSecond(step, mapID, fromX, fromY)
+    local xp = step.xpValue or (step.kind == "turnin" and step.xp) or 0
+    if xp <= 0 or not (step.x and fromX) then
+        return 0
+    end
+    return xp / (Distance(mapID, fromX, fromY, step.x, step.y) * 1.25 / 7 + 6)
+end
+end -- XP projection
 -- Quest givers often offer the next quest only after an earlier one with them, so a pick-up waits
 -- while anything earlier on the route with that same person is still to do.
 local function RouteStepActionable(step, byTitle, level, busyNpcs)
@@ -2206,6 +2324,20 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
     end
     if entry then
         shown.xp = RewardXP(entry.id)
+    end
+    -- For the XP projection and ordering: where on the route, the quest's level, what it's worth to you now.
+    shown.stepIndex = index
+    if step.q then
+        local questID = X.QuestIDFor(step, byTitle)
+        local logLevel
+        if entry and entry.logIndex then
+            local info = C_QuestLog.GetInfo(entry.logIndex)
+            logLevel = info and (Safe(info.difficultyLevel) or Safe(info.level))
+        end
+        shown.questLevel = X.QuestLevel(questID, logLevel)
+        local full = (step.t == "accept" or step.t == "turnin") and LevelGuidePlanner and questID and LevelGuidePlanner.QuestXP(questID)
+        shown.xpValue = (step.t == "turnin" and shown.xp and shown.xp > 0 and shown.xp)
+            or (full and level and math.floor(full * LevelGuidePlanner.Share(level, shown.questLevel) + 0.5)) or nil
     end
     local x, y = step.x, step.y
     -- Several points (Routes.lua Path()): the arrow takes them in order; the next one is remembered per step.
@@ -2530,9 +2662,11 @@ local function RouteSteps(level)
     local byTitle = LogByTitle()
     lastByTitle = byTitle
     local route, stuckHere = FindRoute(level, byTitle)
+    X.projection = nil
     if not route then
         return nil
     end
+    X.Project(route, byTitle, level)
     local zoneMap = ZoneMap(route.zone)
     lastZoneMap = zoneMap
     if not zoneMap then
@@ -2758,6 +2892,7 @@ local function MarkLevelUp(list)
     end
 end
 
+-- XP waiting in ready turn-ins, and that as a share of your level (nil when none).
 local function ReadyShare(list)
     local total, maxXP = 0, MaxXP()
     for _, step in ipairs(list) do
@@ -2765,7 +2900,7 @@ local function ReadyShare(list)
             total = total + (step.xp or 0)
         end
     end
-    return maxXP and total > 0 and math.floor(total * 100 / maxXP) or nil
+    return maxXP and total > 0 and math.floor(total * 100 / maxXP) or nil, total
 end
 
 -- A running timed quest goes to the top, whatever the route says; a failed one asks to be redone.
@@ -2835,11 +2970,13 @@ local function BuildSteps()
     local level = Safe(UnitLevel("player")) or 1
     local routed
     sideSteps = {}
+    X.projection = nil
     routed, activeRoute = RouteSteps(level)
     if routed then
         PutFocusFirst(routed, level)
         PutTimedFirst(routed)
         MarkLevelUp(routed)
+        X.MarkHard(routed)
         return routed, mapID, playerX, playerY, nil
     end
     local here, away, unplaced, later = ReadQuests(mapID)
@@ -2903,6 +3040,9 @@ local function StepLine(step)
     end
     if step.focused then
         tags = tags .. " |cff66ccff(picked)|r"
+    end
+    if step.hard then
+        tags = tags .. string.format(" |cffff4040Hard (level %d)|r", step.hard)
     end
     return kind.color .. kind.label .. ":|r " .. tostring(step.title) .. tags
 end
@@ -3064,8 +3204,8 @@ local function Render(mapID, playerX, playerY, later)
     local level = Safe(UnitLevel("player"))
     local xp, maxXP = Safe(UnitXP("player")), Safe(UnitXPMax("player"))
     if level and xp and maxXP and maxXP > 0 then
-        local ready = ReadyShare(steps)
-        local readyText = ready and string.format("  |cff33ff33+%d%% ready to turn in|r", ready) or ""
+        local ready, readyXP = ReadyShare(steps)
+        local readyText = ready and string.format("  |cff33ff33+%d XP waiting (%d%%)|r", readyXP, ready) or ""
         local title = activeRoute and ("Route: " .. (activeRoute.name or activeRoute.zone)) or "Guide"
         headerText:SetText(string.format("%s  %sLevel %d, %d%%|r%s", title, COLOR_DIM, level, math.floor(xp * 100 / maxXP), readyText))
     else
@@ -3095,6 +3235,20 @@ local function Render(mapID, playerX, playerY, later)
     detailText:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, y)
     detailText:SetPoint("RIGHT", frame, "RIGHT", -(K.ARROW_SIZE + 16), 0)
     y = y - math.max(detailText:GetStringHeight(), 12) - 6
+    -- Where the route takes you (X.Project), one line.
+    local projection = X.projection
+    local planLine = projection and projection.final and activeRoute and projection.route == activeRoute
+        and string.format("%sRoute ends at about level %.1f|r", COLOR_DIM, math.floor(projection.final * 10) / 10)
+    if X.planText then
+        X.planText:SetShown(planLine and not db.collapsed or false)
+        if planLine and not db.collapsed then
+            X.planText:SetText(planLine)
+            X.planText:ClearAllPoints()
+            X.planText:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, y)
+            X.planText:SetPoint("RIGHT", frame, "RIGHT", -(K.ARROW_SIZE + 16), 0)
+            y = y - 14
+        end
+    end
     y = math.min(y, -K.HEADER_HEIGHT - K.ARROW_SIZE - 14)
 
     local shown = 0
@@ -3637,6 +3791,8 @@ local function Build()
     detailText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     detailText:SetJustifyH("LEFT")
     detailText:SetWordWrap(true)
+    X.planText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    X.planText:SetJustifyH("LEFT")
     for index = 1, K.MAX_NEXT do
         nextRows[index] = MakeStepButton(16, "GameFontHighlightSmall")
         nextRows[index]:Hide()
