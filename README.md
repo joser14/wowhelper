@@ -19,7 +19,7 @@ The 30-odd helpers are installed as six addons:
 | Addon | Helpers | What you get |
 |---|---|---|
 | **Forever Hub** | ForeverHub, ForeverHelper, ErrorLog | The main window: a Home page explaining every helper, a Manage page to switch helpers or whole addons on and off, a side panel (XP and gold rates, time to level, XP waiting in finished quests), pop-up history, an error log, keybindings, an entry in the minimap's addon menu, an Options page, alerts and a hearthstone button. |
-| **Forever Guides** | LevelGuide, ProfessionGuide, ProfessionCap, GoldGuide, GoldGoal, Dungeons | A step-by-step leveling route with an arrow, built from Forever quest data; profession guides from 1 to 300 for all 12 professions; gold farms for your level and professions; a riding or custom gold goal; a guide to the 35 dungeons, Forever's new ones included. |
+| **Forever Guides** | LevelGuide, ProfessionGuide, ProfessionCap, GoldGuide, GoldGoal, Dungeons | A 1-60 leveling route per race with an arrow, built from Forever quest data: "on the way" and "for later" side steps (vendor and auction-house buys, items to keep, trainer visits, hearth and flight paths, XP gates), trips between zones by boat, tram and flight, class quests, and the missing quest named when a pick-up isn't offered yet; profession guides from 1 to 300 for all 12 professions; gold farms for your level and professions; a riding or custom gold goal; a guide to the 35 dungeons, Forever's new ones included. |
 | **Forever Quests** | QuestTracker, QuestCheck, ZoneLevels, QuestMobs, AutoQuest | A cleaner quest tracker, quest log checks, zone level warnings, markers with progress (like 3/8) beside enemies you still need, and quests accepted and turned in for you at NPCs you talk to (hold Shift to pause). |
 | **Forever Bags** | ItemAdvisor, BagCheck, ItemFinder, PriceMemory, FoodCheck, SupplyWatch, DurabilityWatch, Tooltips, WindowBadges | Equip, keep, sell or auction advice on every item; item search across all your characters; auction prices remembered from your own searches; extra tooltip lines (vendor price, last auction price, how many you own, where it drops, which quest needs it); badges on vendor, trainer and quest-reward windows; food, supplies and repair warnings. |
 | **Forever Character** | Builds, TalentNudge, TrainerNotes, ReadyCheck, WeaponSkillWatch, RestGuard, LevelLog, RepWatch | Talent builds for all nine classes (leveling, PvP, tank, healer, damage) with the next talent to take; old spell ranks on your bars and missing buffs; trainer reminders; weapon skill, rested XP, level times and reputation. |
@@ -57,7 +57,10 @@ The 30-odd helpers are installed as six addons:
   the addon. `research\taint_audit.md` records the audit of every helper for this kind of problem.
 - **Built for Forever's client.** Forever runs on a modern client with Midnight-era addon rules. The combat log is
   closed to addons, and many values are hidden during combat or in instances, so every value a helper reads from
-  the game goes through a check.
+  the game goes through a check. No helper even asks for the combat log or other restricted events: on this client
+  the request alone raises the "blocked from an action" pop-up.
+- **Talents are read from Forever's talent system** (the trait-based window), not the old talent calls, which return
+  nothing here.
 - **Forever's map numbers are the Classic ones** (Teldrassil 1438, Elwynn Forest 1429). Map lookups also check the
   map's name.
 - **One source folder per helper.** Each folder in this repo is one helper with its own `.toc`. `build.ps1` groups
@@ -82,14 +85,17 @@ root; `runall.ps1` lists which). `validate.lua` and `syntaxcheck.lua` are helper
 
 ## Research and sources
 
-Everything under `research\` is our own write-up: guide data, reviews of popular Forever addons, build research, and
-the gaps we filled. Third-party addons were only studied, never copied: findings are described in our own words, and
-no outside code is included here.
+Everything under `research\` is our own write-up: guide data, reviews of popular Forever addons (RestedXP, Polestar,
+Guidelime, Questie and others), build research, and the gaps we filled. Third-party addons were studied, not copied:
+findings are described in our own words. The one outside source shipped in the addon is GPL data: the leveling
+guide's quest database (`LevelGuide\QuestDB.lua`) is generated from forever-db by `tools\gen_questdb.js`, and
+`tools\check_routes.js` checks the hand-written routes against it (`research\route_check.md`). Code or data under
+other licences (RestedXP, Guidelime, ForeverWisp, paid guides) is never included.
 
 Data sources include:
 
-- **Quests and routes:** wow4ever.quest / Questie's Forever data, foreverchanges.pro, and Classic wikis for ordinary
-  mob spots. Each route's header says which.
+- **Quests and routes:** forever-db (the Polestar project's Forever quest database, GPL-3.0), wow4ever.quest /
+  Questie's Forever data, foreverchanges.pro, and Classic wikis for ordinary mob spots. Each route's header says which.
 - **Professions:** Warcraft Tavern's Forever trainer list, metabot.gg's Forever recipe data, wow-professions.com, and
   classicdb.ch for item IDs.
 - **Dungeons:** Warcraft Tavern's Forever dungeon guides and foreverchanges.pro.
