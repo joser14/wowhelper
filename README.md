@@ -97,3 +97,8 @@ Data sources include:
 
 Forever launched in November 2026 and is still changing. Blizzard announced class tuning for 10 November 2026, so
 builds and some data may need refreshing after patches.
+
+## License
+
+wowhelper is free software under the **GNU General Public License v3.0** (see [LICENSE](LICENSE)). You may use, copy, change and share it, as long as anything you publish from it stays under the same licence. The leveling guide's quest data comes from the GPL-3.0 Forever quest database (forever-db, from the Polestar project) and other open sources; [NOTICE.md](NOTICE.md) credits them all.
+
