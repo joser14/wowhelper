@@ -289,10 +289,21 @@ local KINDS = {
     item = { label = "Get", color = "|cffffd100" },
     train = { label = "Train", color = "|cffcc99ff" },
     grind = { label = "Grind", color = "|cffff8040" },
+    -- Side steps (Routes.lua Buy/Vendor/Bags/Trainer/Keep), mostly shown beside the current step.
+    buy = { label = "Buy", color = "|cffffd100" },
+    vendor = { label = "Visit", color = "|cffffd100" },
+    bags = { label = "Bags", color = "|cffffd100" },
+    trainer = { label = "Train", color = "|cffcc99ff" },
+    keep = { label = "Keep", color = "|cff999999" },
+    hearth = { label = "Hearth to", color = "|cffcc99ff" },
 }
 -- What LevelGuide_UpcomingStops calls each kind (for the MapPins helper).
 local STOP_KINDS = { pickup = "accept", work = "do", turnin = "turnin", travel = "go", level = "level",
-    home = "hearth", flight = "flight", item = "item", train = "train", grind = "xp" }
+    home = "hearth", flight = "flight", item = "item", train = "train", grind = "xp",
+    buy = "item", vendor = "item", bags = "item", trainer = "train", keep = "item", hearth = "go" }
+local MAX_SIDE = 5          -- rows for side steps ("On the way" first, then "For later")
+local sideSteps = {}        -- from the last rebuild: shown steps with .side = "sticky" or "later"
+local merchantNpc           -- the NPC ID of the merchant window open now (MERCHANT_SHOW)
 local MAX_STOPS = 7
 -- Server lag: the log can lag a moment behind an accept, and a turned-in quest can linger in it, so for
 -- this long the guide trusts the event over the log instead of flickering back to the old step.
@@ -342,6 +353,12 @@ end
 
 local function NpcKey(npc)
     return npc and (npc:match("^%s*([^,(]-)%s*[,(]") or npc:match("^%s*(.-)%s*$")) or nil
+end
+
+-- The NPC ID inside a creature GUID ("Creature-0-<server>-<instance>-<zone>-<npcID>-<spawn>").
+local function NpcIDOf(guid)
+    local id = type(guid) == "string" and guid:match("^%a+%-%d+%-%d+%-%d+%-%d+%-(%d+)%-")
+    return id and tonumber(id) or nil
 end
 
 local function StepKey(step)
@@ -411,13 +428,121 @@ local function PlayerPosition()
     return mapID, Safe(x), Safe(y)
 end
 
-local function PositionOn(mapID)
-    local position = C_Map and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
-    if not position then
+-- Moving a point from one map onto another through world positions. A map's "basis" is where its corners
+-- lie in the world: its top-left, and how far one map width east and one map height south go. Solving
+-- against that works whatever the world axes are, and gives numbers outside 0-1 for a point beyond the
+-- map's edge (Darnassus is its own zone on Forever's Classic maps, beside Teldrassil, not inside it).
+local Project, FindMap
+do -- (a block, so its helpers don't count toward the file's 200-local limit)
+local bases = {}
+local function WorldOf(mapID, x, y)
+    if not (C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then
         return nil
     end
-    local x, y = position:GetXY()
-    return Safe(x), Safe(y)
+    local continent, world = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(x, y))
+    continent = Safe(continent)
+    if not (continent and world and world.GetXY) then
+        return nil
+    end
+    local wx, wy = world:GetXY()
+    wx, wy = Safe(wx), Safe(wy)
+    if wx and wy then
+        return continent, wx, wy
+    end
+end
+
+local function Basis(mapID)
+    if bases[mapID] == nil then
+        local basis = false
+        local continent, ox, oy = WorldOf(mapID, 0, 0)
+        local _, ex, ey = WorldOf(mapID, 1, 0)
+        local _, sx, sy = WorldOf(mapID, 0, 1)
+        if continent and ex and sx then
+            local b = { continent = continent, ox = ox, oy = oy, ex = ex - ox, ey = ey - oy, sx = sx - ox, sy = sy - oy }
+            b.det = b.ex * b.sy - b.sx * b.ey
+            -- Zero-size maps (Zephras Isle and other instanced areas report no world rectangle) can't be used.
+            if math.abs(b.det) > 1e-9 then
+                basis = b
+            end
+        end
+        bases[mapID] = basis
+    end
+    return bases[mapID] or nil
+end
+
+-- x, y (0-1) on fromMap as a position on toMap, or nil (other continent, no world data).
+function Project(fromMap, x, y, toMap)
+    if not (fromMap and toMap and x and y) then
+        return nil
+    end
+    if fromMap == toMap then
+        return x, y
+    end
+    local to = Basis(toMap)
+    local continent, wx, wy = WorldOf(fromMap, x, y)
+    if not (to and continent and continent == to.continent) then
+        return nil
+    end
+    local dx, dy = wx - to.ox, wy - to.oy
+    return (dx * to.sy - to.sx * dy) / to.det, (to.ex * dy - dx * to.ey) / to.det
+end
+
+-- A zone or city map's ID by its name, from the continent you're on (only hits are remembered: the map
+-- list can be empty for a moment after a load).
+local byName = {}
+function FindMap(name)
+    if not name then
+        return nil
+    end
+    if byName[name] then
+        return byName[name]
+    end
+    local mapID = C_Map and C_Map.GetBestMapForUnit and Safe(C_Map.GetBestMapForUnit("player"))
+    for _ = 1, 6 do
+        local info = mapID and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
+        if not info then
+            break
+        end
+        if Safe(info.name) == name then
+            byName[name] = mapID
+            return mapID
+        end
+        local parent = Safe(info.parentMapID)
+        -- The continent (or whatever is at the top) lists every zone and city under it.
+        if Safe(info.mapType) == 2 or not parent or parent == 0 then
+            for _, child in ipairs(C_Map.GetMapChildrenInfo and C_Map.GetMapChildrenInfo(mapID, nil, true) or {}) do
+                if Safe(child.name) == name and Safe(child.mapID) then
+                    byName[name] = Safe(child.mapID)
+                    return byName[name]
+                end
+            end
+            break
+        end
+        mapID = parent
+    end
+end
+end -- map projection
+
+local function PositionOn(mapID)
+    local position = C_Map and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
+    if position then
+        local x, y = position:GetXY()
+        x, y = Safe(x), Safe(y)
+        if x and y then
+            return x, y
+        end
+    end
+    -- Not on that map (e.g. in Darnassus while the route is Teldrassil's): where you'd be on it.
+    local best = C_Map and C_Map.GetBestMapForUnit and Safe(C_Map.GetBestMapForUnit("player"))
+    if not best or best == mapID then
+        return nil
+    end
+    local here = C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(best, "player")
+    if not here then
+        return nil
+    end
+    local x, y = here:GetXY()
+    return Project(best, Safe(x), Safe(y), mapID)
 end
 
 local function ZoneName(mapID)
@@ -544,7 +669,16 @@ local function ReadQuests(mapID)
                     step.mapID, step.x, step.y = mapID, waypointX, waypointY
                     here[#here + 1] = step
                 elseif waypointMap then
-                    away[#away + 1] = { step = step, zone = ZoneName(waypointMap) }
+                    local entry = { step = step, zone = ZoneName(waypointMap), mapID = waypointMap, x = waypointX, y = waypointY }
+                    -- The game's next leg on the map you're on (the boat, portal or zone exit), when it knows it.
+                    if mapID and C_QuestLog.GetNextWaypointForMap then
+                        local legX, legY = C_QuestLog.GetNextWaypointForMap(id, mapID)
+                        legX, legY = Safe(legX), Safe(legY)
+                        if legX and legY then
+                            entry.mapID, entry.x, entry.y = mapID, legX, legY
+                        end
+                    end
+                    away[#away + 1] = entry
                 else
                     unplaced[#unplaced + 1] = step
                 end
@@ -656,6 +790,11 @@ local function TravelSteps(away)
         zone.count = zone.count + 1
         zone.firstQuest = zone.firstQuest or entry.step.id
         zone.detail = string.format("%d quest(s) there", zone.count)
+        -- The game's own next waypoint for the quest there: the arrow points at it (from across the zone
+        -- border too, through world positions).
+        if not zone.x and entry.mapID and entry.x and entry.y then
+            zone.mapID, zone.x, zone.y = entry.mapID, entry.x, entry.y
+        end
     end
     table.sort(order, function(a, b)
         return a.count > b.count
@@ -666,11 +805,14 @@ end
 -- Hand-written routes (Routes.lua). Progress is read from your quest log, plus a count of what this
 -- character has turned in, kept by title since several quests in a chain share one.
 local ROUTE_KINDS = { accept = "pickup", ["do"] = "work", turnin = "turnin", go = "travel",
-    zone = "travel", home = "home", fp = "flight", item = "item", train = "train", xp = "grind" }
--- Steps with no quest: done by watching the game (Routes.lua G/Zone/Home/FP/Item/Train/XP).
-local UTILITY = { go = true, zone = true, home = true, fp = true, item = true, train = true, xp = true }
+    zone = "travel", home = "home", fp = "flight", item = "item", train = "train", xp = "grind",
+    buy = "buy", vendor = "vendor", bags = "bags", trainer = "trainer", keep = "keep", hearth = "hearth" }
+-- Steps with no quest: done by watching the game (Routes.lua G/Zone/Home/FP/Item/Train/XP and the
+-- side kinds Buy/Vendor/Bags/Trainer/Keep).
+local UTILITY = { go = true, zone = true, home = true, fp = true, item = true, train = true, xp = true,
+    buy = true, vendor = true, bags = true, trainer = true, keep = true, hearth = true }
 -- Moves the route wants made in order: what follows waits behind them (an XP gate too).
-local BARRIER = { go = true, zone = true, xp = true }
+local BARRIER = { go = true, zone = true, xp = true, hearth = true }
 
 local function LogByTitle()
     local byTitle = {}
@@ -705,20 +847,45 @@ local function LogByTitle()
     return byTitle
 end
 
-local function ZoneMap(zoneName)
+-- Cities that belong to a zone's route but are their own zone on Forever's (Classic) maps, beside it
+-- under the continent: standing in one counts as being in the zone.
+local ZONE_PARTS = {
+    ["Teldrassil"] = { ["Darnassus"] = true },
+    ["Dun Morogh"] = { ["Ironforge"] = true },
+    ["Elwynn Forest"] = { ["Stormwind City"] = true },
+}
+
+-- The map you're on, or one it sits in, with this name; nil when you're not there.
+local function MapNamed(zoneName)
     local mapID = C_Map and C_Map.GetBestMapForUnit and Safe(C_Map.GetBestMapForUnit("player"))
+    local parts = ZONE_PARTS[zoneName]
     for _ = 1, 6 do
         local info = mapID and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
         if not info then
             return nil
         end
-        if Safe(info.name) == zoneName then
+        local name = Safe(info.name)
+        if name == zoneName then
             return mapID
+        end
+        if parts and name and parts[name] then
+            return nil, true
         end
         mapID = Safe(info.parentMapID)
         if not mapID or mapID == 0 then
             return nil
         end
+    end
+end
+
+-- The zone's map while you're in it, in a sub-map of it (town, cave), or in a city that belongs to it.
+local function ZoneMap(zoneName)
+    local mapID, inPart = MapNamed(zoneName)
+    if mapID then
+        return mapID
+    end
+    if inPart then
+        return FindMap(zoneName)
     end
 end
 
@@ -1073,11 +1240,13 @@ local function OfferedOnMap(onMap, title)
     end
     return false
 end
-local ObjectivesDone, ObjectiveText, UtilityDone, ItemCount, LevelFraction
+local ObjectivesDone, ObjectiveText, UtilityDone, ItemCount, LevelFraction, TravelTo, BagSlots, ClassMatches, SideSteps, GuardsPass
 do -- (a block, so its helpers don't count toward the file's 200-local limit)
 -- Per-objective "do" steps (Routes.lua Obj()): step.obj is an objective index, or a list of them, of the
 -- quest's own objective list; the step is done when those are finished, even if the rest isn't.
-function ObjectivesDone(questID, obj)
+-- With max (Routes.lua Count()), an objective counts as done once that many are fulfilled ("8 of 10
+-- here, the rest later").
+function ObjectivesDone(questID, obj, max)
     if not (questID and obj) then
         return false
     end
@@ -1085,7 +1254,8 @@ function ObjectivesDone(questID, obj)
     local list = type(obj) == "table" and obj or { obj }
     for _, index in ipairs(list) do
         local objective = objectives[index]
-        if not (objective and Safe(objective.finished)) then
+        local fulfilled = objective and Safe(objective.numFulfilled)
+        if not (objective and (Safe(objective.finished) or (max and type(fulfilled) == "number" and fulfilled >= max))) then
             return false
         end
     end
@@ -1128,11 +1298,32 @@ local function FlightKnown(place)
     return false
 end
 
+-- Bags only (not the bank). itemID may be a list: the count of all of them together.
 function ItemCount(itemID)
+    if type(itemID) == "table" then
+        local total = 0
+        for _, id in ipairs(itemID) do
+            total = total + ItemCount(id)
+        end
+        return total
+    end
     if not (itemID and C_Item and C_Item.GetItemCount) then
         return 0
     end
-    return Safe(C_Item.GetItemCount(itemID)) or 0
+    local count = Safe(C_Item.GetItemCount(itemID))
+    return type(count) == "number" and count or 0
+end
+
+-- Slots in your backpack and four bags (C_Container.GetContainerNumSlots).
+function BagSlots()
+    local total = 0
+    if C_Container and C_Container.GetContainerNumSlots then
+        for bag = 0, 4 do
+            local slots = Safe(C_Container.GetContainerNumSlots(bag))
+            total = total + (type(slots) == "number" and slots or 0)
+        end
+    end
+    return total
 end
 
 local function SpellKnown(spells)
@@ -1153,9 +1344,28 @@ function LevelFraction()
     return xp and maxXP and xp / maxXP or 0
 end
 
+-- The XP an "N into level L" / "N short of level L" gate wants within the level it's read in, or nil.
+local function XPTarget(step, level)
+    local maxXP = MaxXP()
+    if step.short and level == step.level - 1 and maxXP then
+        return math.max(maxXP - step.short, 0)
+    elseif step.into and level == step.level then
+        return step.into
+    end
+end
+
 local function XPReached(step, level)
     if not level then
         return false
+    end
+    if step.short then
+        -- "2500 short of 13": done at 13, or at 12 within 2500 of the end.
+        local target = XPTarget(step, level)
+        return level >= step.level or (target ~= nil and (Safe(UnitXP("player")) or 0) >= target)
+    end
+    if step.into then
+        local target = XPTarget(step, level)
+        return level > step.level or (target ~= nil and (Safe(UnitXP("player")) or 0) >= target)
     end
     return level > step.level or (level == step.level and LevelFraction() >= (step.frac or 0))
 end
@@ -1177,6 +1387,11 @@ end
 -- quest) is remembered once seen, so the guide never sends you back for it.
 function UtilityDone(step, key, level)
     if step.t == "go" then
+        -- A move into a place (Routes.lua Reach(), e.g. "Enter Darnassus") is done once you're there,
+        -- wherever you came in.
+        if not charData.visited[key] and step.reach and InZone(step.reach) then
+            charData.visited[key] = true
+        end
         return charData.visited[key] or false
     elseif step.t == "zone" then
         if not charData.visited[key] and InZone(step.reach) then
@@ -1199,6 +1414,72 @@ function UtilityDone(step, key, level)
         return SpellKnown(step.spells)
     elseif step.t == "xp" then
         return XPReached(step, level)
+    elseif step.t == "buy" then
+        -- Bought (any of the listed items, from a vendor or the auction house): remembered, so eating,
+        -- drinking or equipping it later doesn't bring the step back.
+        if not charData.marks[key] and ItemCount(step.items) >= (step.count or 1) then
+            charData.marks[key] = true
+        end
+        return charData.marks[key] or false
+    elseif step.t == "vendor" then
+        -- Marked when that vendor's window closes (MERCHANT_CLOSED).
+        return charData.marks[key] or false
+    elseif step.t == "hearth" then
+        -- Done once you're there, by hearthstone or on foot.
+        if not charData.visited[key] and InZone(step.place) then
+            charData.visited[key] = true
+        end
+        return charData.visited[key] or false
+    elseif step.t == "bags" then
+        return BagSlots() >= (step.slots or 0)
+    elseif step.t == "trainer" then
+        -- A class trainer's window opened at this level or later (TRAINER_SHOW), or what it teaches known.
+        return (charData.trainerLevel or 0) >= (step.atLevel or 0) or (step.spells ~= nil and SpellKnown(step.spells))
+    end
+    return false
+end
+
+-- Guards (Routes.lua When()): a step whose guard fails is hidden, not completed, and checked again on
+-- every rebuild, so it comes back once the guard holds. Items are { id or {ids}, n }; quests are titles.
+function GuardsPass(when, byTitle)
+    if not when then
+        return true
+    end
+    if when.hasItem and ItemCount(when.hasItem[1]) < (when.hasItem[2] or 1) then
+        return false
+    end
+    if when.lacksItem and ItemCount(when.lacksItem[1]) >= (when.lacksItem[2] or 1) then
+        return false
+    end
+    if when.onQuest and not InLog(byTitle, when.onQuest) then
+        return false
+    end
+    if when.notOnQuest and InLog(byTitle, when.notOnQuest) then
+        return false
+    end
+    if when.notTurnedIn and TurnedIn(when.notTurnedIn) > 0 then
+        return false
+    end
+    if when.hearthNot and BoundTo(when.hearthNot) then
+        return false
+    end
+    return true
+end
+
+-- Class filter (Routes.lua Class()): "PRIEST" or a list of class tokens; true when it applies to you.
+-- When the class can't be read the step is shown.
+function ClassMatches(cls)
+    if not cls then
+        return true
+    end
+    local mine = UnitClass and Safe(select(2, UnitClass("player")))
+    if not mine then
+        return true
+    end
+    for _, want in ipairs(type(cls) == "table" and cls or { cls }) do
+        if want == mine then
+            return true
+        end
     end
     return false
 end
@@ -1208,6 +1489,31 @@ local function RouteStepDone(route, index, step, byTitle, level)
     local key = RouteKey(route, index)
     if charData.skips[key] then
         return true
+    end
+    -- Another class's step (Routes.lua Class()) isn't yours to do.
+    if step.cls and not ClassMatches(step.cls) then
+        return true
+    end
+    -- A failed guard hides the step for now (nothing is saved, so it's back once the guard holds).
+    if step.when and not GuardsPass(step.when, byTitle) then
+        return true
+    end
+    if step.side and UTILITY[step.t] then
+        -- Side steps (shopping, bags, trainer visits, keep an item) only answer to their own state, not to
+        -- how far along the route you are: a wand to buy is still worth buying past where it was written.
+        if step.t == "keep" then
+            return ItemCount(step.item) == 0 or InLog(byTitle, step.forQ) ~= nil or TurnedIn(step.forQ) > 0
+        end
+        if step.t == "trainer" then
+            -- A later visit (by level) you've reached replaces this one.
+            for _, other in ipairs(route.steps) do
+                if other ~= step and other.t == "trainer" and ClassMatches(other.cls) and level
+                    and (other.atLevel or 0) > (step.atLevel or 0) and (other.atLevel or 0) <= level then
+                    return true
+                end
+            end
+        end
+        return Outleveled(step, level) or UtilityDone(step, key, level)
     end
     -- Taken a moment ago: the log may not list it yet, so don't flicker back to the pick-up.
     if step.t == "accept" and RecentlyAccepted(step.q) then
@@ -1259,7 +1565,7 @@ local function RouteStepDone(route, index, step, byTitle, level)
         return true
     end
     if step.t == "do" then
-        return entry.ready or (step.obj ~= nil and ObjectivesDone(entry.id, step.obj))
+        return entry.ready or (step.obj ~= nil and ObjectivesDone(entry.id, step.obj, step.objMax))
     end
     return false
 end
@@ -1333,7 +1639,7 @@ local function RouteStepActionable(step, byTitle, level, busyNpcs)
         return entry == nil and turnedIn == part - 1 and (not step.lvl or step.lvl <= level + 1)
             and (knownPrereqs or not busyNpcs[NpcKey(step.npc) or ""])
     elseif step.t == "do" then
-        return entry ~= nil and not entry.ready and not (step.obj ~= nil and ObjectivesDone(entry.id, step.obj))
+        return entry ~= nil and not entry.ready and not (step.obj ~= nil and ObjectivesDone(entry.id, step.obj, step.objMax))
     end
     return entry ~= nil and entry.ready
 end
@@ -1344,7 +1650,7 @@ end
 -- keep that person's later pick-ups hidden for good. Pick-ups themselves never count: a giver who
 -- doesn't offer one may still offer another.
 local function Gone(route, index, step, level, byTitle)
-    if charData.skips[RouteKey(route, index)] or Outleveled(step, level) then
+    if charData.skips[RouteKey(route, index)] or Outleveled(step, level) or not ClassMatches(step.cls) then
         return true
     end
     if HasIDs(step.q) then
@@ -1392,6 +1698,8 @@ local function CityMap(zoneMap, city)
                 cityMaps[key] = Safe(info.mapID)
             end
         end
+        -- On Forever's Classic maps the city is not under the zone but beside it, under the continent.
+        cityMaps[key] = cityMaps[key] or FindMap(city)
     end
     return cityMaps[key]
 end
@@ -1421,6 +1729,12 @@ local function CityToZone(zoneMap, step, x, y)
                     local zoneX, zoneY = onZone:GetXY()
                     cityPoints[key] = { Safe(zoneX), Safe(zoneY) }
                 end
+            end
+        end
+        if cityMap and not (cityPoints[key] and cityPoints[key][1]) then
+            local zoneX, zoneY = Project(cityMap, x, y, zoneMap)
+            if zoneX then
+                cityPoints[key] = { zoneX, zoneY }
             end
         end
     end
@@ -1465,9 +1779,43 @@ local function UtilityDetail(step, level)
         return string.format("Have %d/%d.%s", math.min(ItemCount(step.item), step.count or 1), step.count or 1, note)
     elseif step.t == "train" then
         return string.format("Learn it from %s.%s", tostring(step.npc or "your trainer"), note)
+    elseif step.t == "xp" and (step.short or step.into) then
+        local xp, maxXP = Safe(UnitXP("player")) or 0, MaxXP() or 0
+        local want = step.short and (step.level - 1 == level) and math.max(maxXP - step.short, 0)
+            or (step.into and step.level == level and step.into) or nil
+        return string.format("Level %d, %d/%d XP%s. Kill mobs around you until then.%s", level or 0, xp, maxXP,
+            want and string.format(" (need %d)", want) or "", note)
     elseif step.t == "xp" then
         local percent = math.floor(LevelFraction() * 100)
         return string.format("You're level %d at %d%%. Kill mobs around you until then.%s", level or 0, percent, note)
+    elseif step.t == "buy" then
+        local where = step.where == "ah" and ("the Auction House" .. (step.npc and (" (" .. step.npc .. ")") or ""))
+            or tostring(step.npc or "a vendor")
+        local need = step.count or 1
+        return string.format("Have %d/%d. Buy at %s.%s", math.min(ItemCount(step.items), need), need, where, note)
+    elseif step.t == "vendor" then
+        return string.format("Visit %s: sell, repair and restock.%s", tostring(step.npc or "a vendor"), note)
+    elseif step.t == "bags" then
+        return string.format("%d/%d bag slots. Bags from %s or the Auction House.%s", BagSlots(), step.slots or 0,
+            tostring(step.npc or "a general goods vendor"), note)
+    elseif step.t == "trainer" then
+        return string.format("Visit %s for your level %d spells.%s", tostring(step.npc or "your class trainer"), step.atLevel or 0, note)
+    elseif step.t == "keep" then
+        return string.format("Keep it: it's for %s later.%s", tostring(step.forQ or "a quest"), note)
+    elseif step.t == "hearth" then
+        -- Hearthstone (item 6948) cooldown, read only.
+        local start, duration
+        if C_Container and C_Container.GetItemCooldown then
+            start, duration = C_Container.GetItemCooldown(6948)
+            start, duration = Safe(start), Safe(duration)
+        end
+        local left = start and duration and duration > 0 and math.ceil((start + duration - GetTime()) / 60) or 0
+        local bound = GetBindLocation and Safe(GetBindLocation())
+        local where = bound and bound ~= "" and (" Your hearth is set to " .. bound .. ".") or ""
+        if left > 0 then
+            return string.format("Hearthstone ready in %d min: walk or fly instead.%s%s", left, where, note)
+        end
+        return string.format("Use your hearthstone.%s%s", where, note)
     end
     return step.note
 end
@@ -1489,7 +1837,9 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
         shown.detail = progress and step.note and (step.note .. ". Now: " .. progress) or progress or step.note
     elseif UTILITY[step.t] and step.t ~= "go" and step.t ~= "zone" then
         shown.detail = UtilityDetail(step, level)
-        if step.t == "xp" then
+        if step.t == "xp" and (step.short or step.into) then
+            shown.title = step.text
+        elseif step.t == "xp" then
             shown.title = string.format("%d%% into level %d", math.floor((step.frac or 0) * 100 + 0.5), step.level)
         end
     else
@@ -1500,16 +1850,40 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
     end
     local x, y = step.x, step.y
     -- Several points (Routes.lua Path()): the arrow takes them in order; the next one is remembered per step.
+    -- Loop() goes round and round (a grind circuit) until the step is done its own way; Nearest() points
+    -- at the closest of several spawn spots, other than the one you just checked.
     if step.pts and #step.pts > 0 then
-        local at = math.min(math.max(tonumber(charData.points[shown.routeKey]) or 1, 1), #step.pts)
+        local count = #step.pts
+        local saved = tonumber(charData.points[shown.routeKey])
+        local at = math.min(math.max(saved or 1, 1), count)
+        if step.mode == "nearest" then
+            local px, py
+            if zoneMap and not step.map then
+                px, py = PositionOn(zoneMap)
+            end
+            local best
+            for index, point in ipairs(step.pts) do
+                if index ~= saved or count == 1 then
+                    local d = px and ((point[1] / 100 - px) ^ 2 + (point[2] / 100 - py) ^ 2) or index
+                    if not best or d < best then
+                        best, at = d, index
+                    end
+                end
+            end
+        end
         x, y = step.pts[at][1], step.pts[at][2]
-        shown.pointIndex, shown.pointCount = at, #step.pts
-        shown.detail = (shown.detail and (shown.detail .. " ") or "") .. string.format("(point %d of %d)", at, #step.pts)
+        shown.pointIndex, shown.pointCount, shown.pointMode = at, count, step.mode
+        shown.detail = (shown.detail and (shown.detail .. " ") or "")
+            .. (step.mode == "nearest" and string.format("(nearest of %d spots)", count)
+                or string.format(step.mode == "loop" and "(loop point %d of %d)" or "(point %d of %d)", at, count))
+        -- The other points for the map: in order, only those still ahead; loop/nearest, all the others.
         shown.morePoints = {}
-        for later = at + 1, #step.pts do
-            local mapID, laterX, laterY = PlacePoint(step, zoneMap, step.pts[later][1], step.pts[later][2])
-            if mapID then
-                shown.morePoints[#shown.morePoints + 1] = { mapID = mapID, x = laterX, y = laterY, index = later }
+        for later = step.mode and 1 or at + 1, count do
+            if later ~= at then
+                local mapID, laterX, laterY = PlacePoint(step, zoneMap, step.pts[later][1], step.pts[later][2])
+                if mapID then
+                    shown.morePoints[#shown.morePoints + 1] = { mapID = mapID, x = laterX, y = laterY, index = later }
+                end
             end
         end
     end
@@ -1520,7 +1894,7 @@ end
 -- A pick-up hidden only because its prerequisites (a level, an earlier quest) aren't met yet is still
 -- work this route owes you, so the route isn't finished while one remains.
 local function RouteStepPending(route, index, step, byTitle, level)
-    if step.t ~= "accept" or charData.skips[RouteKey(route, index)] or InLog(byTitle, step.q) then
+    if step.t ~= "accept" or charData.skips[RouteKey(route, index)] or InLog(byTitle, step.q) or not ClassMatches(step.cls) then
         return false
     end
     if Outleveled(step, level) then
@@ -1531,7 +1905,7 @@ end
 
 local function RouteUnfinished(route, byTitle, level)
     for index, step in ipairs(route.steps) do
-        if not RouteStepDone(route, index, step, byTitle, level) or RouteStepPending(route, index, step, byTitle, level) then
+        if not step.side and (not RouteStepDone(route, index, step, byTitle, level) or RouteStepPending(route, index, step, byTitle, level)) then
             return true
         end
     end
@@ -1542,7 +1916,7 @@ end
 -- low for (or whose earlier quest isn't done) is unfinished, but has nothing for you yet.
 local function RouteHasWork(route, byTitle, level)
     for index, step in ipairs(route.steps) do
-        if not RouteStepDone(route, index, step, byTitle, level)
+        if not step.side and not RouteStepDone(route, index, step, byTitle, level)
             and (step.t ~= "accept" or RouteStepActionable(step, byTitle, level, {})) then
             return true
         end
@@ -1559,7 +1933,7 @@ local function LevelBlocker(route, byTitle, level)
     local data = LevelGuidePrereqs
     for index, step in ipairs(route.steps) do
         local part = tonumber(step.part) or 1
-        if step.t == "accept" and not charData.skips[RouteKey(route, index)] and not InLog(byTitle, step.q)
+        if step.t == "accept" and not charData.skips[RouteKey(route, index)] and not InLog(byTitle, step.q) and ClassMatches(step.cls)
             and TurnedIn(step.q) == part - 1 and not Outleveled(step, level)
             and PrereqsMet(step.q, nil) then
             local need = data and (data[step.q] or data[RealTitle(step.q)])
@@ -1635,6 +2009,85 @@ local function LevelStep(route, byTitle, level, zoneMap)
     return shown
 end
 
+-- The way into a route's zone from where you are, always as a stop with an arrow when it can be placed:
+-- 1. the route's own ways (Routes.lua Way(): the flight master, boat or portal to take from a zone),
+-- 2. else the route's next step itself, straight across the map (same continent),
+-- 3. else (another continent, no way written) just the zone's name.
+function TravelTo(route, why, byTitle, level)
+    local travel = { kind = "travel", title = route.zone, detail = why, zone = route.zone }
+    for _, way in ipairs(route.ways or {}) do
+        local fromMap = MapNamed(way.from)
+        if fromMap and way.x and way.y then
+            travel.title = way.text
+            travel.detail = (way.note and (way.note .. ". ") or "") .. why
+            travel.mapID, travel.x, travel.y = fromMap, way.x / 100, way.y / 100
+            travel.wayKey = route.zone .. "|way|" .. way.from
+            return travel
+        end
+    end
+    local zoneMap = FindMap(route.zone)
+    if zoneMap then
+        for index, step in ipairs(route.steps) do
+            if step.x and step.y and not step.map and not step.side
+                and not RouteStepDone(route, index, step, byTitle, level) then
+                local x, y = CityToZone(zoneMap, step, step.x / 100, step.y / 100)
+                if x and PositionOn(zoneMap) then
+                    travel.mapID, travel.x, travel.y = zoneMap, x, y
+                    travel.detail = why .. ". The arrow points at the route's next stop there"
+                end
+                break
+            end
+        end
+    end
+    return travel
+end
+
+-- Side steps in play (Routes.lua Sticky/Later): shown beside the current step, never as it.
+-- * "sticky" (on the way): from where it's written, while any of the next `span` route steps is still to
+--   do, e.g. "kill boars while you do the next 3 steps". Done by its own state (an objective, items).
+-- * "later": shopping (vendor or auction house), bags, items to keep, trainer visits. From where it's
+--   written (or from its level, for trainer visits) until done; each is done by watching only.
+function SideSteps(route, byTitle, level, zoneMap, windowEnd)
+    local sticky, later = {}, {}
+    for index, step in ipairs(route.steps) do
+        if step.side and not RouteStepDone(route, index, step, byTitle, level) then
+            local inPlay
+            if step.atLevel then
+                inPlay = level ~= nil and level >= step.atLevel
+            else
+                inPlay = index <= windowEnd and not (step.lvl and level and step.lvl > level + 2)
+            end
+            if inPlay and step.side == "sticky" then
+                inPlay = false
+                local seen = 0
+                for nextIndex = index + 1, #route.steps do
+                    local other = route.steps[nextIndex]
+                    if not other.side then
+                        seen = seen + 1
+                        if seen > (step.span or 1) then
+                            break
+                        end
+                        if not RouteStepDone(route, nextIndex, other, byTitle, level) then
+                            inPlay = true
+                            break
+                        end
+                    end
+                end
+            end
+            if inPlay then
+                local shown = RouteDisplay(route, index, step, byTitle, zoneMap)
+                shown.side = step.side
+                local list = step.side == "sticky" and sticky or later
+                list[#list + 1] = shown
+            end
+        end
+    end
+    for _, shown in ipairs(later) do
+        sticky[#sticky + 1] = shown
+    end
+    return sticky
+end
+
 local function RouteSteps(level)
     if not charData then
         return nil
@@ -1666,20 +2119,21 @@ local function RouteSteps(level)
             why = string.format("%s's next quests need level %d, you're %d. %s has quests for you now",
                 stuckHere.zone, need, level, route.zone)
         end
-        local written = {}
+        local written, writtenEnd = {}, 0
         for index, step in ipairs(route.steps) do
             if #written >= MAX_NEXT then
                 break
             end
-            if not RouteStepDone(route, index, step, byTitle, level)
+            if not step.side and not RouteStepDone(route, index, step, byTitle, level)
                 and (step.t ~= "accept" or RouteStepActionable(step, byTitle, level, {})) then
                 written[#written + 1] = RouteDisplay(route, index, step, byTitle, nil)
+                writtenEnd = index
             end
         end
         -- A route leg written on this map (Routes.lua On(), e.g. Duskwood's Sven leg in Stormwind) is
         -- done here: no "go back" line before it.
         if not (written[1] and written[1].mapID) then
-            list[#list + 1] = { kind = "travel", title = route.zone, detail = why, zone = route.zone }
+            list[#list + 1] = TravelTo(route, why, byTitle, level)
         end
         for _, shown in ipairs(written) do
             list[#list + 1] = shown
@@ -1687,6 +2141,7 @@ local function RouteSteps(level)
         if #written == 0 then
             list[#list + 1] = LevelStep(route, byTitle, level, nil)
         end
+        sideSteps = SideSteps(route, byTitle, level, nil, writtenEnd)
         return list, route
     end
 
@@ -1696,8 +2151,12 @@ local function RouteSteps(level)
     local ready, waiting = {}, {}
     local busyNpcs = {}
     local considered = 0
+    -- How far down the route this rebuild looked: side steps written up to here are in play.
+    local windowEnd = #route.steps
     for index, step in ipairs(route.steps) do
-        if not RouteStepDone(route, index, step, byTitle, level) then
+        if step.side then -- luacheck: ignore 542
+            -- Shown beside the steps (SideSteps), never one of them.
+        elseif not RouteStepDone(route, index, step, byTitle, level) then
             -- A move (go, reach a zone) or an XP gate: it comes first, or ends the window.
             if BARRIER[step.t] and considered == 0 then
                 -- The move comes first; what follows it stays in written order behind it.
@@ -1707,15 +2166,17 @@ local function RouteSteps(level)
                         break
                     end
                     local nextStep = route.steps[nextIndex]
-                    if not RouteStepDone(route, nextIndex, nextStep, byTitle, level)
+                    if not nextStep.side and not RouteStepDone(route, nextIndex, nextStep, byTitle, level)
                         and (nextStep.t ~= "accept" or RouteStepActionable(nextStep, byTitle, level, {})) then
                         waiting[#waiting + 1] = RouteDisplay(route, nextIndex, nextStep, byTitle, zoneMap)
                     end
                 end
+                windowEnd = index
                 break
             end
             if BARRIER[step.t] then
                 waiting[#waiting + 1] = RouteDisplay(route, index, step, byTitle, zoneMap)
+                windowEnd = index
                 break
             end
             local shown = RouteDisplay(route, index, step, byTitle, zoneMap)
@@ -1726,6 +2187,7 @@ local function RouteSteps(level)
             if considered >= ROUTE_WINDOW then
                 if visible then
                     waiting[#waiting + 1] = shown
+                    windowEnd = index
                     break
                 end
             else
@@ -1753,6 +2215,7 @@ local function RouteSteps(level)
             end
         end
     end
+    sideSteps = SideSteps(route, byTitle, level, zoneMap, windowEnd)
     -- The route is a plan, not the whole truth: quests in your log it doesn't know (or hasn't reached
     -- yet) and "!" quests the map shows that it doesn't list are on offer too, so they join the pool.
     local known = {}
@@ -1822,7 +2285,16 @@ local function PlanStep(level, mapID)
         end
     end
     local detail = plan.hub .. (plan.note and (". " .. plan.note) or "")
-    return { kind = "travel", title = table.concat(plan.zones, " or "), detail = detail, zone = plan.zones[1] }
+    local travel = { kind = "travel", title = table.concat(plan.zones, " or "), detail = detail, zone = plan.zones[1] }
+    -- The middle of the first zone that's on your continent, so the arrow has somewhere to point.
+    for _, zone in ipairs(plan.zones) do
+        local zoneMap = FindMap(zone)
+        if zoneMap and PositionOn(zoneMap) then
+            travel.mapID, travel.x, travel.y, travel.zone = zoneMap, 0.5, 0.5, zone
+            break
+        end
+    end
+    return travel
 end
 
 -- Following the route, which turn-in takes you past the end of this level.
@@ -1919,6 +2391,7 @@ local function BuildSteps()
     local mapID, playerX, playerY = PlayerPosition()
     local level = Safe(UnitLevel("player")) or 1
     local routed
+    sideSteps = {}
     routed, activeRoute = RouteSteps(level)
     if routed then
         PutFocusFirst(routed, level)
@@ -2003,7 +2476,8 @@ local function MarkStep(step)
     if not step then
         return
     end
-    if (step.kind == "pickup" or (step.routeKey and not step.id)) and step.mapID and step.x then
+    if (step.kind == "pickup" or (step.routeKey and not step.id) or (step.kind == "travel" and not step.firstQuest))
+        and step.mapID and step.x then
         ForeverWaypoint_Set(step.mapID, step.x, step.y, step.title or step.id)
     elseif C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID then
         local questID = step.kind == "travel" and step.firstQuest or step.id
@@ -2202,6 +2676,31 @@ local function Render(mapID, playerX, playerY, later)
         nextRows[index]:Hide()
         nextRows[index].step = nil
     end
+    -- Side steps: "On the way" stays even when collapsed (it's part of what you're doing now);
+    -- "For later" only when expanded.
+    local sideShown = 0
+    for _, step in ipairs(sideSteps) do
+        if sideShown >= MAX_SIDE then
+            break
+        end
+        if step.side == "sticky" or not db.collapsed then
+            sideShown = sideShown + 1
+            local row = nextRows.side[sideShown]
+            row.step = step
+            local tag = step.side == "sticky" and "|cffff8040On the way:|r " or "|cff66ccffFor later:|r "
+            row.left:SetText(tag .. StepLine(step) .. (step.side == "sticky" and step.detail and (COLOR_DIM .. " - " .. step.detail .. "|r") or ""))
+            row.right:SetText(DistanceText(step, mapID, playerX, playerY))
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, y)
+            row:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+            row:Show()
+            y = y - 16
+        end
+    end
+    for index = sideShown + 1, #nextRows.side do
+        nextRows.side[index]:Hide()
+        nextRows.side[index].step = nil
+    end
     local also = not db.collapsed and ChoresText(later)
     alsoText:SetShown(also and true or false)
     if also then
@@ -2276,7 +2775,14 @@ local function UpdateArrow()
             return
         end
         yardsText:SetText("|cff33ff33You're there|r")
-        if step.routeKey and step.pointCount and step.pointIndex < step.pointCount and charData then
+        if step.routeKey and step.pointMode and step.pointCount and charData then
+            -- A circuit goes on to the next point (wrapping); "nearest" remembers this spot as checked.
+            local nextPoint = step.pointMode == "loop" and (step.pointIndex % step.pointCount + 1) or step.pointIndex
+            if charData.points[step.routeKey] ~= nextPoint then
+                charData.points[step.routeKey] = nextPoint
+                dirty = true
+            end
+        elseif step.routeKey and step.pointCount and step.pointIndex < step.pointCount and charData then
             -- One point of several reached: on to the next one, remembered for this step.
             charData.points[step.routeKey] = step.pointIndex + 1
             dirty = true
@@ -2312,12 +2818,15 @@ local LIST_ROWS, LIST_ROW_HEIGHT, LIST_WIDTH = 22, 16, 380
 local listFrame, listTitle, listRows, listOffset = nil, nil, {}, 0
 local STATE_TEXT = {
     done = "|cff33ff33done|r", skipped = COLOR_DIM .. "skipped|r", pending = "|cffffffffto do|r",
-    blocked = "|cffff6040blocked|r", current = "|cffffd100now|r",
+    blocked = "|cffff6040blocked|r", current = "|cffffd100now|r", other = COLOR_DIM .. "not your class|r",
 }
 
 -- A route step's state for the list, and why it's blocked (prerequisites by name, or level).
 local function StepState(route, index, step, byTitle, level)
     local key = RouteKey(route, index)
+    if step.cls and not ClassMatches(step.cls) then
+        return "other"
+    end
     if charData.skips[key] then
         return "skipped"
     end
@@ -2676,6 +3185,11 @@ local function Build()
         nextRows[index] = MakeStepButton(16, "GameFontHighlightSmall")
         nextRows[index]:Hide()
     end
+    nextRows.side = {}
+    for index = 1, MAX_SIDE do
+        nextRows.side[index] = MakeStepButton(16, "GameFontHighlightSmall")
+        nextRows.side[index]:Hide()
+    end
     alsoText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     alsoText:SetJustifyH("LEFT")
     alsoText:SetWordWrap(true)
@@ -2690,7 +3204,9 @@ for _, name in ipairs({ "PLAYER_LOGIN", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "Q
     "QUESTLINE_UPDATE", "QUEST_POI_UPDATE",
     -- Utility steps and the corpse arrow, all watched only.
     "HEARTHSTONE_BOUND", "TAXIMAP_OPENED", "UI_INFO_MESSAGE", "BAG_UPDATE_DELAYED", "SPELLS_CHANGED",
-    "LEARNED_SPELL_IN_SKILL_LINE", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST" }) do
+    "LEARNED_SPELL_IN_SKILL_LINE", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST",
+    -- Vendor and class-trainer side steps: only which window opened is read, nothing is bought or trained.
+    "MERCHANT_SHOW", "MERCHANT_CLOSED", "TRAINER_SHOW" }) do
     -- Events this client doesn't have are left out rather than stopping the addon.
     if not (C_EventUtils and C_EventUtils.IsEventValid) or C_EventUtils.IsEventValid(name) then
         pcall(events.RegisterEvent, events, name)
@@ -2783,11 +3299,38 @@ events:SetScript("OnEvent", function(_, event, questID, extra)
         return
     elseif event == "TAXIMAP_OPENED" then
         Attempt(RecordFlights)
+    elseif event == "MERCHANT_SHOW" then
+        -- Remember whose shop this is: at MERCHANT_CLOSED the "npc" unit may already be gone.
+        merchantNpc = NpcIDOf(Safe(UnitGUID and UnitGUID("npc")))
+        return
+    elseif event == "MERCHANT_CLOSED" then
+        local npcID = merchantNpc
+        merchantNpc = nil
+        if not (npcID and activeRoute and charData) then
+            return
+        end
+        for index, step in ipairs(activeRoute.steps) do
+            if step.t == "vendor" then
+                for _, wanted in ipairs(step.npcIDs or {}) do
+                    if wanted == npcID then
+                        charData.marks[RouteKey(activeRoute, index)] = true
+                    end
+                end
+            end
+        end
+    elseif event == "TRAINER_SHOW" then
+        -- A class trainer (not a profession or pet trainer): this level's training is seen to.
+        local general = Enum and Enum.TrainerType and Enum.TrainerType.General or 0
+        local kind = C_Trainer and C_Trainer.GetTrainerType and Safe(C_Trainer.GetTrainerType())
+        local level = Safe(UnitLevel("player"))
+        if kind == general and level and charData then
+            charData.trainerLevel = math.max(charData.trainerLevel or 0, level)
+        end
     elseif event == "BAG_UPDATE_DELAYED" then
-        -- Bags change all the time; only an "have N items" step on this route cares.
+        -- Bags change all the time; only item, shopping, bag or keep steps on this route care.
         local wanted = false
         for _, step in ipairs(activeRoute and activeRoute.steps or {}) do
-            wanted = wanted or step.t == "item"
+            wanted = wanted or step.t == "item" or step.t == "buy" or step.t == "bags" or step.t == "keep"
         end
         if not wanted then
             return

@@ -178,7 +178,11 @@ update(2.1)
 assert(current.left.text:find("Go to:|r Elwynn Forest", 1, true), "travel step: " .. current.left.text)
 current.scripts.OnClick(current, "LeftButton")
 assert(superTracked == 6, "travel marks a quest there")
-assert(not arrow.shown, "no arrow for another zone")
+-- The trip carries the game's own waypoint for the quest there, so the arrow points the way (it used to
+-- be a bare zone name with no arrow).
+assert(current.step.mapID and current.step.x, "travel step has a point")
+update(0.06)
+assert(arrow.shown, "arrow toward the other zone")
 
 -- Quests you could pick up nearby.
 log = {}

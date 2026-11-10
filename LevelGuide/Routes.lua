@@ -39,13 +39,80 @@ local function Outlevel(n, step) step.outlevel = n return step end
 -- added from now on with New(...) (a player may update from an old version). Deleting an old step
 -- shifts the old index keys after it for such a player, so prefer keeping it.
 local function New(step) step.since = 2 return step end
+-- Reach: a "go" step that is also done once you're in that zone or city (e.g. "Enter Darnassus" through any gate).
+local function Reach(zone, step) step.reach = zone return step end
+
+-- More modifiers (LevelGuide.lua; every one is completed by watching the game, never by acting):
+-- Count: with Obj, the objective counts as done once n are fulfilled ("8 of 10 here, the rest later").
+local function Count(n, step) step.objMax = n return step end
+-- Loop: the points are a grind circuit, taken round and round until the step is done its own way.
+local function Loop(points, step) step.pts = points step.mode = "loop" return step end
+-- Nearest: several spawn spots; the arrow points at the closest one you haven't just checked.
+local function Nearest(points, step) step.pts = points step.mode = "nearest" return step end
+-- Class: only for these classes ("PRIEST" or { "PRIEST", "MAGE" }, the game's class tokens).
+local function Class(cls, step) step.cls = cls return step end
+-- When: a guard; while it fails the step is hidden (not completed) and it comes back once it holds.
+-- { hasItem = {id or {ids}, n}, lacksItem = {...}, onQuest = title, notOnQuest = title,
+--   notTurnedIn = title, hearthNot = place }
+local function When(guard, step) step.when = guard return step end
+-- Side steps, shown beside the current step instead of as one:
+-- Sticky: "on the way" while any of the next n route steps is still to do (kill boars while you go).
+local function Sticky(n, step) step.side = "sticky" step.span = n return step end
+-- Later: "for later" from where it's written until done (shopping, bags, items to keep).
+local function Later(step) step.side = "later" return step end
+-- Side kinds (use with Later):
+-- Buy: done once you have count of the item (any of a list of IDs; remembered). where = "ah" or "vendor".
+local function Buy(items, count, name, where, npc, x, y, lvl, note) return { t = "buy", text = name, items = items, count = count, where = where, npc = npc, x = x, y = y, lvl = lvl, note = note } end
+-- Vendor: done when that vendor's window closes (NPC IDs read from the vendor's GUID).
+local function Vendor(npcIDs, text, npc, x, y, lvl, note) return { t = "vendor", text = text, npcIDs = npcIDs, npc = npc, x = x, y = y, lvl = lvl, note = note } end
+-- Bags: done once your backpack and bags hold at least `slots` slots.
+local function Bags(slots, npc, x, y, lvl, note) return { t = "bags", text = string.format("Bag space (%d slots)", slots), slots = slots, npc = npc, x = x, y = y, lvl = lvl, note = note } end
+-- Keep: shown while you hold the item and its quest isn't taken yet ("don't sell this").
+local function Keep(itemID, name, forQ, lvl, note) return { t = "keep", text = name, item = itemID, forQ = forQ, lvl = lvl, note = note } end
+-- Trainer: a class-trainer visit for level `level` spells, shown from that level, done when a class
+-- trainer's window opens at that level or later (or any listed spell is known). A later visit you've
+-- reached replaces an earlier one. Always a side step.
+local function Trainer(level, cls, spells, npc, x, y, note) return { t = "trainer", text = string.format("Level %d spells", level), atLevel = level, lvl = level, cls = cls, spells = spells, npc = npc, x = x, y = y, note = note, side = "later" } end
+-- Hearth: use your hearthstone to `place`; done on arrival there. A move: what follows waits behind it.
+local function Hearth(place, lvl, note) return { t = "hearth", text = place, place = place, lvl = lvl, note = note } end
+-- Fly / Boat / Portal: a Zone step with the way written out; done on arrival in `zone`.
+local function Travel(text, zone, x, y, lvl, note) return { t = "zone", text = text, reach = zone, x = x, y = y, lvl = lvl, note = note } end
+-- XP gates by XP amount: "n XP short of level L" (read at level L-1) and "n XP into level L".
+local function XPShort(level, n, note, x, y) return { t = "xp", text = string.format("%d XP short of level %d", n, level), level = level, short = n, note = note, x = x, y = y, lvl = level - 1 } end
+local function XPInto(level, n, note, x, y) return { t = "xp", text = string.format("%d XP into level %d", n, level), level = level, into = n, note = note, x = x, y = y, lvl = level } end
+
+-- Class groups for side steps.
+local CASTERS = { "PRIEST", "MAGE", "WARLOCK", "DRUID", "SHAMAN", "PALADIN" }   -- want water
+local WAND_USERS = { "PRIEST", "MAGE", "WARLOCK" }
+local WANDS = { 11287, 11288 }   -- Lesser Magic Wand (level 5), Greater Magic Wand (level 13), Enchanter-made
+
+-- Night Elf side-step notes (2026-11 research, our own wording):
+-- * Priest trainers: Shanda 59.2,40.4 (teaches to level 6), Laurna Morninglight 55.6,56.8 (Dolanaar),
+--   Priestess Alathea 39.5,81.2 on the Darnassus map (https://wow4ever.quest/en/npcs/shanda, /laurna-morninglight,
+--   /priestess-alathea; https://www.warcrafttavern.com/forever/guides/class-trainers/). No priest trainer in Auberdine.
+-- * Spells by level and IDs: https://warcraft.wiki.gg/wiki/Priest_abilities_(Classic), checked against
+--   https://nether.wowhead.com/classic/tooltip/spell/<id>. A trainer step is also done when a class trainer's
+--   window opens at that level, so Forever's reworked spell numbers don't matter.
+-- * Priest quests: In Favor of Elune 5622, Garments of the Moon 5621 (heal and fortify Sentinel Shaya 57.2,63.5),
+--   Returning Home 5629 and Stars of Elune 5627 (teaches Starshards) (https://wow4ever.quest/en/quests/returning-home,
+--   /stars-of-elune; https://warcraft.wiki.gg/wiki/Garments_of_the_Moon).
+-- * Water: Refreshing Spring Water 159, Ice Cold Milk 1179 (level 5), Melon Juice 1205 (level 15), from innkeepers
+--   and food vendors (https://classicdb.ch/?item=1179, ?item=1205). Dellylah 59.6,40.7, Keldamyr 55.7,59.8.
+-- * Wands: Lesser Magic Wand 11287 (level 5), Greater Magic Wand 11288 (level 13), made by Enchanters, so bought
+--   at the auction house (https://classicdb.ch/?item=11287, ?item=11288). Darnassus auction house about 56,54
+--   on the city map; Darkshore Grouper 12238 for The Family and the Fishing Pole.
+-- * Bags: Small Brown Pouch 4496 (6 slots), Brown Leather Satchel 4498 (8) from general goods vendors
+--   (https://warcraft.wiki.gg/wiki/Small_Brown_Pouch); Dalmond in Auberdine 37.5,40.5.
+-- * Eyes of the Sentinels (Forever 98067): Sentinel Dalia Sunblade 40.6,89.6 Darnassus, four pendant spots.
+-- * Coordinates fixed from research\rxp_forever_guides.md section 4 (facts only): Fel Cones, Mossy Tumors,
+--   Darkness in the Glade bosses, Anaya's spots, Jai'vhanel, Grizzled Scalps, the Threshwackonator.
 
 -- Teldrassil (Night Elf 1-12) for WoW: Forever 1.60.x.
 -- Sources: wow4ever.quest (Questie Forever data, client 1.60.1.70790), wowhead.com/forever quest text,
 -- foreverchanges.pro zone list, bindonforever.com Teldrassil route (coordinates).
 -- Coordinates are Teldrassil map percentages, except steps whose NPC text says "Darnassus":
--- those use the Darnassus city map. Class quests (sigils, Garments of the Moon, etc.) are left out.
--- Left out: "Eyes of the Sentinels" (Forever, Darnassus city only, giver not recorded),
+-- those use the Darnassus city map. Priest quests and trainer visits are Class("PRIEST") steps; other classes' quests are not in yet.
+-- "Eyes of the Sentinels" (Forever) was added from research\rxp_forever_guides.md. Left out:
 -- "Return to Nessa" (turned in after you reach Darkshore).
 local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     -- Shadowglen
@@ -61,6 +128,10 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     D("The Goddess Provides", "Cast Elune's Light and Shadowmeld once each", 59.2, 40.5, 2),
     T("The Goddess Provides", "Shanda (in Aldrassil)", 59.2, 40.5, 2),
     A("A Good Friend", "Dirania Silvershine", 60.9, 42.0, 2),
+    -- Side steps and priest stops (sources in the Night Elf side-step notes above TELDRASSIL).
+    New(Class(CASTERS, Later(Buy(159, 15, "Refreshing Spring Water", "vendor", "Dellylah (food and drink, Aldrassil)", 59.6, 40.7, 1, "Mana between fights; buy it now and save a trip back.")))),
+    New(Trainer(4, "PRIEST", { 589, 2052 }, "Shanda (in Aldrassil)", 59.2, 40.4, "She teaches up to level 6; Laurna in Dolanaar after that.")),
+    New(Class("PRIEST", A("In Favor of Elune", "Shanda (in Aldrassil)", 59.2, 40.4, 4))),
     D("The Balance of Nature", "Kill 7 Mangy Nightsabers and 7 Thistle Boars north of Aldrassil", 61.0, 35.6, 2, 2),
     T("A Good Friend", "Iverron (by the cave to the north)", 54.6, 33.0, 3),
     A("A Friend in Need", "Iverron", 54.6, 33.0, 3),
@@ -110,6 +181,14 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("Soft Saber Pelts", "Aldia (trader)", 55.6, 57.1, 5),
     T("Dolanaar Delivery", "Innkeeper Keldamyr", 55.7, 59.8, 5),
     New(Home("Dolanaar", "Innkeeper Keldamyr", 55.7, 59.8, 5, "Dolanaar is the hub for the rest of Teldrassil.")),
+    New(Class(CASTERS, Later(Buy(1179, 10, "Ice Cold Milk", "vendor", "Innkeeper Keldamyr", 55.7, 59.8, 5, "Better water from level 5.")))),
+    New(Class("PRIEST", T("In Favor of Elune", "Laurna Morninglight (priest trainer)", 55.6, 56.8, 5))),
+    New(Class("PRIEST", A("Garments of the Moon", "Laurna Morninglight", 55.6, 56.8, 5))),
+    New(Class("PRIEST", D("Garments of the Moon", "Heal Sentinel Shaya with Lesser Heal (rank 2), then cast Power Word: Fortitude on her", 57.2, 63.5, 5))),
+    New(Class("PRIEST", T("Garments of the Moon", "Laurna Morninglight", 55.6, 56.8, 6))),
+    New(Trainer(6, "PRIEST", { 17, 591 }, "Laurna Morninglight, Dolanaar", 55.6, 56.8)),
+    New(Trainer(8, "PRIEST", { 139, 586 }, "Laurna Morninglight, Dolanaar", 55.6, 56.8)),
+    New(Trainer(10, "PRIEST", { 8092, 2053, 594 }, "Laurna Morninglight, Dolanaar", 55.6, 56.8, "Mind Blast and Resurrection; or Priestess Alathea in Darnassus.")),
     A("The Lost Runner", "Sentinel Kyra Starsong", 56.0, 59.5, 5),
     T("Crown of the Earth", "Corithras Moonrage", 56.2, 61.6, 5, 2),
     A("Crown of the Earth", "Corithras Moonrage", 56.2, 61.6, 5, 3),
@@ -143,7 +222,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     T("Soft Saber Pelts", "Aldia", 55.6, 57.1, 7),
     T("Recipe of the Kaldorei", "Zarrin", 57.1, 61.3, 7),
     D("Ferocitas the Dream Eater", "Kill 7 Gnarlpine Mystics and Ferocitas for the Missing Jewel", 68.8, 53.8, 8),
-    D("Seek Redemption!", "3 Fel Cones by the trees", 65.8, 52.2, 8),
+    Path({ { 58.1, 55.4 }, { 58.8, 55.5 }, { 59.0, 56.1 } }, D("Seek Redemption!", "3 Fel Cones at the foot of the trees just east of Dolanaar, by Zenn", 58.1, 55.4, 8)),
     T("Seek Redemption!", "Zenn Foulhoof", 60.5, 56.3, 8),
 
     -- Fel Rock and back to Dolanaar
@@ -165,7 +244,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("Bounty: Gnarlpine Furbolg", "Sentinel Shayla Nightbreeze (on the road)", 41.1, 50.9, 9),
     D("Bounty: Gnarlpine Furbolg", "15 Gnarlpine Fangs from Gnarlpine furbolgs (road, Ban'ethil, Starbreeze); finish later in the Barrow Den", 46.4, 53.3, 9),
     T("Camping 101: Skinning", "Radnaal Maneweaver (optional: on the road to Darnassus, needs Skinning 20)", 42.0, 50.0, 9),
-    G("Enter Darnassus", 36.5, 52.5, 9, "Follow the road west into the city"),
+    Reach("Darnassus", G("Enter Darnassus", 36.5, 52.5, 9, "Follow the road west into the city")),
     T("Rellian Greenspyre", "Rellian Greenspyre, Darnassus (Cenarion Enclave)", 38.2, 21.6, 9),
     A("Tumors", "Rellian Greenspyre, Darnassus", 38.2, 21.6, 9),
     T("The Sisterhood of Elune", "Sister Aquinne, Darnassus", 28.9, 45.8, 9),
@@ -186,6 +265,7 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     T("Crown of the Earth", "Corithras Moonrage", 56.2, 61.7, 10, 5),
     A("Crown of the Earth", "Corithras Moonrage", 56.2, 61.7, 10, 6),
     T("Not Dead Yet", "Byancie", 55.3, 56.8, 10),
+    New(Class("PRIEST", A("Returning Home", "Laurna Morninglight (to Priestess Alathea in Darnassus)", 55.6, 56.8, 10))),
     A("The Great Tree Provides", "Byancie", 55.3, 56.8, 10),
     D("The Great Tree Provides", "Buy an Empty Vial (Narret Shadowgrove) and Refreshing Spring Water (Innkeeper Keldamyr)", 55.5, 57.0, 10),
 
@@ -205,19 +285,19 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     -- The Cleft and the Oracle Glade, second pass
     D("Twisted Hatred", "Kill 8 Befouled Webwoods and Xethorr the Wicked (elite, small cave at 51.4, 44.2) for Mature Fel Moss; group up", 49.8, 42.5, 10, 2),
     T("Easing Suffering", "Sentinel Eralya Leafshadow", 37.6, 36.8, 11),
-    D("Tumors", "5 Mossy Tumors from Timberling Mire Beasts and Elder Timberlings", 41.0, 31.0, 11),
+    D("Tumors", "5 Mossy Tumors from Timberling Mire Beasts and Elder Timberlings", 41.7, 41.8, 11),
     D("Tears of the Moon", "Kill Lady Sathrah for her Silvery Spinnerets (she has several spawn points)", 39.5, 25.5, 11),
     D("The Enchanted Glade", "6 Bloodfeather Belts from the harpies", 33.5, 29.9, 11),
     T("The Enchanted Glade", "Sentinel Arynia Cloudsbreak", 38.3, 34.4, 11),
     A("Darkness in the Glade", "Sentinel Arynia Cloudsbreak", 38.3, 34.4, 11),
-    D("Darkness in the Glade", "Amulets from Hatescreech, Windmistress Gaedress and Witchmother Arysa in the harpy nests", 35.0, 38.5, 11),
+    Path({ { 35.0, 39.2 }, { 33.6, 35.6 }, { 34.8, 28.6 } }, D("Darkness in the Glade", "Amulets from Hatescreech, Windmistress Gaedress and Witchmother Arysa in the harpy nests", 35.0, 39.2, 11)),
     T("Darkness in the Glade", "Sentinel Arynia Cloudsbreak", 38.3, 34.4, 11),
     A("The Oracle Tree", "Sentinel Arynia Cloudsbreak", 38.3, 34.4, 11),
     T("The Oracle Tree", "Oracle Tree Bark (object under the Oracle Tree)", 37.0, 34.1, 11),
     A("Teldrassil", "Oracle Tree Bark (object under the Oracle Tree)", 37.0, 34.1, 11),
 
     -- Darnassus
-    G("Enter Darnassus", 36.5, 52.5, 11, "Darnassus uses its own map from here"),
+    Reach("Darnassus", G("Enter Darnassus", 36.5, 52.5, 11, "Darnassus uses its own map from here")),
     T("Crown of the Earth", "Arch Druid Fandral Staghelm, Darnassus (Cenarion Enclave)", 34.8, 9.3, 11, 6),
     A("Crown of the Earth", "Arch Druid Fandral Staghelm, Darnassus", 34.8, 9.3, 11, 7),
     T("Teldrassil", "Arch Druid Fandral Staghelm, Darnassus", 34.8, 9.3, 11),
@@ -231,6 +311,23 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("Sathrah's Sacrifice", "Priestess A'moora, Darnassus", 36.6, 85.9, 11),
     D("Sathrah's Sacrifice", "Place the Silvery Spinnerets at the fountain inside the Temple, Darnassus", 38.5, 86.0, 11),
     T("Sathrah's Sacrifice", "Priestess A'moora, Darnassus", 36.6, 85.9, 11),
+    -- Forever's "Eyes of the Sentinels" (98067): use the Lunar Pendant at four places in the city.
+    New(A("Eyes of the Sentinels", "Sentinel Dalia Sunblade, Darnassus (Temple of the Moon)", 40.6, 89.6, 10)),
+    New(Obj(1, D("Eyes of the Sentinels", "Use the Lunar Pendant at the Cenarion Enclave entrance, Darnassus", 34.0, 15.4, 10))),
+    New(Obj(2, D("Eyes of the Sentinels", "Use the Lunar Pendant by the bank, Darnassus", 41.4, 43.3, 10))),
+    New(Obj(3, D("Eyes of the Sentinels", "Use the Lunar Pendant by the inn, Darnassus", 66.0, 16.6, 10))),
+    New(Obj(4, D("Eyes of the Sentinels", "Use the Lunar Pendant at the city gates, Darnassus", 87.8, 35.7, 10))),
+    New(T("Eyes of the Sentinels", "Sentinel Dalia Sunblade, Darnassus", 40.6, 89.6, 10)),
+    -- Priest: the class quest that teaches Starshards, and the level 12 spells, in the Temple of the Moon.
+    New(Class("PRIEST", T("Returning Home", "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, 10))),
+    New(Class("PRIEST", A("Stars of Elune", "Priestess Alathea, Darnassus", 39.5, 81.2, 10))),
+    New(Class("PRIEST", T("Stars of Elune", "Priestess Alathea, Darnassus", 39.5, 81.2, 10))),
+    New(Trainer(12, "PRIEST", { 588, 1244, 592 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Inner Fire, Power Word: Fortitude and Shield ranks.")),
+    -- Auction house, for later: a wand (casters with none yet) and the Darkshore Grouper that turns in at once
+    -- for The Family and the Fishing Pole.
+    New(When({ lacksItem = { WANDS, 1 } }, Class(WAND_USERS, Later(Buy(WANDS, 1, "A wand (Lesser or Greater Magic Wand)", "ah", "Auctioneers, Darnassus (Tradesmen's Terrace)", 56.2, 54.0, 11, "Lesser Magic Wand needs level 5, Greater Magic Wand 13: a big damage boost for a caster."))))),
+    New(When({ notTurnedIn = "The Family and the Fishing Pole" }, Later(Buy(12238, 6, "Darkshore Grouper", "ah", "Auctioneers, Darnassus (Tradesmen's Terrace)", 56.2, 54.0, 11, "Optional: The Family and the Fishing Pole in Auberdine turns in at once with them.")))),
+    New(Later(Keep(12238, "Darkshore Grouper", "The Family and the Fishing Pole", 11))),
 
     -- Back to Lake Al'Ameth
     T("Return to Denalan", "Denalan", 60.8, 68.4, 11),
@@ -280,6 +377,14 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     -- (https://wow-forever.gg/db/npcs/6737-innkeeper-shaussiy/, Classic spawn data).
     New(FP("Auberdine", "Caylais Moonfeather", 36.4, 45.6, 11, "By the docks.")),
     New(Home("Auberdine", "Innkeeper Shaussiy", 37.1, 44.1, 11, "In the inn; the route hearths back here.")),
+    New(Later(Bags(40, "Dalmond (general goods), Auberdine", 37.5, 40.5, 11, "Small Brown Pouch (6 slots) or Brown Leather Satchel (8) in every free bag slot."))),
+    New(Class(CASTERS, Later(Buy(1179, 20, "Ice Cold Milk", "vendor", "Innkeeper Shaussiy", 37.1, 44.1, 11, "Restock water before the beach.")))),
+    New(Class(CASTERS, Later(Buy(1205, 20, "Melon Juice", "vendor", "Innkeeper Shaussiy", 37.1, 44.1, 15, "Needs level 15.")))),
+    -- Priest spells at 14-20: the nearest priest trainer is in Darnassus (fly to Rut'theran, portal up).
+    New(Trainer(14, "PRIEST", { 8122, 6074, 598, 528 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Fly to Rut'theran Village and take the portal up.")),
+    New(Trainer(16, "PRIEST", { 2054, 8102 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Heal and Mind Blast rank 2.")),
+    New(Trainer(18, "PRIEST", { 527, 970, 600 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2)),
+    New(Trainer(20, "PRIEST", { 2061, 14914 }, "Priestess Alathea, Darnassus (Temple of the Moon)", 39.5, 81.2, "Flash Heal and Holy Fire.")),
     A("Buzzbox 827", "Wizbang Cranktoggle (upstairs in the inn)", 37.0, 44.1, 11),
     A("Washed Ashore", "Gwennyth Bly'Leggonde", 36.6, 45.6, 11, 1),
     A("The Family and the Fishing Pole", "Gubber Blump, on the dock", 36.1, 44.9, 11),
@@ -290,11 +395,14 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     A("Bashal'Aran", "Thundris Windweaver", 37.4, 40.1, 11, 1),
     A("Tools of the Highborne", "Thundris Windweaver", 37.4, 40.1, 11),
     -- Beach and bear hills south of town
-    D("Buzzbox 827", "6 Crawler Legs from Pygmy Tide Crawlers and Young Reef Crawlers on the beach", 36.0, 48.5, 11),
+    Sticky(4, D("Buzzbox 827", "6 Crawler Legs from the crawlers along the beach while you do the next steps", 36.0, 48.5, 11)),
     D("Washed Ashore", "Sea Creature Bones from the beached sea creature just south of Auberdine", 36.4, 50.9, 11, 1),
     D("Plagued Lands", "Use Tharnariun's Hope on a Rabid Thistle Bear and lead it back", 39.0, 50.5, 12),
     D("How Big a Threat?", "Find the corrupt furbolg camp southeast of town", 39.4, 53.4, 12, 1),
     D("The Family and the Fishing Pole", "Fish 6 Darkshore Grouper off the docks (buy a pole from Gubber)", 36.1, 45.4, 12),
+    -- Grind on the beach to about 72% of 12: the Auberdine turn-ins that follow then land 13 and the
+    -- next hubs are green, not orange.
+    New(XPShort(13, 2500, "Crawlers and bears along the beach", 36.0, 50.0)),
     T("Buzzbox 827", "Buzzbox 827, on the beach south of the docks", 36.6, 46.3, 12),
     A("Buzzbox 411", "Buzzbox 827", 36.6, 46.3, 12),
     T("Washed Ashore", "Gwennyth Bly'Leggonde", 36.6, 45.6, 12, 1),
@@ -330,8 +438,8 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     New(Obj(2, D("The Fall of Ameth'Aran", "Read The Fall of Ameth'Aran (tablet)", 42.5, 63.0, 13))),
     D("Bashal'Aran", "Destroy the Moonstone Seal at the Ancient Flame", 42.5, 62.0, 13, 4),
     D("Tools of the Highborne", "7 Highborne Relics from the ghosts in the ruins", 42.0, 61.0, 13),
-    D("For Love Eternal", "Kill Anaya Dawnrunner for her pendant", 42.0, 60.5, 13),
-    D("WANTED: Jai'vhanel", "Kill the black owl Jai'vhanel north of the ruins by the mountains for her feather (approx)", 43.5, 56.5, 13),
+    Nearest({ { 42.0, 58.9 }, { 43.2, 59.7 }, { 43.1, 62.4 }, { 42.5, 60.7 } }, D("For Love Eternal", "Kill Anaya Dawnrunner for her pendant; she walks between four spots in the ruins", 42.0, 58.9, 13)),
+    D("WANTED: Jai'vhanel", "Kill the black owl Jai'vhanel east of the ruins for her feather", 45.2, 58.5, 13),
     T("The Fall of Ameth'Aran", "Sentinel Tysha Moonblade", 40.3, 59.7, 14),
     -- Auberdine
     T("How Big a Threat?", "Terenthis", 39.4, 43.5, 14, 2),
@@ -385,7 +493,7 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     A("Beached Sea Turtle", "Beached Sea Turtle (click the remains)", 37.1, 62.2, 16, 3),
     A("Beached Sea Creature", "Beached Sea Creature (click the bones)", 36.0, 70.9, 16, 2),
     D("Fruit of the Sea", "6 Fine Crab Chunks from Reef Crawlers along the coast", 35.5, 73.2, 16),
-    D("Buzzbox 525", "4 Grizzled Scalps from Grizzled Thistle Bears (approx)", 41.0, 70.0, 17),
+    D("Buzzbox 525", "4 Grizzled Scalps from Grizzled Thistle Bears in the south hills", 41.5, 83.0, 17),
     D("WANTED: Murkdeep!", "Clear the waves at the murloc camp; Murkdeep comes last (group)", 36.4, 76.5, 17),
     A("Beached Sea Creature", "Beached Sea Creature (click the bones)", 32.7, 80.8, 17, 3),
     A("Beached Sea Turtle", "Beached Sea Turtle (click the remains)", 31.7, 83.7, 17, 4),
@@ -431,7 +539,7 @@ local DARKSHORE = { zone = "Darkshore", min = 11, max = 20, steps = {
     D("Gyromast's Retrieval", "Key pieces: bottom from Reef Crawlers, middle from Greymist murlocs, top from Giant Foreststriders (approx)", 55.0, 17.0, 18),
     T("Gyromast's Retrieval", "Gelkak Gyromast", 56.7, 13.5, 19),
     A("Gyromast's Revenge", "Gelkak Gyromast (ESCORT, it turns hostile at Gelkak; group)", 56.7, 13.5, 19),
-    D("Gyromast's Revenge", "Talk to the Threshwackonator 4100 to the south and lead it back, then kill it (approx)", 53.6, 18.0, 19),
+    D("Gyromast's Revenge", "Talk to the Threshwackonator 4100 to the south and lead it back, then kill it", 55.8, 18.3, 19),
     T("Gyromast's Revenge", "Gelkak Gyromast", 56.7, 13.5, 19),
     D("Mathystra Relics", "6 Mathystra Relics in the Ruins of Mathystra", 58.5, 21.0, 19),
     D("Swelling Forces", "Kill 12 Stormscale Myrmidons, 8 Sorceresses and 6 Warriors at Mathystra", 58.6, 23.0, 19),
@@ -2849,6 +2957,21 @@ local PLAN = {
     { min = 56, max = 61, zones = { "Western Plaguelands", "Eastern Plaguelands", "Winterspring", "Silithus" }, hub = "Chillwind Camp, Light's Hope Chapel, Everlook or Cenarion Hold",
       -- The XP-flow audit leaves the last level or two short of quests; the guide's "Reach level" line quotes this.
       note = "Blackrock Depths, Lower Blackrock Spire, Scholomance and Stratholme suit 55-60" },
+}
+
+-- Ways into a route's zone from a neighbouring one: when the guide sends you to a route's zone from `from`,
+-- the arrow points at this spot (x, y are percent of the `from` map) instead of only naming the zone.
+local function Way(from, text, x, y, note) return { from = from, text = text, x = x, y = y, note = note } end
+-- Sources: Vesprystus 58.4, 94.0 Teldrassil (https://wow4ever.quest/en/npcs/vesprystus); Caylais Moonfeather
+-- by the Auberdine docks (https://warcraft.wiki.gg/wiki/Caylais_Moonfeather, Darkshore 36.4, 45.6 as the
+-- Darkshore route's FP step); the Darnassus portal to Rut'theran on the city's west side
+-- (https://warcraft.wiki.gg/wiki/Darnassus, about 30, 41: approximate, check in game).
+DARKSHORE.ways = {
+    Way("Darnassus", "Portal down to Rut'theran Village", 28.5, 39.9, "On the west side of Darnassus, then fly to Auberdine from Vesprystus"),
+    Way("Teldrassil", "Fly from Rut'theran Village to Auberdine", 58.4, 94.0, "Vesprystus, the flight master in Rut'theran Village"),
+}
+TELDRASSIL.ways = {
+    Way("Darkshore", "Fly from Auberdine to Rut'theran Village", 36.4, 45.6, "Caylais Moonfeather, by the Auberdine docks"),
 }
 
 LevelGuideRoutes = {

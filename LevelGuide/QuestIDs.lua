@@ -1035,6 +1035,21 @@ return {
 }
 end)()
 
+-- night_elf_priest.lua (2026-11): the Teldrassil priest quests and Forever's Eyes of the Sentinels.
+-- Sources: https://warcraft.wiki.gg/wiki/In_Favor_of_Elune ; https://warcraft.wiki.gg/wiki/Garments_of_the_Moon ;
+-- https://wow4ever.quest/en/quests/returning-home ; https://wow4ever.quest/en/quests/stars-of-elune ;
+-- research\rxp_forever_guides.md phase B (Eyes of the Sentinels 98067).
+parts[#parts + 1] = {
+    ids = {
+        ["In Favor of Elune"] = { 5622 },
+        ["Garments of the Moon"] = { 5621 },
+        ["Returning Home"] = { 5629 },
+        ["Stars of Elune"] = { 5627 },
+        ["Eyes of the Sentinels"] = { 98067 },
+    },
+    renamed = {},
+}
+
 -- These chains have more quests in Forever than the route has steps, so counting them would
 -- mark route steps done too early. They fall back to turn-ins this addon has seen.
 local MISMATCHED = {  }

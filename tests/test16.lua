@@ -106,7 +106,7 @@ have(id("A Troubling Breeze"), "A Troubling Breeze", true)
 have(id("The Lost Runner"), "The Lost Runner", true)
 have(id("The Sisterhood of Elune"), "The Sisterhood of Elune", true)
 have(id("Soft Saber Pelts"), "Soft Saber Pelts")
-have(9001, "Garments of the Moon")
+have(9001, "A Side Quest Off The Route") -- (Garments of the Moon is on the route now, as a priest step)
 have(id("Crown of the Earth", 3), "Crown of the Earth")
 have(id("The Road to Darnassus"), "The Road to Darnassus")
 have(id("Camping 101: Cooking"), "Camping 101: Cooking")
@@ -123,7 +123,7 @@ for _, title in ipairs({ "Denalan's Earth", "A Troubling Breeze", "The Lost Runn
     assert(not text:find("Pick up:|r " .. title, 1, true), "already have " .. title .. ": " .. text)
 end
 assert(not text:find("Great Tree Provides", 1, true), "level 10 pick-up not yet: " .. text)
-assert(text:find("Garments of the Moon", 1, true), "off-route quest from the log shows: " .. text)
+assert(text:find("A Side Quest Off The Route", 1, true), "off-route quest from the log shows: " .. text)
 assert(#handled == 0, "clean: " .. tostring(handled[1]))
 
 -- Route data sanity on the real file.
@@ -132,15 +132,21 @@ for _, chain in pairs(LevelGuideRoutes.chains) do
         for index, step in ipairs(route.steps) do
             local where = route.zone .. " #" .. index
             -- Utility steps (home, fp, zone, item, train, xp) joined the quest steps in this version.
+            -- ... and the side kinds (buy, vendor, bags, trainer, keep) and hearth in the next.
             local TYPES = { accept = true, ["do"] = true, turnin = true, go = true,
-                home = true, fp = true, zone = true, item = true, train = true, xp = true }
+                home = true, fp = true, zone = true, item = true, train = true, xp = true,
+                buy = true, vendor = true, bags = true, trainer = true, keep = true, hearth = true }
             assert(TYPES[step.t], where .. " type")
             if step.t == "home" or step.t == "fp" then assert(step.place and step.npc, where .. " place/npc") end
             if step.t == "item" then assert(type(step.item) == "number" and step.count, where .. " item") end
-            if step.t == "xp" then assert(step.level and step.frac and step.frac >= 0 and step.frac < 1, where .. " xp") end
+            if step.t == "xp" then
+                assert(step.level and ((step.frac and step.frac >= 0 and step.frac < 1) or step.short or step.into), where .. " xp")
+            end
             if step.pts then for _, p in ipairs(step.pts) do assert(p[1] > 0 and p[1] < 100 and p[2] > 0 and p[2] < 100, where .. " point") end end
-            assert((step.q or step.text) and step.x and step.y and step.lvl, where .. " fields")
-            assert(step.x > 0 and step.x < 100 and step.y > 0 and step.y < 100, where .. " coordinates")
+            -- A reminder to keep an item, or a hearth, has no place of its own.
+            local placeless = step.t == "keep" or step.t == "hearth"
+            assert((step.q or step.text) and (placeless or (step.x and step.y)) and step.lvl, where .. " fields")
+            assert(placeless or (step.x > 0 and step.x < 100 and step.y > 0 and step.y < 100), where .. " coordinates")
             if step.t == "accept" or step.t == "turnin" then assert(step.npc, where .. " npc") end
         end
     end

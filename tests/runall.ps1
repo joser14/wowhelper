@@ -9,7 +9,8 @@ $map = @{
   'test_itemadvisor_roles.lua' = "$w\ItemAdvisor\ItemAdvisor.lua"
   'test_tracker_extra.lua' = "$w\QuestTracker\QuestTracker.lua"
   'test14.lua' = "$w\LevelGuide\LevelGuide.lua"
-  'test16.lua' = "$w\LevelGuide"; 'test16_pre.lua' = "$w\LevelGuide"; 'test17.lua' = "$w\LevelGuide"; 'test18.lua' = "$w\LevelGuide"
+  'test_lg_teldrassil.lua' = "$w\LevelGuide"; 'test_lg_side.lua' = "$w\LevelGuide"; 'test_lg_engine.lua' = "$w\LevelGuide"; 'test_lg_route_data.lua' = "$w\LevelGuide"
+  'test16.lua' = "$w\LevelGuide";'test16_pre.lua' = "$w\LevelGuide"; 'test17.lua' = "$w\LevelGuide"; 'test18.lua' = "$w\LevelGuide"
 }
 Push-Location $t
 $failed = 0
