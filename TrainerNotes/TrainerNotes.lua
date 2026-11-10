@@ -299,15 +299,17 @@ end
 
 -- Lower-case spell name -> highest rank number known (0 when the rank can't be read), or nil when
 -- the spellbook can't be read at all. Some clients list only the top rank; that's all this needs.
-local function SpellBookRanks()
-    if not (C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo
-        and C_SpellBook.GetSpellBookItemInfo) then
-        return nil
-    end
+local function CanReadBook()
+    return C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo
+        and C_SpellBook.GetSpellBookItemInfo
+end
+
+-- Skill lines first..last into ranks; returns true when any spell was read.
+local function ReadBookLines(ranks, first, last)
     local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
     local spellType = (Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell) or 1
-    local ranks, any = {}, false
-    for line = 1, SafeCall(C_SpellBook.GetNumSpellBookSkillLines) or 0 do
+    local any = false
+    for line = first, last do
         local info = SafeCall(C_SpellBook.GetSpellBookSkillLineInfo, line)
         local offset = type(info) == "table" and Safe(info.itemIndexOffset)
         local count = type(info) == "table" and Safe(info.numSpellBookItems)
@@ -329,16 +331,31 @@ local function SpellBookRanks()
             end
         end
     end
-    return any and ranks or nil
+    return any
+end
+
+local function BookLineCount()
+    return SafeCall(C_SpellBook.GetNumSpellBookSkillLines) or 0
+end
+
+-- Lower-case spell name -> highest rank number known (0 when the rank can't be read), or nil when
+-- the spellbook can't be read at all. Some clients list only the top rank; that's all this needs.
+local function SpellBookRanks()
+    if not CanReadBook() then
+        return nil
+    end
+    local ranks = {}
+    return ReadBookLines(ranks, 1, BookLineCount()) and ranks or nil
 end
 
 -- Drops noted services the spellbook says you know: same name, and for ranked spells a rank at
 -- least as high. When a rank can't be read, the entry stays rather than vanish by mistake.
-local function ForgetKnown()
+-- book: a list read beforehand (a spread walk); default: read now.
+local function ForgetKnown(book)
     if not charData then
         return
     end
-    local book = SpellBookRanks()
+    book = book or SpellBookRanks()
     if not book then
         return
     end
@@ -355,6 +372,7 @@ end
 
 -- Spell events come in bursts (a trainer visit can teach several spells); check once afterwards.
 local SPELLBOOK_DELAY = 1
+local BOOK_LINES_PER_STEP = 2
 local spellbookCheckPending = false
 local function ScheduleForgetKnown()
     if spellbookCheckPending then
@@ -363,8 +381,29 @@ local function ScheduleForgetKnown()
     if C_Timer and C_Timer.After then
         spellbookCheckPending = true
         C_Timer.After(SPELLBOOK_DELAY, function()
-            spellbookCheckPending = false
-            ForgetKnown()
+            -- SPELLS_CHANGED comes in storms (a quest turn-in): walk BOOK_LINES_PER_STEP skill lines
+            -- per frame instead of the whole book in one. Events meanwhile are covered by this walk.
+            if not CanReadBook() then
+                spellbookCheckPending = false
+                return
+            end
+            local ranks, any, line, total = {}, false, 1, BookLineCount()
+            local function step()
+                local last = math.min(line + BOOK_LINES_PER_STEP - 1, total)
+                if line <= last then
+                    any = ReadBookLines(ranks, line, last) or any
+                    line = last + 1
+                end
+                if line > total then
+                    spellbookCheckPending = false
+                    if any then
+                        ForgetKnown(ranks)
+                    end
+                    return
+                end
+                C_Timer.After(0, step)
+            end
+            step()
         end)
     else
         ForgetKnown()

@@ -188,36 +188,94 @@ local function SpellLoaded(id)
     return false
 end
 
--- Every spell you know, with the highest rank seen. Some clients list only the top rank: that's all we need.
-local function ScanSpellBook()
-    local list = {}
-    if not (C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines) then
-        return list
-    end
+-- One skill line of the spellbook into list: every spell you know, with the highest rank seen.
+-- Some clients list only the top rank: that's all we need.
+local function ScanSkillLine(list, line)
     local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
     local spellType = (Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell) or 1
-    for line = 1, SafeCall(C_SpellBook.GetNumSpellBookSkillLines) or 0 do
-        local info = SafeCall(C_SpellBook.GetSpellBookSkillLineInfo, line)
-        if type(info) == "table" then
-            -- A skill line's name (such as Poisons) also counts as something you know.
-            Remember(list, Safe(info.name), nil)
-            local offset, count = Safe(info.itemIndexOffset), Safe(info.numSpellBookItems)
-            if type(offset) == "number" and type(count) == "number" then
-                for slot = offset + 1, offset + count do
-                    local item = SafeCall(C_SpellBook.GetSpellBookItemInfo, slot, bank)
-                    if type(item) == "table" and Safe(item.itemType) == spellType and not Safe(item.isOffSpec) then
-                        local subName = Safe(item.subName)
-                        local id = Safe(item.spellID) or Safe(item.actionID)
-                        if (type(subName) ~= "string" or subName == "") and id and C_Spell and SpellLoaded(id) then
-                            subName = SafeCall(C_Spell.GetSpellSubtext, id)
-                        end
-                        Remember(list, Safe(item.name), RankOf(subName))
+    local info = SafeCall(C_SpellBook.GetSpellBookSkillLineInfo, line)
+    if type(info) == "table" then
+        -- A skill line's name (such as Poisons) also counts as something you know.
+        Remember(list, Safe(info.name), nil)
+        local offset, count = Safe(info.itemIndexOffset), Safe(info.numSpellBookItems)
+        if type(offset) == "number" and type(count) == "number" then
+            for slot = offset + 1, offset + count do
+                local item = SafeCall(C_SpellBook.GetSpellBookItemInfo, slot, bank)
+                if type(item) == "table" and Safe(item.itemType) == spellType and not Safe(item.isOffSpec) then
+                    local subName = Safe(item.subName)
+                    local id = Safe(item.spellID) or Safe(item.actionID)
+                    if (type(subName) ~= "string" or subName == "") and id and C_Spell and SpellLoaded(id) then
+                        subName = SafeCall(C_Spell.GetSpellSubtext, id)
                     end
+                    Remember(list, Safe(item.name), RankOf(subName))
                 end
             end
         end
     end
+end
+
+local function SkillLineCount()
+    if not (C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines) then
+        return 0
+    end
+    return SafeCall(C_SpellBook.GetNumSpellBookSkillLines) or 0
+end
+
+-- The whole spellbook at once: only when you open the page.
+local function ScanSpellBook()
+    local list = {}
+    for line = 1, SkillLineCount() do
+        ScanSkillLine(list, line)
+    end
     return list
+end
+
+-- After events (SPELLS_CHANGED comes in storms, e.g. at a quest turn-in): the same walk spread
+-- over frames, BOOK_LINES_PER_STEP skill lines per frame, and at most once every BOOK_EVERY seconds.
+-- done() runs with the finished list; a walk asked for while one runs is done once afterwards.
+local BOOK_LINES_PER_STEP, BOOK_EVERY = 2, 5
+local bookWalking, bookAgain, lastBookWalk = false, {}, nil
+local function WalkSpellBook(done, forced)
+    if not (C_Timer and C_Timer.After) then
+        return done(ScanSpellBook())
+    end
+    if bookWalking then
+        bookAgain[#bookAgain + 1] = done
+        return
+    end
+    local now = GetTime and tonumber(SafeCall(GetTime))
+    if not forced and now and lastBookWalk and now - lastBookWalk < BOOK_EVERY then
+        bookWalking = true
+        C_Timer.After(BOOK_EVERY - (now - lastBookWalk), function()
+            bookWalking = false
+            WalkSpellBook(done, true)
+        end)
+        return
+    end
+    bookWalking, lastBookWalk = true, now
+    local list, line, total = {}, 1, SkillLineCount()
+    local function step()
+        for _ = 1, BOOK_LINES_PER_STEP do
+            if line > total then
+                bookWalking = false
+                done(list)
+                if #bookAgain > 0 then
+                    local again = bookAgain
+                    bookAgain = {}
+                    WalkSpellBook(function(book)
+                        for _, fn in ipairs(again) do
+                            fn(book)
+                        end
+                    end)
+                end
+                return
+            end
+            ScanSkillLine(list, line)
+            line = line + 1
+        end
+        C_Timer.After(0, step)
+    end
+    step()
 end
 
 -- Readable names for action slots, by blocks of 12. Slots 73-120 are the pages the main bar
@@ -349,10 +407,11 @@ local function RankByID(id, name)
     return entry.position, entry.position
 end
 
-local function ScanRanks()
+-- Your bars against the spellbook list (book: from a full or a spread walk; default: walk now).
+local function ScanRanks(book)
     -- Whatever is still unloaded is asked for again below.
     waitingSpells = {}
-    known = ScanSpellBook()
+    known = book or ScanSpellBook()
     onBars = {}
     local ranks = {}
     local ignored = DB().ignored
@@ -627,25 +686,6 @@ local function ComputeReagents()
     cache.reagentSpells = reagents ~= nil
 end
 
-local RUNNERS = {
-    ranks = function()
-        ScanRanks()
-        ComputeReagents()
-        ComputeBuffs()
-        NotifyBuffs()
-    end,
-    buffs = function()
-        ComputeBuffs()
-        NotifyBuffs()
-    end,
-    reagents = ComputeReagents,
-    -- Spell data arrived (or a retry): ranks and reagents again, without buff pop-ups.
-    rescan = function()
-        ScanRanks()
-        ComputeReagents()
-    end,
-}
-
 local Schedule
 
 -- Some spells on your bars hadn't loaded: look again a little later, a few times at most. The count
@@ -656,6 +696,39 @@ local function RetryWaiting()
         Schedule("rescan", SPELL_RETRY_DELAY)
     end
 end
+
+-- Ranks need the spellbook, walked over several frames; the rest runs when the walk is done.
+-- Combat starting meanwhile: the result is dropped and worked out again after combat.
+local function AfterWalk(what, rest)
+    WalkSpellBook(function(book)
+        if InCombat() then
+            deferred[what] = true
+            return
+        end
+        ScanRanks(book)
+        rest()
+        RetryWaiting()
+    end)
+end
+
+local RUNNERS = {
+    ranks = function()
+        AfterWalk("ranks", function()
+            ComputeReagents()
+            ComputeBuffs()
+            NotifyBuffs()
+        end)
+    end,
+    buffs = function()
+        ComputeBuffs()
+        NotifyBuffs()
+    end,
+    reagents = ComputeReagents,
+    -- Spell data arrived (or a retry): ranks and reagents again, without buff pop-ups.
+    rescan = function()
+        AfterWalk("rescan", ComputeReagents)
+    end,
+}
 
 local function Run(what)
     pending[what] = nil
@@ -668,9 +741,6 @@ local function Run(what)
         return
     end
     RUNNERS[what]()
-    if what == "ranks" or what == "rescan" then
-        RetryWaiting()
-    end
 end
 
 -- Throttle: one run per kind per delay, however many events arrive meanwhile.
