@@ -34,6 +34,12 @@ no auto-selling, auto-buying, auto-equipping, auto-training, targeting, moving o
 | **Waylaid Crates** | ItemAdvisor | Never advised as vendor trash: fill one and turn it in at Three Corners (Redridge), or auction it empty. |
 | **Professions, read another way** | ProfessionCap, ProfessionGuide, GoldGuide, ItemAdvisor | If the game's profession list isn't available, each profession's skill line is read directly instead. |
 | **Riverglades and Zephras Isle** | Dungeons, MapPins | The two new Forever zones' map numbers, so their pins land on the right map. |
+| **Guide picks up where you are** | LevelGuide | After a login or `/reload` the guide places you from your quest log and finished quests. Steps before your last real progress (a quest turned in, or objectives under way) are passed; holding a quest alone doesn't pass the hearth, training or items before it. Skipped steps never count as done. |
+| **The quest giver decides** | LevelGuide | When a quest giver's window doesn't list a route quest, the guide hides it as "not offered at level N" (the route list says so) until you level up, 30 minutes pass, you hand something in nearby, or the quest shows up after all. |
+| **Where the route takes you** | LevelGuide | "Route ends at about level 23.4" under the current step, "+N XP waiting" in the header for finished quests, and a red **Hard (level N)** tag on work 3+ levels above where the route has you. Nearly equal stops go to the one with more XP per second. |
+| **While you're here** | LevelGuide | Up to three lines for later steps you can do now: a finished quest whose NPC is a short detour away (20 seconds, more when waiting would cost XP), or work within 180 yards. Right-click a line to hide it for now. |
+| **A calmer arrow** | LevelGuide | The arrow swings smoothly to a new target, shows the time to arrive, and doesn't flip between two stops that are about as far. Quest work points at the nearest spawn camp and moves on to the next one when a camp is empty. |
+| **Dropped quests and extra quests** | LevelGuide | Abandon a route quest and a card asks: go back for it, or skip it and what follows it (one right-click on the header undoes that). A quest you take that isn't on the route is slotted in where the route passes its area; otherwise it says "Not on your route". |
 
 ### Researched for WoW Forever
 
@@ -146,10 +152,12 @@ root; `runall.ps1` lists which). `validate.lua` and `syntaxcheck.lua` are helper
 
 Everything under `research\` is our own write-up: guide data, reviews of popular Forever addons (RestedXP, Polestar,
 Guidelime, Questie and others), build research, and the gaps we filled. Third-party addons were studied, not copied:
-findings are described in our own words. The one outside source shipped in the addon is GPL data: the leveling
-guide's quest database (`LevelGuide\QuestDB.lua`) is generated from forever-db by `tools\gen_questdb.js`, and
-`tools\check_routes.js` checks the hand-written routes against it (`research\route_check.md`). Code or data under
-other licences (RestedXP, Guidelime, ForeverWisp, paid guides) is never included.
+findings are described in our own words. The outside sources shipped in the addon are GPL: the leveling
+guide's quest database (`LevelGuide\QuestDB.lua`) and quest XP table (`LevelGuide\QuestXP.lua`) are generated from
+forever-db by `tools\gen_questdb.js` and `tools\gen_questxp.js`, `tools\check_routes.js` checks the hand-written
+routes against it (`research\route_check.md`), and the guide's XP formulas in `LevelGuide\Planner.lua` are ported
+from Polestar (GPL-3.0-only, credited in `NOTICE.md`). Code or data under other licences (RestedXP, Guidelime,
+ForeverWisp, paid guides) is never included.
 
 RestedXP was studied most closely:
 - `research\rxp_deep.md` covers its engine and features.

@@ -52,6 +52,21 @@ Start here when resuming.
     price from the tooltip, spirit-healer arrow and dungeon entrances from the client, server checks of route
     quests, library books.
 
+- 2026-11-10, night: LevelGuide engine, items 2-6 and 8-10 of `research\guides_deep_re.md` section 12, one
+  commit and one `tests\test_lg_*.lua` each:
+  - placement from the quest log (anchor = last real progress; holding a quest isn't progress) — `test_lg_place`;
+  - the giver's window decides availability ("not offered at level L", saved, with clearing rules) — `test_lg_offers`;
+  - XP model ported from Polestar (`LevelGuide\Planner.lua`, GPL-3.0-only, NOTICE.md), "Route ends at about
+    level X", "+N XP waiting", "Hard (level Q)" tag, XP per second in ordering — `test_lg_xp`. Quest XP data:
+    `LevelGuide\QuestXP.lua` from `tools\gen_questxp.js`;
+  - "While you're here" lines (20 s detour budget, 180 yd work, dismiss) — `test_lg_here`;
+  - arrow damping, ETA, per-kind arrival with hysteresis, no target flip-flop — `test_lg_arrow`;
+  - spawn-camp arrow for work steps (circuit, 7 s dwell) — `test_lg_camps`;
+  - slow scan of server quest levels — `test_lg_levels`;
+  - lost-quest card (go back / skip with follow-ups) and fitting quests taken off the route — `test_lg_lost`.
+  - Not built: item 7 (travel planner). It needs our own taxi/boat/crossing table; Polestar's TravelData and
+    walking data were not copied.
+
 ## Rules the suite follows
 - Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
   Exception asked for by the owner (2026-11-09): AutoQuest accepts and turns in quests, only in a quest window the player opened
@@ -89,6 +104,14 @@ Start here when resuming.
   - The drowning warning fires under water, with the sound.
   - `/way` doesn't clash with another addon's `/way` (TomTom); `/fway` always works.
   - LevelLog's quest XP comes from QUEST_TURNED_IN's xpReward.
+- LevelGuide engine (2026-11-10, night), not yet seen in game:
+  - Gossip and greeting windows: offered quest IDs read (C_GossipInfo questID; GetAvailableQuestInfo's 5th
+    return, GetActiveQuestID), so "not offered" marks only land on quests really missing.
+  - The server level scan (60 s after login): RequestLoadQuestByID / GetQuestDifficultyLevel work outside
+    combat with no error; LevelGuideDB.serverLevels stays small.
+  - The arrow's swing and ETA feel right at 20 Hz; camps from QuestDB line up with real spawns.
+  - Abandon a route quest: the card appears under the guide; Skip it / undo with a header right-click.
+  - "Route ends at about level X" is close to where a zone's route really leaves you.
 - Fight with the world map open and closed: no "blocked from an action" pop-up, no new Blocked action line on the Errors page.
 - Map pins line up when the map is zoomed, panned, windowed and maximised; hover and click work; gamepad mode has no errors.
 - /reload in combat, leave combat: Forever Hub page appears in Options.
