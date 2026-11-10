@@ -206,6 +206,8 @@ these sources:
 - `FoodCheck\ManaFull.lua`: "normal" regen as the lowest 30-second rate over 5 minutes, the five-second rule
   and Resurrection Sickness 15007 follow the in-game facts noted in Full Mana Forever by KesaObscura
   (`Regen.lua`, MIT License); written in our own code.
+- Ideas only, no code: MapPins' world-map info line (zone and level range under the cursor, coordinates) follows
+  behaviour described in Leatrix Maps (no licence), and its minimap edge arrow follows TomTom's.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.

@@ -447,6 +447,7 @@ local function GuideStops(list)
                 x = Fraction(stop.x), y = Fraction(stop.y), icon = ICONS.guide,
                 title = string.format("Guide stop %d: %s", index, label),
                 lines = { Text(stop.kind) },
+                first = index == 1 or nil,   -- the guide's current stop: the minimap edge arrow's target
             })
         end
     end
@@ -1009,6 +1010,105 @@ local function LayoutWorld(map)
     end
 end
 
+-- The info line (round 4 item 18, research\re_round4.md R19; Leatrix Maps' idea, our own code): along the
+-- bottom of the map, the zone under the cursor with its level range coloured for you (ZoneLevels'
+-- ForeverZoneLevels), the cursor's and your coordinates. A font string on our own overlay; reads only.
+-- The cursor part is left out in gamepad mode and when the cursor isn't over the visible map.
+local Info = {}
+do
+    -- (Some test stand-ins have no font strings: then there is simply no info line.)
+    Info.text = overlay.CreateFontString and overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    if Info.text then
+        Info.text:SetJustifyH("LEFT")
+        Info.text:Hide()
+    end
+    Info.zones = {}   -- cache: map and cursor cell -> label (C_Map.GetMapInfoAtPosition only when it moves)
+
+    function Info.Zone(mapID, cx, cy)
+        local key = mapID .. ":" .. math.floor(cx * 200) .. ":" .. math.floor(cy * 200)
+        if Info.zones.key == key then
+            return Info.zones.label
+        end
+        local label
+        local details = C_Map.GetMapInfoAtPosition and C_Map.GetMapInfoAtPosition(mapID, cx, cy)
+        local name = type(details) == "table" and Text(details.name)
+        if name then
+            label = name
+            local zoneID = Safe(details.mapID)
+            local low, high
+            if zoneID and type(ForeverZoneLevels) == "function" then
+                local ok, a, b = pcall(ForeverZoneLevels, zoneID)
+                if ok and type(a) == "number" and type(b) == "number" then
+                    low, high = a, b
+                end
+            end
+            if low then
+                local level = Safe(UnitLevel("player"))
+                local colour = "|cffffd100"
+                if type(level) == "number" and level < low then
+                    colour = "|cffff4040"       -- above you
+                elseif type(level) == "number" and level > high then
+                    colour = "|cff999999"       -- below you
+                end
+                label = string.format("%s%s (%d-%d)|r", colour, name, low, high)
+            end
+        end
+        Info.zones.key, Info.zones.label = key, label
+        return label
+    end
+
+    function Info.Update(map, mapID)
+        if not Info.text then
+            return
+        end
+        local scroll, canvas = MapFrames(map)
+        local cl, ct, cw, ch = ScreenRect(canvas)
+        local sl, st, sw, sh = ScreenRect(scroll)
+        local own = Safe(overlay:GetEffectiveScale())
+        if not (mapID and cl and sl and type(own) == "number" and own > 0) then
+            Info.text:Hide()
+            return
+        end
+        local parts = {}
+        local gamepad = InputUtil and InputUtil.IsGamepadUIEnabled and Safe(InputUtil.IsGamepadUIEnabled())
+        if not gamepad and GetCursorPosition then
+            local x, y = GetCursorPosition()
+            x, y = Safe(x), Safe(y)
+            if type(x) == "number" and type(y) == "number" and x >= sl and x <= sl + sw and y <= st and y >= st - sh then
+                local cx, cy = (x - cl) / cw, (ct - y) / ch
+                if cx >= 0 and cx <= 1 and cy >= 0 and cy <= 1 then
+                    parts[#parts + 1] = Info.Zone(mapID, cx, cy)
+                    parts[#parts + 1] = string.format("Cursor %.1f, %.1f", cx * 100, cy * 100)
+                end
+            end
+        end
+        local position = C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
+        if position then
+            local px, py = position:GetXY()
+            px, py = Safe(px), Safe(py)
+            if type(px) == "number" and type(py) == "number" and (px > 0 or py > 0) then
+                parts[#parts + 1] = string.format("You %.1f, %.1f", px * 100, py * 100)
+            end
+        end
+        local text = table.concat(parts, "    ")
+        if text == "" then
+            Info.text:Hide()
+            return
+        end
+        if text ~= Info.shownText then
+            Info.text:SetText(text)
+            Info.shownText = text
+        end
+        local ax, ay = (sl + 8) / own, (st - sh + 8) / own
+        if ax ~= Info.ax or ay ~= Info.ay then
+            Info.ax, Info.ay = ax, ay
+            Info.text:ClearAllPoints()
+            Info.text:SetPoint("BOTTOMLEFT", overlay, "BOTTOMLEFT", ax, ay)
+        end
+        Info.text:Show()
+    end
+end
+
 -- Called from our own OnUpdate. Reads the world map; shows, hides and moves only our frames.
 local function UpdateWorld()
     local map = WorldMapFrame
@@ -1036,6 +1136,7 @@ local function UpdateWorld()
         overlay:Show()
     end
     LayoutWorld(map)
+    Info.Update(map, mapID)
 end
 
 -- Records changed: pick and place the world map pins again on the next update.
@@ -1116,7 +1217,89 @@ if Minimap then
     end
 end
 
+-- Minimap edge arrow (round 4 item 18, research\re_round4.md R19; TomTom's idea, our own code and Blizzard's
+-- own quest-arrow art): when the /way point (ForeverWaypoint_Active) or else the guide's current stop is beyond
+-- the minimap, one arrow on the rim points at it instead of nothing. Our own frame on the minimap, made at
+-- load (the accepted minimap exception in STATUS.md); never on the map canvas.
+local Edge = {}
+do
+    local atan2 = math.atan2 or math.atan
+    local SIZE = 18
+    if Minimap then
+        Edge.frame = CreateFrame("Frame", nil, Minimap)
+        Edge.frame:SetSize(SIZE, SIZE)
+        Edge.frame:SetFrameLevel((Minimap:GetFrameLevel() or 0) + 6)
+        Edge.frame.Arrow = Edge.frame:CreateTexture(nil, "OVERLAY")
+        Edge.frame.Arrow:SetAllPoints(Edge.frame)
+        Edge.frame.Arrow:SetTexture("Interface\\MINIMAP\\MiniMap-QuestArrow")
+        Edge.frame:Hide()
+    end
+    Edge.ways = {}   -- our own copy of the /way point (never written into the shared waypoint table)
+
+    function Edge.Hide()
+        if Edge.frame then
+            Edge.frame:Hide()
+        end
+    end
+
+    -- The target record and a key that changes with it, or nil.
+    function Edge.Target()
+        local active = type(ForeverWaypoint_Active) == "function" and ForeverWaypoint_Active()
+        if type(active) == "table" then
+            local mapID, x, y = Safe(active.mapID), Safe(active.x), Safe(active.y)
+            if type(mapID) == "number" and type(x) == "number" and type(y) == "number" then
+                local key = string.format("way:%d:%.4f:%.4f", mapID, x, y)
+                if not Edge.ways[key] then
+                    Edge.ways = { [key] = { mapID = mapID, x = x, y = y } }
+                end
+                return Edge.ways[key], key
+            end
+        end
+        for index, record in ipairs(records) do
+            if record.layer == "guide" and record.first and record.mapID then
+                return record, "guide:" .. index .. ":" .. record.mapID .. ":" .. record.x .. ":" .. record.y
+            end
+        end
+    end
+
+    -- Places the arrow on the rim for a target outside the minimap; hides it otherwise.
+    function Edge.Place(target, me, axis, radius, halfW, halfH, facing, square)
+        local spot = target and Edge.frame and WorldOf(target)
+        if not (spot and spot.continent == me.continent and halfW > 0 and halfH > 0) then
+            Edge.Hide()
+            return
+        end
+        local dx, dy = spot.x - me.x, spot.y - me.y
+        local east = dx * axis[1] + dy * axis[2]
+        local north = dx * axis[3] + dy * axis[4]
+        local margin = (SIZE / 2) / halfW
+        local x, y, inside = MapPins_MinimapOffset(east, north, radius, halfW, halfH, facing, square, margin)
+        if not x or inside then
+            Edge.Hide()
+            return
+        end
+        local fx, fy = x / halfW, y / halfH
+        local distance = square and math.max(math.abs(fx), math.abs(fy)) or math.sqrt(fx * fx + fy * fy)
+        if distance <= 0 then
+            Edge.Hide()
+            return
+        end
+        local scale = (1 - margin) / distance
+        x, y = x * scale, y * scale
+        Edge.frame:ClearAllPoints()
+        Edge.frame:SetPoint("CENTER", Minimap, "CENTER", x, y)
+        -- The art points up; rotation counts counterclockwise.
+        if Edge.frame.Arrow.SetRotation then
+            Edge.frame.Arrow:SetRotation(atan2(-x, y))
+        end
+        Edge.frame:Show()
+    end
+end
+
 local function HideMiniPins(from)
+    if from == 1 then
+        Edge.Hide()
+    end
     for index = from, #miniPins do
         miniPins[index]:Hide()
         miniPins[index].record = nil
@@ -1188,7 +1371,8 @@ local function UpdateMinimap(force)
     end
     local radius = MapPins_MinimapRadius()
     local halfW, halfH = (Minimap:GetWidth() or 0) / 2, (Minimap:GetHeight() or 0) / 2
-    local state = table.concat({ me.continent, math.floor(me.x * 2), math.floor(me.y * 2), radius, halfW, facing and math.floor(facing * 100) or "-" }, ":")
+    local target, targetKey = Edge.Target()
+    local state = table.concat({ me.continent, math.floor(me.x * 2), math.floor(me.y * 2), radius, halfW, facing and math.floor(facing * 100) or "-", targetKey or "-" }, ":")
     if state == lastState and not force then
         return
     end
@@ -1222,6 +1406,7 @@ local function UpdateMinimap(force)
         end
     end
     HideMiniPins(used + 1)
+    Edge.Place(target, me, axis, radius, halfW, halfH, facing, square)
 end
 
 ---------------------------------------------------------------------------- refresh
