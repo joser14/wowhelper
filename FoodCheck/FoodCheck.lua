@@ -65,6 +65,26 @@ local function ReadBags()
     return items, pending
 end
 
+-- The "Campfire Nearby" aura, spell 1283391 (from Tweaks Forever's Data\CampBenefits.lua, GPL-3.0-or-later,
+-- Blizzard spell data; UNVERIFIED in game). Read only out of combat and when auras aren't secret.
+local CAMPFIRE_NEARBY = 1283391
+local function CampfireNearby()
+    if InCombatLockdown and InCombatLockdown() then
+        return false
+    end
+    if C_Secrets and C_Secrets.ShouldAurasBeSecret then
+        local ok, secret = pcall(C_Secrets.ShouldAurasBeSecret)
+        if not ok or Safe(secret) ~= false then
+            return false
+        end
+    end
+    if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then
+        return false
+    end
+    local ok, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, CAMPFIRE_NEARBY)
+    return ok and type(Safe(aura)) == "table"
+end
+
 local function BestFor(items, level, field)
     local best
     for _, item in ipairs(items) do
@@ -98,6 +118,9 @@ local function ShowCheck()
     end
     if pending then
         Print("Some items are still loading; try again in a moment.")
+    end
+    if CampfireNearby() then
+        Print("A campfire is nearby: you can cook here.")
     end
 end
 
