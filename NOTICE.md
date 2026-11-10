@@ -191,6 +191,9 @@ these sources:
 - `DeathNotes\LowWarn.lua`: the in-combat low-health/low-mana cue passes the game's curve-evaluated percent
   straight into SetAlpha, the method of Glowing Bars by vattiss (`value-curves.service.ts`, MIT License,
   Copyright (c) vattiss); written in our own code.
+- `LevelLog\LevelLog.lua` (way to 60): the Classic XP-per-level curve replaced level by level by the
+  `UnitXPMax` any character of the account has seen follows XP Horizon by thejvfdev (GPL-3.0-or-later);
+  written in our own code, without its XP-bar hook or /played request.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.

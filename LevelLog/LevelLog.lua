@@ -490,6 +490,59 @@ local function ShowLog(showAll)
     end
 end
 
+-- ---- The way to 60 (research\re_round4.md R9) ------------------------------------------------------------
+-- The XP each level needs, learned from UnitXPMax whenever it can be read, on any character of the account
+-- (LevelLogXPCurve[level] = bar size), over the Classic table, so the curve corrects itself if Forever's
+-- differs. The idea (a Classic curve replaced level by level by what the account has seen) is from XP Horizon
+-- by thejvfdev (GPL-3.0-or-later, see NOTICE.md); our own code. No /played and no XP-bar hook.
+local MAX_LEVEL = 60
+local CLASSIC_LEVEL_XP = {
+    400, 900, 1400, 2100, 2800, 3600, 4500, 5400, 6500, 7600,
+    8800, 10100, 11400, 12900, 14400, 16000, 17700, 19400, 21300, 23200,
+    25200, 27300, 29400, 31700, 34000, 36400, 38900, 41400, 44300, 47400,
+    50800, 54500, 58600, 62800, 67100, 71600, 76100, 80800, 85700, 90700,
+    95800, 101000, 106300, 111800, 117500, 123200, 129100, 135100, 141200, 147500,
+    153900, 160400, 167100, 173900, 180800, 187900, 195000, 202300, 209800,
+}
+
+-- From the last reading TrackXP kept: its level is corrected across a level-up (UnitLevel can lag behind).
+local function LearnCurve()
+    local max, level = lastMax, lastLevel
+    if type(level) == "number" and level >= 1 and level < MAX_LEVEL and type(max) == "number" and max > 0 then
+        LevelLogXPCurve = type(LevelLogXPCurve) == "table" and LevelLogXPCurve or {}
+        LevelLogXPCurve[level] = max
+    end
+end
+
+local function CurveXP(level)
+    local learned = type(LevelLogXPCurve) == "table" and tonumber(LevelLogXPCurve[level])
+    return learned or CLASSIC_LEVEL_XP[level] or 0
+end
+
+-- Share of the way from level 1 to 60 (0-1), XP still to earn, and the whole way's XP; nil when unreadable.
+function LevelLog_ToSixty()
+    local xp, _, level = ReadXP()
+    if type(level) ~= "number" then
+        return nil
+    end
+    local total = 0
+    for l = 1, MAX_LEVEL - 1 do
+        total = total + CurveXP(l)
+    end
+    if level >= MAX_LEVEL then
+        return 1, 0, total
+    end
+    if type(xp) ~= "number" then
+        return nil
+    end
+    local done = xp
+    for l = 1, level - 1 do
+        done = done + CurveXP(l)
+    end
+    done = math.min(done, total)
+    return done / total, total - done, total
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_LOGOUT")
@@ -506,6 +559,7 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         currentLevel = Safe(UnitLevel("player")) or 1
         lastMark = GetTime()
         lastXP, lastMax, lastLevel = ReadXP()
+        LearnCurve()
     elseif not levels then
         -- Saved data isn't set up until PLAYER_LOGIN.
         return
@@ -515,6 +569,7 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         currentLevel = Safe(arg1) or currentLevel + 1
     elseif event == "PLAYER_XP_UPDATE" then
         TrackXP()
+        LearnCurve()
     elseif event == "QUEST_TURNED_IN" then
         -- Split across a level-up like the bar (see QuestTurnedIn).
         QuestTurnedIn(Safe(arg2))

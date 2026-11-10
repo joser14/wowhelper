@@ -1159,6 +1159,17 @@ local function KillsToLevel()
     end
 end
 
+-- Share of the way to 60 and XP still to earn, from LevelLog's learned XP curve (round 4 item 9).
+local function ToSixty()
+    if type(LevelLog_ToSixty) ~= "function" or ForeverHub_IsOff("LevelLog") then
+        return nil
+    end
+    local ok, share, left = pcall(LevelLog_ToSixty)
+    if ok and type(share) == "number" and type(left) == "number" then
+        return share, left
+    end
+end
+
 -- The always-on panel: your rates at the top, then only what needs doing.
 local function RefreshStats()
     local now = GetTime()
@@ -1195,10 +1206,22 @@ local function RefreshStats()
         local rested = Safe(GetXPExhaustion()) or 0
         local restedText = restedKills and restedKills > 0 and string.format(" (~%d kills)", restedKills) or ""
         statLines[3]:SetText(rested > 0 and string.format("Rested %d%% of this level%s", math.floor(rested * 100 / maxXP), restedText) or "|cff999999Not rested|r")
+        -- The way to 60, and how long at the same recent pace (never /played).
+        local share, left60 = ToSixty()
+        if share then
+            local pace = ""
+            if rate > 0 and now - session.start >= XP_WARMUP_SECONDS then
+                pace = string.format(" |cff999999- about %s at this pace|r", FormatDuration(math.max(left60 - banked, 0) / rate * 3600))
+            end
+            statLines[5]:SetText(string.format("%.1f%% of the way to 60%s", share * 100, pace))
+        else
+            statLines[5]:SetText("")
+        end
     else
         statLines[1]:SetText(level and string.format("Level %d", level) or "")
         statLines[2]:SetText("")
         statLines[3]:SetText("")
+        statLines[5]:SetText("")
     end
     local money = Safe(GetMoney())
     if money and not session.money then
@@ -1307,7 +1330,7 @@ local function RefreshRows()
         local item = items[index]
         local row = GetRow(index)
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -70 - (index - 1) * ROW_HEIGHT)
+        row:SetPoint("TOPLEFT", panel, "TOPLEFT", 8, -84 - (index - 1) * ROW_HEIGHT)
         row:SetText(item.text)
         local label = row:GetFontString()
         if label then
@@ -1324,7 +1347,7 @@ local function RefreshRows()
         rows[index]:Hide()
     end
     panel.empty:SetShown(shown == 0)
-    panel:SetHeight(70 + math.max(shown, 1) * ROW_HEIGHT + 8)
+    panel:SetHeight(84 + math.max(shown, 1) * ROW_HEIGHT + 8)
 end
 
 local function BuildPanel()
@@ -1362,7 +1385,8 @@ local function BuildPanel()
     close:SetSize(22, 22)
     close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 0, 0)
 
-    for index = 1, 4 do
+    -- Level, next level, rested, gold, then the way to 60 (line 5, round 4 item 9).
+    for index = 1, 5 do
         local line = panel:CreateFontString(nil, "OVERLAY", index == 1 and "GameFontNormal" or "GameFontHighlightSmall")
         line:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, index == 1 and -8 or (-12 - (index - 1) * 14))
         line:SetJustifyH("LEFT")
@@ -1388,7 +1412,7 @@ local function BuildPanel()
     panel.restart = restart
 
     panel.empty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    panel.empty:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -74)
+    panel.empty:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -88)
     panel.empty:SetText("All caught up.")
     panel:Hide()
 end
