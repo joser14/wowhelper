@@ -1,0 +1,8 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: AutoQuest
+## Notes: When you talk to a quest giver yourself, accepts its quests and turns in finished ones. Hold Shift to pause. Never picks between several rewards, never pays gold, never acts in combat or on quests shared by players.
+## Version: 0.1.0
+## SavedVariables: AutoQuestDB
+
+AutoQuest.lua

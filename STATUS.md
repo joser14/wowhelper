@@ -13,7 +13,9 @@ Start here when resuming.
   replaced window layouts, and one-off data-migration scripts, were removed on 2026-11-09 (see git history).
 
 ## Rules the suite follows
-- Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/accept/turn-in/equip/train/cast) and nothing that causes taint errors.
+- Line in the sand: nothing that breaks Blizzard's ToS (no automation: no auto sell/buy/equip/train/cast) and nothing that causes taint errors.
+  Exception asked for by the owner (2026-11-09): AutoQuest accepts and turns in quests, only in a quest window the player opened
+  (Shift pauses; never with several rewards, gold, combat, player-shared quests). No other helper may call AcceptQuest/CompleteQuest/GetQuestReward.
 - NEVER use the world-map canvas pin pool (WorldMapFrame:AddDataProvider / AcquirePin): it caused "ForeverWorld has been blocked from an action" (UNKNOWN()) in game on 2026-11-09. MapPins draws its own overlay frames.
 - NEVER register COMBAT_LOG_EVENT_UNFILTERED or other CallbackEvent events, even in pcall: ADDON_ACTION_FORBIDDEN pop-up. DeathNotes did this on every load; that was the real cause of the ForeverWorld pop-up (removed 2026-11-09, evening). The killer is now taken from your hostile target.
 - Never assign Blizzard globals or tables (e.g. `SlashCmdList = SlashCmdList or {}`); only add our own keys. See research/taint_audit.md.

@@ -256,6 +256,9 @@ RefreshCanvas = function()
         local on
         if row.helper then
             on = not ForeverHub_IsOff(row.helper.name)
+        elseif row.get then
+            local ok, value = pcall(row.get)
+            on = ok and value == true
         else
             on = AlertOption(row.option.key)
         end
@@ -346,6 +349,40 @@ local function BuildCanvas()
             hub.SetHelperOff(helper, not ForeverHub_IsOff(helper.name))
         end)
         row.helper = helper
+    end
+    y = y - perColumn * SETTINGS_ROW_HEIGHT - 14
+
+    -- A helper's own switches, when it offers some (ForeverHubOptions[name] = { title, rows = { label,
+    -- about, get, set } }). Only helpers that are loaded have an entry; listed by name.
+    local names = {}
+    for name, options in pairs(type(ForeverHubOptions) == "table" and ForeverHubOptions or {}) do
+        if type(name) == "string" and type(options) == "table" and type(options.rows) == "table" then
+            names[#names + 1] = name
+        end
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        local options = ForeverHubOptions[name]
+        local heading = canvas:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        heading:SetPoint("TOPLEFT", canvas, "TOPLEFT", 16, y)
+        heading:SetText(tostring(options.title or name) .. "  " .. GRAY .. "(also on its page in the hub)|r")
+        y = y - 20
+        local count = 0
+        for _, option in ipairs(options.rows) do
+            if type(option) == "table" and type(option.get) == "function" and type(option.set) == "function" then
+                local column = count % 2
+                local line = math.floor(count / 2)
+                local row = CanvasRow(16 + column * SETTINGS_COLUMN_WIDTH, y - line * SETTINGS_ROW_HEIGHT,
+                    tostring(option.label), tostring(option.about or ""), function()
+                        local ok, on = pcall(option.get)
+                        Attempt(option.set, not (ok and on == true))
+                        RefreshCanvas()
+                    end)
+                row.get = option.get
+                count = count + 1
+            end
+        end
+        y = y - math.ceil(count / 2) * SETTINGS_ROW_HEIGHT - 14
     end
     canvas:SetScript("OnShow", RefreshCanvas)
     RefreshCanvas()
