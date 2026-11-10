@@ -2923,6 +2923,8 @@ local function RouteDisplay(route, index, step, byTitle, zoneMap)
     shown.mapID, shown.x, shown.y = PlacePoint(step, zoneMap, x, y)
     -- Where it is in any case, for the travel planner when you're on another map (X.ApplyTravel).
     shown.goalMap, shown.goalX, shown.goalY = X.GoalOf(route, step, x, y)
+    -- Your own spot for this step, when you've set one (X.ApplySpot).
+    X.ApplySpot(shown)
     return shown
 end
 
@@ -4131,6 +4133,131 @@ function X.RenderGroup()
 end
 end -- timed, group and elite quests
 
+-- Personal spots (research\guides_deep_re.md 12.16; our own code after the idea of ForeverQuest's personal
+-- corrections): Ctrl+right-click a route step, stand where the NPC or place really is and click "It's here".
+-- Saved per character by the step's key (charData.spots[key] = { map, x, y (0-1), ox, oy (the route's), t }),
+-- used over the route's data (also after the data changes; route edits carry it to the step's new key) until
+-- "Restore". At most 200; the oldest go first.
+do
+local MAX_SPOTS = 200
+
+local function Clock()
+    return (time and Safe(time())) or Now()
+end
+
+function X.ApplySpot(shown)
+    local spot = shown.routeKey and charData and charData.spots and charData.spots[shown.routeKey]
+    if type(spot) ~= "table" or not (spot.map and spot.x and spot.y) then
+        return
+    end
+    -- On the map the step shows on (or, away from it, as where the travel planner aims).
+    if shown.mapID == nil or shown.mapID == spot.map then
+        if shown.mapID then
+            shown.x, shown.y = spot.x, spot.y
+        end
+        shown.goalMap, shown.goalX, shown.goalY = spot.map, spot.x * 100, spot.y * 100
+        shown.corrected = true
+        shown.campIndex, shown.campRadius = nil, nil
+        shown.detail = (shown.detail and (shown.detail .. " ") or "") .. "(your spot)"
+    end
+end
+
+local function Message(text)
+    local card = X.spotCard
+    if card then
+        card.message:SetText(text)
+    end
+end
+
+local function Save()
+    local target = X.spotCard and X.spotCard.target
+    if not (target and charData) then
+        return
+    end
+    local map = target.mapID
+    local px, py
+    if map then
+        px, py = PositionOn(map)
+    end
+    if not (px and py) then
+        Message("Stand on the step's map (" .. tostring(target.zone or "its zone") .. ") to set its spot.")
+        return
+    end
+    charData.spots = charData.spots or {}
+    local old = charData.spots[target.routeKey]
+    charData.spots[target.routeKey] = { map = map, x = px, y = py, t = Clock(),
+        ox = type(old) == "table" and old.ox or target.x, oy = type(old) == "table" and old.oy or target.y }
+    -- Capped: the oldest go.
+    local keys = {}
+    for key, spot in pairs(charData.spots) do
+        keys[#keys + 1] = { key, type(spot) == "table" and tonumber(spot.t) or 0 }
+    end
+    table.sort(keys, function(a, b) return a[2] < b[2] end)
+    for i = 1, #keys - MAX_SPOTS do
+        charData.spots[keys[i][1]] = nil
+    end
+    X.spotCard:Hide()
+    dirty = true
+end
+
+local function Restore()
+    local target = X.spotCard and X.spotCard.target
+    if target and charData and charData.spots then
+        charData.spots[target.routeKey] = nil
+    end
+    X.spotCard:Hide()
+    dirty = true
+end
+
+function X.OpenSpotCard(step)
+    if not (step and step.routeKey and frame) then
+        return
+    end
+    local card = X.spotCard
+    if not card then
+        card = CreateFrame("Frame", "LevelGuideSpotCard", frame, "BackdropTemplate")
+        card:SetSize(K.WIDTH, 64)
+        card:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", 0, 2)
+        if card.SetBackdrop then
+            card:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+            card:SetBackdropColor(0.03, 0.07, 0.12, 0.92)
+        end
+        local text = card:CreateFontString("LevelGuideSpotCardText", "OVERLAY", "GameFontHighlightSmall")
+        text:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -8)
+        text:SetPoint("RIGHT", card, "RIGHT", -10, 0)
+        text:SetJustifyH("LEFT")
+        card.message = text
+        for _, spec in ipairs({ { "LevelGuideSpotHere", "It's here", Save, -182 }, { "LevelGuideSpotRestore", "Restore", Restore, -96 },
+            { "LevelGuideSpotClose", "Close", function() card:Hide() end, -10 } }) do
+            local button = CreateFrame("Button", spec[1], card, "UIPanelButtonTemplate")
+            button:SetSize(80, 20)
+            button:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", spec[4], 6)
+            button:SetText(spec[2])
+            button:SetScript("OnClick", spec[3])
+        end
+        X.spotCard = card
+    end
+    if step.leg or not step.mapID then
+        -- Shown as a travel leg or not on this map: its own spot can only be set in its zone.
+        card.target = nil
+        card.message:SetText(string.format("Go to |cffffd100%s|r first, then set this step's spot where it really is.",
+            tostring(step.zone or "its zone")))
+        card:Show()
+        return
+    end
+    local spot = charData and charData.spots and charData.spots[step.routeKey]
+    local original = type(spot) == "table" and spot.ox and spot or nil
+    card.target = { routeKey = step.routeKey, mapID = step.mapID, x = original and original.ox or step.x,
+        y = original and original.oy or step.y, zone = step.zone }
+    card.message:SetText(string.format("|cffffd100%s|r%s isn't where the guide says? Stand where it really is and click It's here (for this character).%s",
+        tostring(step.npc or step.title), step.npc and step.title and step.npc ~= step.title and (" (" .. tostring(step.title) .. ")") or "",
+        original and string.format(" Your spot is in use; the route says %.1f, %.1f.", original.ox and original.ox * 100 or 0,
+            original.oy and original.oy * 100 or 0) or ""))
+    card:Show()
+end
+end -- personal spots
+
 -- The guide's own tooltip, so it never changes Blizzard's shared one.
 local tooltip
 local function Tip()
@@ -4170,6 +4297,9 @@ local function StepTooltip(owner, step)
         Tip():AddLine(string.format("Reward: %d XP (%d%% of a level)", step.xp, math.floor(step.xp * 100 / maxXP)), 0.6, 0.8, 1)
     end
     Tip():AddLine("Left-click: show it on your map and screen.", 0.6, 0.6, 0.6)
+    if step.routeKey then
+        Tip():AddLine("Ctrl+right-click: it's somewhere else? Set the spot where you stand.", 0.6, 0.6, 0.6)
+    end
     if step.routeKey or (step.id and step.kind ~= "travel") then
         Tip():AddLine("Shift+right-click: skip this step.", 0.6, 0.6, 0.6)
     end
@@ -4190,7 +4320,10 @@ local function MakeStepButton(height, font)
     button.left:SetPoint("RIGHT", button.right, "LEFT", -4, 0)
     button:SetScript("OnClick", function(self, mouseButton)
         if mouseButton == "RightButton" then
-            if IsShiftKeyDown and IsShiftKeyDown() then
+            if IsControlKeyDown and IsControlKeyDown() then
+                -- "The spot is somewhere else": a card to set it where you stand (X.OpenSpotCard).
+                X.OpenSpotCard(self.step)
+            elseif IsShiftKeyDown and IsShiftKeyDown() then
                 SkipStep(self.step)
             else
                 -- A plain right-click was too easy to do by accident; say how instead.
