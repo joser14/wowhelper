@@ -1335,6 +1335,49 @@ local function RecentlyAccepted(title)
     return false
 end
 
+-- Quest rules (QuestRules.lua, research\re_round3.md rank 2): exclusive groups, next in chain, disabled by,
+-- removed quests and breadcrumbs. X.RuleBlocks(step, byTitle) says why a route pick-up is shut out ("crumb":
+-- it waits while its breadcrumb is in your log), or nil.
+do
+local logIDs = setmetatable({}, { __mode = "k" })
+
+function X.RuleBlocks(step, byTitle)
+    local R = LevelGuideQuestRules
+    local id = R and step.q and X.QuestIDFor(step, nil)
+    if not id then
+        return nil
+    end
+    byTitle = byTitle or {}
+    local ids = logIDs[byTitle]
+    if not ids then
+        ids = {}
+        for _, entry in pairs(byTitle) do
+            if type(entry) == "table" and entry.id then
+                ids[entry.id] = true
+            end
+        end
+        logIDs[byTitle] = ids
+    end
+    local function inLog(q)
+        return ids[q] == true
+    end
+    local why = R.Hidden(id, QuestDone, inLog)
+    if why then
+        return why
+    end
+    return R.WaitsForCrumb(id, inLog) and "crumb" or nil
+end
+
+-- Done, or (for an "all" prerequisite) one of its exclusive partners done.
+function X.PrereqDone(id)
+    local R = LevelGuideQuestRules
+    if R and R.DoneOrPartner then
+        return R.DoneOrPartner(id, QuestDone)
+    end
+    return QuestDone(id)
+end
+end -- quest rules
+
 local function PrereqsMet(title, level)
     local data = LevelGuidePrereqs
     local need = data and (data[title] or data[RealTitle(title)])
@@ -1345,7 +1388,7 @@ local function PrereqsMet(title, level)
         return false
     end
     for _, id in ipairs(need.all or {}) do
-        if not QuestDone(id) then
+        if not X.PrereqDone(id) then
             return false
         end
     end
@@ -1377,7 +1420,7 @@ local function MissingPrereqs(title, level, part)
             missing[#missing + 1] = "level " .. need.level
         end
         for _, id in ipairs(need.all or {}) do
-            if not QuestDone(id) then
+            if not X.PrereqDone(id) then
                 missing[#missing + 1] = Named(id)
             end
         end
@@ -1816,7 +1859,7 @@ end
 local function PickupOpen(route, index, step, byTitle, level)
     return step.t == "accept" and HasIDs(step.q) and level ~= nil and not InLog(byTitle, step.q)
         and TurnedIn(step.q) == (tonumber(step.part) or 1) - 1 and (not step.lvl or step.lvl <= level + 1)
-        and PrereqsMet(step.q, level)
+        and PrereqsMet(step.q, level) and not X.RuleBlocks(step, byTitle)
 end
 
 function X.Placement(route, byTitle, level)
@@ -1923,6 +1966,12 @@ local function RouteStepDone(route, index, step, byTitle, level)
     end
     -- You've talked to this quest giver and they don't offer it (yet), so don't send you back.
     if step.t == "accept" and not InLog(byTitle, step.q) then
+        -- Shut out by another quest (QuestRules.lua): never offered, whatever the map says. A pick-up waiting
+        -- on its breadcrumb isn't done, only not yet actionable (RouteStepActionable).
+        local rule = X.RuleBlocks(step, byTitle)
+        if rule and rule ~= "crumb" then
+            return true
+        end
         -- The map's "!" markers are the game saying what you can pick up right now. A quest it lists is
         -- on offer whatever else says; one it doesn't list may still be (the map doesn't know every
         -- quest), so then the giver's own window and the quest's prerequisites decide.
@@ -2606,7 +2655,7 @@ local function RouteStepActionable(step, byTitle, level, busyNpcs)
         local data = LevelGuidePrereqs
         local knownPrereqs = data and (data[step.q] or data[RealTitle(step.q)]) ~= nil
         return entry == nil and turnedIn == part - 1 and (not step.lvl or step.lvl <= level + 1)
-            and (knownPrereqs or not busyNpcs[NpcKey(step.npc) or ""])
+            and (knownPrereqs or not busyNpcs[NpcKey(step.npc) or ""]) and not X.RuleBlocks(step, byTitle)
     elseif step.t == "do" then
         return entry ~= nil and not entry.ready and not (step.obj ~= nil and ObjectivesDone(entry.id, step.obj, step.objMax))
     end
@@ -5977,7 +6026,7 @@ do -- (a block, so its helpers don't count toward the file's 200-local limit)
                                 local lvl = tonumber(step.lvl) or level
                                 show = not InLog(lastByTitle, step.q) and TurnedIn(step.q) == part - 1
                                     and lvl <= level + G.above and not Outleveled(step, level)
-                                    and PrereqsMet(step.q, level)
+                                    and PrereqsMet(step.q, level) and not X.RuleBlocks(step, lastByTitle)
                             else
                                 local entry = HeldPart(lastByTitle, step)
                                 show = entry and entry.ready or false

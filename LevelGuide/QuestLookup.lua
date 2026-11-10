@@ -680,6 +680,10 @@ function facts.BuildRoute(mapID, min, max, race, class, zone, exclude)
             end
         end
     end
+    -- One quest of each exclusive group, no removed quests (QuestRules.lua).
+    if LevelGuideQuestRules and LevelGuideQuestRules.Prune then
+        LevelGuideQuestRules.Prune(pool)
+    end
     -- Parts of a title, in chain order; pick-ups a hand-made route already has are left out.
     local partOf = {}
     for id, entry in pairs(pool) do
