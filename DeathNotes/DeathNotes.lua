@@ -590,12 +590,185 @@ local function CheckNearby()
     end
 end
 
+--------------------------------------------------------------------------------------------------
+-- Danger before you die there: a zone well above your level, and an elite or rare elite 2+ levels
+-- above you on your target or mouseover. Health is secret on Forever, so only level and
+-- classification are read. Wording after Quest Triage's fight table (GPL-3.0, idea only).
+--------------------------------------------------------------------------------------------------
+local ZONE_TOO_HIGH_BY = 4          -- "well above": more than 3 levels
+local ZONE_REPEAT_SECONDS = 900     -- the same zone warns again only after this
+local ELITE_ABOVE = 2
+local MOB_GAP_SECONDS = 20          -- at most one mob warning this often
+local MOB_REPEAT_SECONDS = 600      -- the same mob (GUID) warns again only after this
+local MAX_REMEMBERED = 100
+
+local zoneWarned, mobWarned, mobCount, lastMobWarning = {}, {}, 0, nil
+
+local function Options()
+    local saved = type(DeathNotesDB) == "table" and DeathNotesDB._options
+    return type(saved) == "table" and saved or nil
+end
+
+local function OptionOn(key)
+    local saved = Options()
+    return not (saved and saved[key] == false)
+end
+
+local function SetOption(key, on)
+    if type(DeathNotesDB) ~= "table" then
+        DeathNotesDB = {}
+    end
+    if type(DeathNotesDB._options) ~= "table" then
+        DeathNotesDB._options = {}
+    end
+    DeathNotesDB._options[key] = on and true or false
+end
+
+local function Call(fn, ...)
+    if type(fn) ~= "function" then
+        return nil
+    end
+    local ok, a, b, c = pcall(fn, ...)
+    if not ok then
+        return nil
+    end
+    return Safe(a), Safe(b), Safe(c)
+end
+
+-- ZoneLevels does the zone warning itself while it's loaded and switched on.
+local function ZoneLevelsWarns()
+    if type(ForeverZoneLevels) ~= "function" then
+        return false
+    end
+    return not (type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ZoneLevels") == true)
+end
+
+local function ZoneRange(mapID)
+    if type(ForeverZoneLevels) == "function" then
+        local low, high, name = Call(ForeverZoneLevels, mapID)
+        if type(low) == "number" and type(high) == "number" then
+            return low, high, name
+        end
+    end
+    if C_Map and C_Map.GetMapLevels then
+        local low, high = Call(C_Map.GetMapLevels, mapID)
+        if type(low) == "number" and type(high) == "number" and low > 0 and not (low <= 1 and high >= 60) then
+            local info = C_Map.GetMapInfo and Call(C_Map.GetMapInfo, mapID)
+            return low, high, type(info) == "table" and Safe(info.name) or nil
+        end
+    end
+end
+
+local function CheckZoneDanger()
+    if not OptionOn("zoneDanger") or ZoneLevelsWarns() or not (C_Map and C_Map.GetBestMapForUnit) then
+        return
+    end
+    local mapID = Call(C_Map.GetBestMapForUnit, "player")
+    local level = MyLevel()
+    if type(mapID) ~= "number" or type(level) ~= "number" then
+        return
+    end
+    local low, high, name = ZoneRange(mapID)
+    if not (low and low - level >= ZONE_TOO_HIGH_BY) then
+        return
+    end
+    name = type(name) == "string" and name or (GetZoneText and Safe(GetZoneText())) or "This zone"
+    local now = GetTime and GetTime() or 0
+    if zoneWarned[name] and now - zoneWarned[name] < ZONE_REPEAT_SECONDS then
+        return
+    end
+    zoneWarned[name] = now
+    Print(string.format("Careful: %s is level %d-%d and you're level %d. Mobs here hit hard; stay on the roads.",
+        name, low, high, level))
+end
+
+local function PruneMobs(now)
+    if mobCount <= MAX_REMEMBERED then
+        return
+    end
+    mobCount = 0
+    for key, when in pairs(mobWarned) do
+        if now - when >= MOB_REPEAT_SECONDS then
+            mobWarned[key] = nil
+        else
+            mobCount = mobCount + 1
+        end
+    end
+end
+
+local DANGER_KINDS = { elite = "an elite", rareelite = "a rare elite", worldboss = "a boss" }
+
+local function CheckUnitDanger(unit)
+    if not OptionOn("eliteDanger") or not (UnitExists and UnitClassification and UnitLevel) then
+        return
+    end
+    if IsInInstance and Call(IsInInstance) == true then
+        return
+    end
+    if Call(UnitExists, unit) ~= true or Call(UnitCanAttack, "player", unit) ~= true then
+        return
+    end
+    if UnitIsDeadOrGhost and Call(UnitIsDeadOrGhost, unit) ~= false then
+        return
+    end
+    if UnitIsPlayer and Call(UnitIsPlayer, unit) ~= false then
+        return
+    end
+    local kind = DANGER_KINDS[Call(UnitClassification, unit) or ""]
+    local theirs, mine = Call(UnitLevel, unit), MyLevel()
+    if not kind or type(theirs) ~= "number" or type(mine) ~= "number" then
+        return
+    end
+    local skull = theirs <= 0
+    local above = skull and 10 or theirs - mine
+    if above < ELITE_ABOVE and kind ~= "a boss" then
+        return
+    end
+    local name = Call(UnitName, unit)
+    if type(name) ~= "string" or name == "" then
+        return
+    end
+    local key = Call(UnitGUID, unit)
+    key = type(key) == "string" and key or (name .. ":" .. tostring(theirs))
+    local now = GetTime and GetTime() or 0
+    if mobWarned[key] and now - mobWarned[key] < MOB_REPEAT_SECONDS then
+        return
+    end
+    if lastMobWarning and now - lastMobWarning < MOB_GAP_SECONDS then
+        return
+    end
+    lastMobWarning = now
+    if not mobWarned[key] then
+        mobCount = mobCount + 1
+    end
+    mobWarned[key] = now
+    PruneMobs(now)
+    local how = above >= 3 and "Very risky: bring a group or leave it." or "Risky: fight it only with help or at full health."
+    local levelText = skull and "level ??" or string.format("level %d, %d above you", theirs, above)
+    Print(string.format("Careful: %s is %s (%s). %s", name, kind, levelText, how))
+end
+
+-- The hub's Options page shows these as On/Off switches.
+ForeverHubOptions = ForeverHubOptions or {}
+ForeverHubOptions.DeathNotes = {
+    title = "Death notes",
+    rows = {
+        { label = "Zone danger", about = "A pop-up when you enter a zone more than 3 levels above you (when ZoneLevels is off or missing).",
+            get = function() return OptionOn("zoneDanger") end, set = function(on) SetOption("zoneDanger", on) end },
+        { label = "Elite danger", about = "A pop-up when you target or point at an elite or rare elite 2 or more levels above you.",
+            get = function() return OptionOn("eliteDanger") end, set = function(on) SetOption("eliteDanger", on) end },
+    },
+}
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_DEAD")
 events:RegisterEvent("PLAYER_TARGET_CHANGED")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
 events:RegisterEvent("PLAYER_REGEN_ENABLED")
+events:RegisterEvent("PLAYER_ENTERING_WORLD")
+events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+events:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 -- Never register COMBAT_LOG_EVENT_UNFILTERED: Forever (Midnight rules) forbids it, and even inside
 -- pcall the attempt raises ADDON_ACTION_FORBIDDEN ("blocked from an action", logged as UNKNOWN()).
 -- The killer is taken from your hostile target instead (see Killer).
@@ -635,8 +808,18 @@ events:SetScript("OnEvent", function(_, event)
     elseif event == "PLAYER_DEAD" then
         RecordDeath()
         lastFoe = nil
+    elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+        local ok, err = pcall(CheckZoneDanger)
+        if not ok and geterrorhandler then
+            geterrorhandler()(err)
+        end
+    elseif event == "UPDATE_MOUSEOVER_UNIT" then
+        pcall(CheckUnitDanger, "mouseover")
     elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_REGEN_DISABLED" then
         NoteFoe()
+        if event == "PLAYER_TARGET_CHANGED" then
+            pcall(CheckUnitDanger, "target")
+        end
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- A fight that ended didn't kill you: a later fall or drowning isn't that foe's doing. Dying also
         -- ends combat, often just before PLAYER_DEAD, so the foe is kept for a few more seconds.
