@@ -160,6 +160,28 @@ local function ReadRested()
     return tonumber(value) or 0
 end
 
+-- Quest XP is split across a level-up the same way as the bar (review 3b, S1): the part that filled the old
+-- bar counts for the old level, the rest for the new one. The turn-in and the XP update can come in either
+-- order, so whichever comes second does the split: a reward waits for the next gain (pendingQuest), and a
+-- gain is remembered for a moment (lastGain) in case its reward comes just after.
+-- A reward waits up to 2 s for its gain; a gain only counts as the reward's when it came within 0.5 s before.
+local QUEST_MATCH_SECONDS, GAIN_MATCH_SECONDS = 2, 0.5
+local pendingQuest -- { xp, at }
+local lastGain -- { at, oldLevel, oldXP, newLevel, newXP, quest = XP already given to a reward }
+
+local function SplitQuest(reward, gain)
+    local fromOld = math.min(reward, math.max(gain.oldXP - gain.quest, 0))
+    local fromNew = math.min(reward - fromOld, math.max(gain.newXP - math.max(gain.quest - gain.oldXP, 0), 0))
+    AddXP(gain.oldLevel, "questXP", fromOld)
+    AddXP(gain.newLevel, "questXP", fromNew)
+    gain.quest = gain.quest + fromOld + fromNew
+    -- XP the bar didn't show yet (hidden, or still to come) stays with the level you're at now.
+    local rest = reward - fromOld - fromNew
+    if rest > 0 then
+        AddXP(gain.newLevel or gain.oldLevel, "questXP", rest)
+    end
+end
+
 local function TrackXP()
     local xp, max, level = ReadXP()
     if not (xp and max) then
@@ -167,6 +189,7 @@ local function TrackXP()
         return
     end
     if lastXP and lastMax then
+        local gain
         if max ~= lastMax or xp < lastXP then
             -- A new level: the rest of the old bar to the old level, the new XP to the new one.
             -- UnitLevel can still say the old level right at the level-up.
@@ -174,12 +197,42 @@ local function TrackXP()
             local after = before and math.max(level or 0, before + 1) or level
             AddXP(before, "xp", math.max(lastMax - lastXP, 0))
             AddXP(after, "xp", xp)
+            gain = { oldLevel = before, oldXP = math.max(lastMax - lastXP, 0), newLevel = after, newXP = xp }
             level = after
         else
             AddXP(level or lastLevel, "xp", xp - lastXP)
+            gain = { oldLevel = level or lastLevel, oldXP = xp - lastXP, newLevel = level or lastLevel, newXP = 0 }
+        end
+        gain.at, gain.quest = GetTime(), 0
+        lastGain = gain
+        if pendingQuest then
+            if GetTime() - pendingQuest.at <= QUEST_MATCH_SECONDS then
+                SplitQuest(pendingQuest.xp, gain)
+            else
+                AddXP(gain.newLevel or gain.oldLevel, "questXP", pendingQuest.xp)
+            end
+            pendingQuest = nil
         end
     end
     lastXP, lastMax, lastLevel = xp, max, level or lastLevel
+end
+
+-- QUEST_TURNED_IN's reward: split with the gain just seen, or wait for the next one.
+local function QuestTurnedIn(reward)
+    if type(reward) ~= "number" or reward <= 0 then
+        return
+    end
+    if pendingQuest then
+        -- An older reward no gain came for (XP hidden): it stays with the level you're at.
+        AddXP(Safe(UnitLevel("player")) or currentLevel, "questXP", pendingQuest.xp)
+        pendingQuest = nil
+    end
+    if lastGain and GetTime() - lastGain.at <= GAIN_MATCH_SECONDS
+        and lastGain.oldXP + lastGain.newXP - lastGain.quest >= reward then
+        SplitQuest(reward, lastGain)
+    else
+        pendingQuest = { xp = reward, at = GetTime() }
+    end
 end
 
 -- LevelGuide's recent kill shares for this character (read-only), or nil.
@@ -345,6 +398,63 @@ local function BankTime()
     lastMark = now
 end
 
+-- ---- Pace per level (research\re_round3.md rank 18) --------------------------------------------------------
+-- XP per hour for each level (a finished level's whole bar from LevelGuide's level table when loaded, else
+-- the XP counted for it), and how its time compares with your fastest other character at that level.
+local MIN_PACE_SECONDS = 60
+
+local function LevelXP(level, entry)
+    local planner = LevelGuidePlanner
+    if level < currentLevel and type(planner) == "table" and type(planner.LEVEL_XP) == "table" and planner.LEVEL_XP[level] then
+        return planner.LEVEL_XP[level]
+    end
+    return tonumber(entry.xp) or 0
+end
+
+local function PaceText(xp, seconds)
+    if seconds < MIN_PACE_SECONDS or xp <= 0 then
+        return nil
+    end
+    local perHour = xp * 3600 / seconds
+    if perHour >= 1000 then
+        return string.format("%.1fk XP/h", perHour / 1000)
+    end
+    return string.format("%d XP/h", math.floor(perHour))
+end
+
+-- Your fastest other character's time for a level they finished: seconds and name, or nil.
+local function BestOther(level)
+    local own = levels
+    local best, bestName
+    for _, record in pairs(LevelLogDB or {}) do
+        if type(record) == "table" and record ~= own then
+            local entry, after = record[level], record[level + 1]
+            local seconds = type(entry) == "table" and tonumber(entry.seconds)
+            -- Only a level they got past counts as a run.
+            if seconds and seconds >= MIN_PACE_SECONDS and type(after) == "table" and (not best or seconds < best) then
+                best, bestName = seconds, record.charName
+            end
+        end
+    end
+    return best, bestName
+end
+
+local function CompareText(level, seconds)
+    if level >= currentLevel or seconds < MIN_PACE_SECONDS then
+        return nil
+    end
+    local best, name = BestOther(level)
+    if not best then
+        return nil
+    end
+    local delta = seconds - best
+    local who = type(name) == "string" and name or "another character"
+    if delta <= 0 then
+        return string.format("|cff33ff33%s faster than %s|r", FormatDuration(-delta), who)
+    end
+    return string.format("|cffff6666%s slower than %s (%s)|r", FormatDuration(delta), who, FormatDuration(best))
+end
+
 local function ShowLog(showAll)
     BankTime()
     local first = showAll and 1 or math.max(1, currentLevel - RECENT_LEVELS + 1)
@@ -361,8 +471,11 @@ local function ShowLog(showAll)
             all.questXP = all.questXP + math.min(tonumber(entry.questXP) or 0, tonumber(entry.xp) or 0)
             if level >= first then
                 local source = SourceText(entry)
-                Print(string.format("Level %d: %s, %d death(s)%s", level, FormatDuration(seconds), deaths,
-                    source and ("; XP " .. source) or ""))
+                local pace = PaceText(LevelXP(level, entry), seconds)
+                local compare = CompareText(level, seconds)
+                Print(string.format("Level %d: %s, %d death(s)%s%s%s", level, FormatDuration(seconds), deaths,
+                    pace and ("; " .. pace) or "", source and ("; XP " .. source) or "",
+                    compare and ("; " .. compare) or ""))
             end
         end
     end
@@ -403,14 +516,18 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
     elseif event == "PLAYER_XP_UPDATE" then
         TrackXP()
     elseif event == "QUEST_TURNED_IN" then
-        -- Counted to the level you hand it in at.
-        local reward = Safe(arg2)
-        AddXP(Safe(UnitLevel("player")) or currentLevel, "questXP", type(reward) == "number" and reward or nil)
+        -- Split across a level-up like the bar (see QuestTurnedIn).
+        QuestTurnedIn(Safe(arg2))
     elseif event == "PLAYER_DEAD" then
         local entry = Entry(currentLevel)
         entry.deaths = entry.deaths + 1
     elseif event == "PLAYER_LOGOUT" then
         BankTime()
+        -- A reward no XP update came for stays with the level you're at.
+        if pendingQuest then
+            AddXP(currentLevel, "questXP", pendingQuest.xp)
+            pendingQuest = nil
+        end
     end
 end)
 
