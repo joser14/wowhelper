@@ -40,6 +40,7 @@ no auto-selling, auto-buying, auto-equipping, auto-training, targeting, moving o
 | **While you're here** | LevelGuide | Up to three lines for later steps you can do now: a finished quest whose NPC is a short detour away (20 seconds, more when waiting would cost XP), or work within 180 yards. Right-click a line to hide it for now. |
 | **A calmer arrow** | LevelGuide | The arrow swings smoothly to a new target, shows the time to arrive, and doesn't flip between two stops that are about as far. Quest work points at the nearest spawn camp and moves on to the next one when a camp is empty. |
 | **Dropped quests and extra quests** | LevelGuide | Abandon a route quest and a card asks: go back for it, or skip it and what follows it (one right-click on the header undoes that). A quest you take that isn't on the route is slotted in where the route passes its area; otherwise it says "Not on your route". |
+| **The way there** | LevelGuide | When the next step is on another map, the guide works out the quickest way: walking, the flight paths you know, boats (Forever's Auberdine-Stormwind boat included), the Deeprun Tram, the Darnassus portal, and your hearthstone when it's ready and bound nearby. The step shows the next leg ("Take the boat at Auberdine pier to Stormwind Harbor, ~3 min", "Fly Rut'theran Village to Auberdine", "Use your hearthstone to Auberdine") with the arrow on its spot, and moves on as you fly, ride or land. It never flies or uses anything for you. |
 
 ### Researched for WoW Forever
 
