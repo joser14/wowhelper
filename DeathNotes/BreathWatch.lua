@@ -9,6 +9,7 @@ local CHECK_SECONDS = 0.25
 local SHOW_SECONDS = 3
 
 local running = {}   -- timer name -> { warned = bool, urgent = bool }
+local draining = {}  -- timer name -> its warning state from a draining start until it stops (kept through a pause)
 local ticker
 local banner
 
@@ -111,19 +112,31 @@ events:SetScript("OnEvent", function(_, event, name, a, _, scale, paused)
     if event == "MIRROR_TIMER_START" then
         scale, paused = Safe(scale), Safe(paused)
         -- A negative scale drains (you're under water); a positive one refills (you came up).
-        if type(scale) == "number" and scale < 0 and not (type(paused) == "number" and paused > 0) then
-            running[name] = running[name] or { warned = false, urgent = false }
-            Watch()
-            Check()
+        if type(scale) == "number" and scale < 0 then
+            -- A timer can start paused; the game resumes it with MIRROR_TIMER_PAUSE 0, not a new start.
+            draining[name] = running[name] or draining[name] or { warned = false, urgent = false }
+            if not (type(paused) == "number" and paused > 0) then
+                running[name] = draining[name]
+                Watch()
+                Check()
+            else
+                running[name] = nil
+            end
         else
-            running[name] = nil
+            running[name], draining[name] = nil, nil
         end
     elseif event == "MIRROR_TIMER_STOP" then
-        running[name] = nil
+        running[name], draining[name] = nil, nil
     elseif event == "MIRROR_TIMER_PAUSE" then
         local isPaused = Safe(a)
         if type(isPaused) == "number" and isPaused > 0 then
+            -- Frozen: nothing to warn about until it resumes. The dive is remembered in draining.
             running[name] = nil
+        elseif isPaused == 0 and draining[name] then
+            -- Same dive: the warnings already given aren't given again.
+            running[name] = draining[name]
+            Watch()
+            Check()
         end
     end
 end)

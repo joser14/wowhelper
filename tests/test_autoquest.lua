@@ -432,7 +432,8 @@ for name in pairs(newGlobals) do
     check(name == "AutoQuestDB" or name == "ForeverHubOptions" or name == "SLASH_AUTOQUEST1", "new global: " .. name)
 end
 -- Globals it looked for that this harness doesn't define must be optional ones it guards.
-local OPTIONAL = { IsAvailableQuestTrivial = true, SelectActiveQuest = true, AutoQuestDB = true, ForeverHubOptions = true }
+local OPTIONAL = { IsAvailableQuestTrivial = true, SelectActiveQuest = true, AutoQuestDB = true, ForeverHubOptions = true,
+    QuestIsFromAreaTrigger = true }
 for name in pairs(unknownReads) do
     check(OPTIONAL[name], "read an unknown global: " .. name)
 end

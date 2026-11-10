@@ -305,6 +305,10 @@ local function OnDetail()
     if Call(QuestGetAutoAccept) == true then
         return
     end
+    -- A quest the game pushed when you walked into an area: not a window you opened.
+    if Call(QuestIsFromAreaTrigger) == true then
+        return
+    end
     local questID = WindowQuestID()
     if WindowQuestRepeats(questID) then
         return
@@ -313,8 +317,10 @@ local function OnDetail()
         return
     end
     local title = WindowTitle()
+    -- This window's giver only: a quest started from an item has none, and the last NPC didn't give it.
+    local giver = NPCName()
     if Act(AcceptQuest) then
-        Note("Accepted " .. title .. (lastNPC and (" from " .. lastNPC) or ""))
+        Note("Accepted " .. title .. (giver and (" from " .. giver) or ""))
     end
 end
 
@@ -346,6 +352,8 @@ local function OnComplete()
         return
     end
     local title = WindowTitle()
+    -- No NPC when a finished quest completes itself from the tracker.
+    local giver = NPCName()
     if type(GetQuestReward) ~= "function" then
         return
     end
@@ -353,7 +361,7 @@ local function OnComplete()
     -- 0 is what its own reward button passes when nothing is selected.
     local done = (choices == 1 and Act(GetQuestReward, 1)) or (choices == 0 and (pcall(GetQuestReward) or Act(GetQuestReward, 0)))
     if done then
-        Note("Turned in " .. title .. (lastNPC and (" to " .. lastNPC) or ""))
+        Note("Turned in " .. title .. (giver and (" to " .. giver) or ""))
     end
 end
 

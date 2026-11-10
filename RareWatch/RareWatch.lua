@@ -211,7 +211,21 @@ local function Print(text)
 end
 local Alert = Print
 
+-- Quiet when RareWatch is switched off on the hub's Manage page, or the hub's Alerts > Sound is off
+-- (its own text promises no chime for a rare then). Reads the hub's saved switches; never writes them.
+local function SoundAllowed()
+    if ForeverHub_IsOff and ForeverHub_IsOff("RareWatch") then
+        return false
+    end
+    local hub = type(ForeverHubDB) == "table" and ForeverHubDB
+    local alerts = hub and type(hub.alerts) == "table" and hub.alerts
+    return not (alerts and alerts.sound == false)
+end
+
 local function PlayAlertSound()
+    if not SoundAllowed() then
+        return
+    end
     if PlaySound and SOUNDKIT and SOUNDKIT.RAID_WARNING then
         pcall(PlaySound, SOUNDKIT.RAID_WARNING)
     end
