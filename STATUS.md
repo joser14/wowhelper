@@ -152,6 +152,19 @@ Start here when resuming.
 - AutoQuest: gossip NPC with a finished and a new quest (C_GossipInfo.SelectActiveQuest/SelectAvailableQuest get the questID;
   if nothing happens the client wants the list position); old-style greeting NPC; reward with no choice (GetQuestReward
   with no argument); Shift pauses; a quest shared by a party member is not accepted; gray quests are skipped.
+- LevelGuide round 3 (review3_levelguide.md): `/dump UnitRace("player")` on a Skyborne returns "Skyborne"; boat
+  "leaves in" at Auberdine after one boarding (and Southshore's three-stop ship); a Barrens walk goes round the
+  Crossroads with the note; spirit-healer distance and corpse ETA after a death; Shadow Magic waits for Blackrock
+  Blockade; The Reports offered without Secure the Mountain; Shayla's real spot; Lightforge Ingots after The Lost
+  Ingots; XP/h right after a level-up; quests 324/526 exclusive?
+- Round 3 bags/character (review3_bags_character.md): camp/tent spell IDs and campfire direction; GetRestState
+  factor; weapon-enchant timeLeft units; loot API (GetNumLootItems etc.) for the bags-full hint; "Well Fed" by name;
+  hunter ammo slot; curve-based item verdicts at low levels; Level log split for a quest that levels you.
+- Round 3 world (review3_quests_world.md): zone "Careful" pop-up entering a high zone; elite warning; QuestTracker 0/1
+  for unfinished 1/1; map pin "Also here" and "on camps"; rare alert after combat and the seven Zephras rares.
+
+Note: BagCheck, DurabilityWatch, ProfessionCap, QuestCheck and SupplyWatch still write to UIErrorsFrame, but only when
+the hub isn't loaded (it always is in the installed bundles).
 
 ## Follow-ups
 - Horde routes and plan: RestedXP's free Forever guides cover Horde 1-22 (Durotar, Mulgore, Tirisfal, Barrens,
