@@ -705,28 +705,160 @@ local function CurrentPlan(level)
     return Full.plan
 end
 
--- What a row costs: the trainer's own price when you've seen it there (by name and rank), else the list's.
+-- What a row costs: the trainer's own price when you've seen it there (by name and rank; already
+-- discounted by the game), else the list's. Second return: true when it's the list's price.
 local function RowCost(entry)
     local _, name, rank = SpellLabel(entry.id)
     local seen = name and charData and charData.services[name .. "|" .. (rank or "")]
     if seen and tonumber(seen.cost) then
-        return tonumber(seen.cost)
+        return tonumber(seen.cost), false
     end
-    return entry.cost
+    return entry.cost, true
 end
 
-local function PlanCost(list)
+-- Trainer reputation discount (What's Training's Forever pricing, MIT): Honored or better with a
+-- faction whose trainers teach your class takes 10 % off there, rounded to the copper. Returns the
+-- percent and the names of those factions (from the game), or 0.
+local DISCOUNT_PCT, HONORED = 10, 6
+local function Discount()
+    local data = type(TrainerNotesData) == "table" and TrainerNotesData.trainerFactions
+    local factionGroup = UnitFactionGroup and SafeCall(UnitFactionGroup, "player")
+    local ids = data and data[PlayerClassFile() or ""] and factionGroup and data[PlayerClassFile()][factionGroup]
+    if type(ids) ~= "table" or not (C_Reputation and C_Reputation.GetFactionDataByID) then
+        return 0
+    end
+    local names = {}
+    for _, id in ipairs(ids) do
+        local info = SafeCall(C_Reputation.GetFactionDataByID, id)
+        local reaction = type(info) == "table" and Safe(info.reaction)
+        if type(reaction) == "number" and reaction >= HONORED then
+            local name = Safe(info.name)
+            names[#names + 1] = type(name) == "string" and name or ("faction " .. id)
+        end
+    end
+    if #names == 0 then
+        return 0
+    end
+    return DISCOUNT_PCT, names
+end
+
+local function Discounted(cost, pct)
+    return math.floor((cost * (100 - pct) + 50) / 100)
+end
+
+-- Total of a list; with pct, list prices get the discount (prices seen at a trainer already have it).
+local function PlanCost(list, pct)
     local total = 0
     for _, entry in ipairs(list) do
-        total = total + RowCost(entry)
+        local cost, fromList = RowCost(entry)
+        if pct and pct > 0 and fromList then
+            cost = Discounted(cost, pct)
+        end
+        total = total + cost
     end
     return total
 end
 
+-- Class-quest spells (What's Training's QuestSpells, MIT) for your class and race:
+-- spellID -> { level, quests } or nil.
+local function QuestSpell(id)
+    local data = type(TrainerNotesData) == "table" and TrainerNotesData.questSpells
+    local list = data and data[PlayerClassFile() or ""] and data[PlayerClassFile()][id]
+    if type(list) ~= "table" then
+        return nil
+    end
+    local race
+    if UnitRace then
+        local ok, _, _, raceID = pcall(UnitRace, "player")
+        race = ok and Safe(raceID) or nil
+    end
+    for _, entry in ipairs(list) do
+        for _, r in ipairs(entry.races or {}) do
+            if r == race then
+                return entry
+            end
+        end
+    end
+    return nil
+end
+
+-- "class quest 'Bartleby's Mug'": the title from LevelGuide's quest database or the game, else the ID.
+local function QuestLabel(entry)
+    local questID = entry.quests and entry.quests[1]
+    local title
+    local db = type(LevelGuideQuestDB) == "table" and type(LevelGuideQuestDB.q) == "table" and LevelGuideQuestDB.q
+    local record = db and questID and db[questID]
+    if type(record) == "string" then
+        title = record:match("([^|]+)$")
+    end
+    if not title and questID and C_QuestLog and C_QuestLog.GetTitleForQuestID then
+        title = SafeCall(C_QuestLog.GetTitleForQuestID, questID)
+    end
+    if type(title) == "string" and title ~= "" then
+        return "class quest '" .. title .. "'"
+    end
+    return "class quest " .. tostring(questID or "?")
+end
+
+local function NeedsText(id)
+    local _, name = SpellLabel(id)
+    local text = name or SpellLabel(id)
+    local quest = QuestSpell(id)
+    if quest then
+        text = text .. " (" .. QuestLabel(quest) .. ")"
+    end
+    return text
+end
+
 local function PlanLine(entry)
     local label = SpellLabel(entry.id)
-    local needs = entry.needs and (", needs " .. (select(2, SpellLabel(entry.needs)) or SpellLabel(entry.needs))) or ""
-    return string.format("  Level %d: %s, %s%s", entry.level, label, FormatMoney(RowCost(entry)), needs)
+    local needs = entry.needs and (", needs " .. NeedsText(entry.needs)) or ""
+    return string.format("  Level %d: %s, %s%s", entry.level, label, FormatMoney((RowCost(entry))), needs)
+end
+
+-- Class-quest spells you don't know yet, up to NEXT_LEVELS above your level.
+local function QuestSpellLines(level)
+    local data = type(TrainerNotesData) == "table" and TrainerNotesData.questSpells
+    local spells = data and data[PlayerClassFile() or ""]
+    local lines = {}
+    for id in pairs(type(spells) == "table" and spells or {}) do
+        local entry = QuestSpell(id)
+        if entry and (entry.level or 1) <= level + NEXT_LEVELS and not AskKnown(id) then
+            lines[#lines + 1] = { level = entry.level or 1, text = string.format("  Level %d: %s: %s",
+                entry.level or 1, select(2, SpellLabel(id)) or SpellLabel(id), QuestLabel(entry)) }
+        end
+    end
+    table.sort(lines, function(a, b) if a.level ~= b.level then return a.level < b.level end return a.text < b.text end)
+    return lines
+end
+
+-- Warlock demon tomes (What's Training's WarlockTomes, MIT): for demons you can summon, up to
+-- NEXT_LEVELS above your level, not known. A tome is known when its spell is in the pet spellbook
+-- (only readable with that demon out), remembered per character from then on.
+local SUMMONS = { Imp = 688, Voidwalker = 697, Succubus = 712, Incubus = 713, Felhunter = 691 }
+local function TomeLines(level)
+    local tomes = type(TrainerNotesData) == "table" and TrainerNotesData.tomes
+    if PlayerClassFile() ~= "WARLOCK" or type(tomes) ~= "table" or not charData then
+        return {}
+    end
+    charData.tomes = type(charData.tomes) == "table" and charData.tomes or {}
+    local petBank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet) or 1
+    local lines = {}
+    for _, tome in ipairs(tomes) do
+        local tomeLevel, itemID, cost, family, spell = tome[1], tome[2], tome[3], tome[4], tome[5]
+        if spell and not charData.tomes[spell] and C_SpellBook and SafeCall(C_SpellBook.IsSpellKnown, spell, petBank) == true then
+            charData.tomes[spell] = true
+        end
+        local summon = SUMMONS[family]
+        if tomeLevel <= level + NEXT_LEVELS and summon and AskKnown(summon) and not (spell and charData.tomes[spell]) then
+            local name = C_Item and SafeCall(C_Item.GetItemNameByID, itemID)
+            local inBags = C_Item and (tonumber(SafeCall(C_Item.GetItemCount, itemID)) or 0) > 0
+            lines[#lines + 1] = string.format("  Level %d: %s (%s), %s%s", tomeLevel,
+                type(name) == "string" and name or ("item " .. itemID), family, FormatMoney(cost),
+                inBags and " |cff66ff66(in your bags)|r" or "")
+        end
+    end
+    return lines
 end
 
 -- Rows that are spells from the full list, so the trainer notes below don't repeat them.
@@ -744,8 +876,14 @@ local function PlanNames(plan)
 end
 
 local function ShowPlan(plan, level)
+    local pct, factions = Discount()
+    if pct > 0 then
+        Print(string.format("|cff66ff66%d%% off|r at trainers of %s (Honored). Totals below show both prices.", pct, table.concat(factions, ", ")))
+    end
     if #plan.ready > 0 then
-        Print(string.format("Ready to train, %s in total:", FormatMoney(PlanCost(plan.ready))))
+        local total = PlanCost(plan.ready)
+        local off = pct > 0 and string.format(" (%s with %d%% off)", FormatMoney(PlanCost(plan.ready, pct)), pct) or ""
+        Print(string.format("Ready to train, %s in total%s:", FormatMoney(total), off))
         for _, entry in ipairs(plan.ready) do
             Print(PlanLine(entry))
         end
@@ -768,6 +906,20 @@ local function ShowPlan(plan, level)
         Print("Needs a talent you haven't taken:")
         for _, entry in ipairs(plan.talent) do
             Print(PlanLine(entry))
+        end
+    end
+    local quests = QuestSpellLines(level)
+    if #quests > 0 then
+        Print("From class quests (not sold by trainers):")
+        for _, entry in ipairs(quests) do
+            Print(entry.text)
+        end
+    end
+    local tomes = TomeLines(level)
+    if #tomes > 0 then
+        Print("Demon tomes from a demon-tome vendor (never discounted):")
+        for _, text in ipairs(tomes) do
+            Print(text)
         end
     end
     if plan.later > 0 then
