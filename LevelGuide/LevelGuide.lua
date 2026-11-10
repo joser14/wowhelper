@@ -5459,8 +5459,15 @@ function X.ApplyTravel(list)
         leg = legs[2]
     end
     if not leg then
-        -- Walking there is quickest: straight at it when the step had no spot here.
+        -- Walking there is quickest: straight at it when the step had no spot here (across the border, from
+        -- Travel.lua's world frames; review 3).
         S.shown, S.atDock = nil, nil
+        if plan and not step.mapID and P.TravelOnMap then
+            local x, y = P.TravelOnMap(goal, mapID)
+            if x and y then
+                step.mapID, step.x, step.y = mapID, x / 100, y / 100
+            end
+        end
         return
     end
     S.shown = leg

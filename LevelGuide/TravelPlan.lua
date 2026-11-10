@@ -42,6 +42,17 @@ function P.TravelWorld(map, x, y)
     return f[1], f[4] + y / 100 * (f[5] - f[4]), f[2] + x / 100 * (f[3] - f[2])
 end
 
+-- A point (map percent) as map percent on another map of the same continent, or nil.
+function P.TravelOnMap(point, map)
+    local T = Data()
+    local f = T and T.frames[map]
+    local c, wx, wy = P.TravelWorld(point.map, point.x, point.y)
+    if not (f and c and c == f[1]) then
+        return nil
+    end
+    return (wy - f[2]) / (f[3] - f[2]) * 100, (wx - f[4]) / (f[5] - f[4]) * 100
+end
+
 function P.TravelYards(a, b)
     local ca, ax, ay = P.TravelWorld(a.map, a.x, a.y)
     local cb, bx, by = P.TravelWorld(b.map, b.x, b.y)
