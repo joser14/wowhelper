@@ -43,17 +43,56 @@ $Bundles = [ordered]@{
 
 function Read-Toc($module) {
     $toc = Join-Path $Root "$module\$module.toc"
-    $files = @(); $sv = @(); $svChar = @(); $extra = @()
+    $files = @(); $sv = @(); $svChar = @(); $extra = @(); $interface = $null
     foreach ($line in Get-Content $toc) {
         $t = $line.Trim()
         # Header fields that belong to the whole installed addon (the AddOns menu entry and its icon).
         if ($t -match '^##\s*(IconTexture|AddonCompartmentFunc\w*):') { $extra += $t }
+        elseif ($t -match '^##\s*Interface:\s*(.+)$') { $interface = $Matches[1].Trim() }
         elseif ($t -match '^##\s*SavedVariables:\s*(.+)$') { $sv += ($Matches[1] -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } }
         elseif ($t -match '^##\s*SavedVariablesPerCharacter:\s*(.+)$') { $svChar += ($Matches[1] -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } }
         elseif ($t -ne '' -and -not $t.StartsWith('#')) { $files += $t }
     }
-    [pscustomobject]@{ Files = $files; SV = $sv; SVChar = $svChar; Extra = $extra }
+    [pscustomobject]@{ Files = $files; SV = $sv; SVChar = $svChar; Extra = $extra; Interface = $interface }
 }
+
+# --- Checks --------------------------------------------------------------------------------------
+# Stops the build before anything ships wrong. Nothing else catches these: the tests load files by their
+# own lists, so a helper left out of every bundle, or a .lua left out of its .toc, passes them and then
+# never loads in game. Two helpers declaring one saved variable would overwrite each other's data.
+function Test-Helpers {
+    $problems = @()
+    $bundleOf = @{}
+    foreach ($name in $Bundles.Keys) {
+        foreach ($module in $Bundles[$name].Modules) {
+            if ($bundleOf.ContainsKey($module)) { $problems += "$module is in two bundles: $($bundleOf[$module]) and $name." }
+            $bundleOf[$module] = $name
+        }
+    }
+    $owner = @{}
+    foreach ($dir in Get-ChildItem $Root -Directory) {
+        $module = $dir.Name
+        if (-not (Test-Path (Join-Path $dir.FullName "$module.toc"))) { continue }
+        if (-not $bundleOf.ContainsKey($module)) { $problems += "$module has a .toc but is in no bundle, so it would never ship."; continue }
+        $info = Read-Toc $module
+        if ($info.Interface -ne '16001') { $problems += "$module.toc says Interface $($info.Interface); Forever is 16001." }
+        $listed = @{}
+        foreach ($file in $info.Files) {
+            $listed[$file.ToLowerInvariant()] = $true
+            if (-not (Test-Path (Join-Path $dir.FullName $file))) { $problems += "$module.toc lists $file, which isn't there." }
+        }
+        foreach ($lua in Get-ChildItem $dir.FullName -Recurse -File | Where-Object { $_.Extension -eq '.lua' }) {
+            $rel = $lua.FullName.Substring($dir.FullName.Length + 1)
+            if (-not $listed.ContainsKey($rel.ToLowerInvariant())) { $problems += "$module\$rel isn't in $module.toc, so it would never load." }
+        }
+        foreach ($var in @($info.SV) + @($info.SVChar)) {
+            if ($owner.ContainsKey($var)) { $problems += "Saved variable $var is declared by both $($owner[$var]) and $module." }
+            else { $owner[$var] = $module }
+        }
+    }
+    if ($problems.Count) { throw ("Build stopped:`r`n  " + ($problems -join "`r`n  ")) }
+}
+Test-Helpers
 
 # --- Build ---------------------------------------------------------------------------------------
 if (Test-Path $Dist) { Remove-Item -Recurse -Force $Dist }
