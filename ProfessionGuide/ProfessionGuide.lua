@@ -588,7 +588,7 @@ local function ShowOverview()
     for _, profession in ipairs(list) do
         ShowProfession(profession)
     end
-    Print("|cff999999Type a profession for its full guide. Or: shopping   Or: trainer alchemy|r")
+    Print("|cff999999Type a profession for its full guide. Or: shopping   Or: craft (what you can make now)   Or: trainer alchemy|r")
 end
 
 local function ShowGuide(guide, line)
@@ -700,11 +700,297 @@ local function PinTrainer(rest)
     end
 end
 
+----- Craftable now, and materials kept for later steps (research\re_round5.md #17) ----------------------
+-- The idea of reserving materials for later steps is SkillupHelper's (licence unconfirmed, idea only, no code
+-- taken). Recipes you know are read when YOU open a profession window, and remembered per character, so the
+-- page works with the window closed. Read-only: nothing is crafted, queued or bought.
+
+local MAX_RECIPES = 1000         -- recipes remembered per character (all professions together)
+local SCAN_SECONDS = 2           -- the profession window is read at most this often
+local lastScan
+
+local function RecipeStore()
+    ProfessionGuideDB = type(ProfessionGuideDB) == "table" and ProfessionGuideDB or {}
+    if type(ProfessionGuideDB.recipes) ~= "table" then
+        ProfessionGuideDB.recipes = {}
+    end
+    return ProfessionGuideDB.recipes
+end
+
+local Plain = Safe
+
+-- Undocumented here (C_TradeSkillUI.GetAllRecipeIDs, only filled while the window is open), so it's guarded
+-- and listed for an in-game check; GetRecipeInfo, GetRecipeSchematic and GetBaseProfessionInfo are documented
+-- (TradeSkillUIDocumentation:130/639/753).
+local function ScanRecipes()
+    local api = C_TradeSkillUI
+    if not (api and api.GetAllRecipeIDs and api.GetRecipeInfo and api.GetRecipeSchematic) then
+        return
+    end
+    local ok, ids = pcall(api.GetAllRecipeIDs)
+    ids = ok and Safe(ids)
+    if type(ids) ~= "table" or #ids == 0 then
+        return
+    end
+    local line, profName
+    if api.GetBaseProfessionInfo then
+        local okInfo, info = pcall(api.GetBaseProfessionInfo)
+        info = okInfo and Safe(info)
+        if type(info) == "table" then
+            line, profName = Plain(info.professionID), Plain(info.professionName)
+        end
+    end
+    local found = {}
+    for index = 1, math.min(#ids, MAX_RECIPES) do
+        local id = Plain(ids[index])
+        local okRecipe, recipe = pcall(api.GetRecipeInfo, id)
+        recipe = okRecipe and Safe(recipe)
+        if type(id) == "number" and type(recipe) == "table" and Plain(recipe.learned) == true then
+            local okSchematic, schematic = pcall(api.GetRecipeSchematic, id, false)
+            schematic = okSchematic and Safe(schematic)
+            local mats = {}
+            local slots = type(schematic) == "table" and Safe(schematic.reagentSlotSchematics)
+            for _, slot in ipairs(type(slots) == "table" and slots or {}) do
+                slot = Safe(slot)
+                local reagents = type(slot) == "table" and Safe(slot.reagents)
+                local first = type(reagents) == "table" and Safe(reagents[1])
+                local item = type(first) == "table" and Plain(first.itemID)
+                local need = type(slot) == "table" and Plain(slot.quantityRequired)
+                -- Optional slots (Forever has few) don't stop a craft.
+                if type(item) == "number" and type(need) == "number" and need > 0 and Plain(slot.required) ~= false then
+                    mats[#mats + 1] = { item, need }
+                end
+            end
+            local name = Plain(recipe.name)
+            if #mats > 0 and type(name) == "string" then
+                found[id] = { name = name, mats = mats, line = type(line) == "number" and line or nil,
+                    prof = type(profName) == "string" and profName or nil,
+                    out = type(schematic) == "table" and Plain(schematic.outputItemID) or nil }
+            end
+        end
+    end
+    if not next(found) then
+        return
+    end
+    local store = RecipeStore()
+    -- This window's profession replaces what was remembered for it.
+    for id, recipe in pairs(store) do
+        if type(recipe) ~= "table" or (line and recipe.line == line) or (not line and profName and recipe.prof == profName) then
+            store[id] = nil
+        end
+    end
+    local count = 0
+    for _ in pairs(store) do
+        count = count + 1
+    end
+    for id, recipe in pairs(found) do
+        if count >= MAX_RECIPES then
+            break
+        end
+        store[id] = recipe
+        count = count + 1
+    end
+end
+
+-- What every guide step from your current one on still needs, per material:
+-- { [itemID] = { need, name, step = the first step text that needs it, later = true when only later steps do } }.
+local function Reserved(list)
+    local reserved = {}
+    for _, profession in ipairs(list) do
+        local guide = profession.guide
+        local current = guide and select(2, CurrentStep(guide, profession.rank))
+        if current then
+            for index = current, #guide.steps do
+                local step = guide.steps[index]
+                if step.mats and not step.gather then
+                    local crafts = index == current and CraftsLeft(step, profession.rank) or (step.crafts or (step.to - step.from))
+                    for _, mat in ipairs(step.mats) do
+                        local entry = reserved[mat.itemID]
+                        if not entry then
+                            entry = { need = 0, name = mat.name, later = true }
+                            reserved[mat.itemID] = entry
+                        end
+                        entry.need = entry.need + mat.count * crafts
+                        if index == current then
+                            entry.later = false
+                        end
+                        if not entry.step then
+                            entry.step = string.format("%s %d-%d", guide.name, step.from, step.to)
+                            entry.vendor = mat.vendor
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return reserved
+end
+
+local function MoneyText(copper)
+    copper = math.floor(copper + 0.5)
+    local gold, silver, rest = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+    if gold > 0 then
+        return string.format("%dg %ds", gold, silver)
+    elseif silver > 0 then
+        return string.format("%ds %dc", silver, rest)
+    end
+    return string.format("%dc", rest)
+end
+
+local function AuctionPrice(itemID)
+    if type(PriceMemory_Get) ~= "function" then
+        return nil
+    end
+    local ok, record = pcall(PriceMemory_Get, itemID)
+    return ok and type(record) == "table" and type(record.price) == "number" and record.price or nil
+end
+
+-- Recipes you could make right now from your bags: { name, can, mats, current, warn }.
+local function CraftableNow(list, reserved)
+    local currentCraft, haveLine, haveName = {}, {}, {}
+    for _, profession in ipairs(list) do
+        local step = profession.guide and CurrentStep(profession.guide, profession.rank)
+        if step and step.craft then
+            currentCraft[step.craft:lower()] = true
+        end
+        if profession.line then
+            haveLine[profession.line] = true
+        end
+        haveName[Squash(profession.name)] = true
+    end
+    -- A recipe of a profession you have since dropped isn't yours to make any more.
+    local function stillKnown(recipe)
+        if recipe.line then
+            return haveLine[recipe.line] == true
+        end
+        return not recipe.prof or haveName[Squash(recipe.prof)] == true
+    end
+    local rows = {}
+    local recipes = type(ProfessionGuideDB) == "table" and type(ProfessionGuideDB.recipes) == "table" and ProfessionGuideDB.recipes or nil
+    if recipes and next(recipes) then
+        for _, recipe in pairs(recipes) do
+            if type(recipe) == "table" and type(recipe.mats) == "table" and #recipe.mats > 0 and stillKnown(recipe) then
+                local can
+                for _, mat in ipairs(recipe.mats) do
+                    local item, need = mat[1], mat[2]
+                    local n = (type(item) == "number" and type(need) == "number" and need > 0) and math.floor(InBags(item) / need) or 0
+                    can = can and math.min(can, n) or n
+                end
+                if can and can > 0 then
+                    local isCurrent = type(recipe.name) == "string" and currentCraft[recipe.name:lower()] or false
+                    local warn
+                    if not isCurrent then
+                        for _, mat in ipairs(recipe.mats) do
+                            local entry = reserved[mat[1]]
+                            if entry then
+                                warn = string.format("uses %s that %s needs", entry.name, entry.step)
+                                break
+                            end
+                        end
+                    end
+                    rows[#rows + 1] = { name = recipe.name, can = can, current = isCurrent, warn = warn, prof = recipe.prof }
+                end
+            end
+        end
+    else
+        -- No profession window read yet: the guide's own steps, from the current one on.
+        for _, profession in ipairs(list) do
+            local guide = profession.guide
+            local current = guide and select(2, CurrentStep(guide, profession.rank))
+            for index = current or 1, current and #guide.steps or 0 do
+                local step = guide.steps[index]
+                if step.craft and step.mats and #step.mats > 0 then
+                    local can = CraftsReady(step)
+                    if can > 0 then
+                        rows[#rows + 1] = { name = step.craft, can = can, current = index == current, prof = guide.name,
+                            warn = index ~= current and string.format("its own step is %d-%d", step.from, step.to) or nil }
+                    end
+                end
+            end
+        end
+    end
+    table.sort(rows, function(a, b)
+        if a.current ~= b.current then
+            return a.current
+        end
+        if (a.warn == nil) ~= (b.warn == nil) then
+            return a.warn == nil
+        end
+        return tostring(a.name) < tostring(b.name)
+    end)
+    return rows, recipes and next(recipes) ~= nil
+end
+
+local function ShowCraftable()
+    local list = ReadProfessions()
+    if #list == 0 then
+        Print("You haven't learned a profession yet.")
+        return
+    end
+    local reserved = Reserved(list)
+    local rows, fromWindow = CraftableNow(list, reserved)
+    Print("|cffffd100What you can craft now|r |cff999999(from your bags)|r")
+    if #rows == 0 then
+        Print("  Nothing: no recipe has all its materials in your bags.")
+    end
+    for index = 1, math.min(#rows, 25) do
+        local row = rows[index]
+        local tag = row.current and " |cff66dd66(current step)|r" or ""
+        local warn = row.warn and (" |cffff9933keep: " .. row.warn .. "|r") or ""
+        Print(string.format("  %s x%d%s%s", row.name, row.can, tag, warn))
+    end
+    if #rows > 25 then
+        Print(string.format("  ...and %d more.", #rows - 25))
+    end
+    if not fromWindow then
+        Print("  |cff999999Only guide recipes are listed. Open a profession window once to list every recipe you know.|r")
+    end
+    -- Materials kept for later steps, and what you hold beyond everything the guide still needs.
+    local keep, spare = {}, {}
+    local seenMat = {}
+    for _, profession in ipairs(list) do
+        for _, step in ipairs(profession.guide and profession.guide.steps or {}) do
+            for _, mat in ipairs(step.mats or {}) do
+                if not seenMat[mat.itemID] then
+                    seenMat[mat.itemID] = true
+                    local owned = Owned(mat.itemID)
+                    local entry = reserved[mat.itemID]
+                    if entry and entry.later and owned > 0 then
+                        keep[#keep + 1] = string.format("%d %s for %s", math.min(owned, entry.need), mat.name, entry.step)
+                    end
+                    local extra = owned - (entry and entry.need or 0)
+                    if extra > 0 then
+                        local price = AuctionPrice(mat.itemID)
+                        spare[#spare + 1] = string.format("%d %s%s", extra, mat.name,
+                            price and string.format(" |cff999999(about %s at the auction house)|r", MoneyText(price * extra)) or "")
+                    end
+                end
+            end
+        end
+    end
+    if #keep > 0 then
+        table.sort(keep)
+        Print("|cffffd100Keep for later steps|r")
+        for _, text in ipairs(keep) do
+            Print("  " .. text)
+        end
+    end
+    if #spare > 0 then
+        table.sort(spare)
+        Print("|cffffd100More than your guide steps need|r |cff999999(bags and bank)|r")
+        for _, text in ipairs(spare) do
+            Print("  " .. text)
+        end
+    end
+end
+
 local function ShowPage(arg)
     local text = tostring(arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
     local lower = text:lower()
     if lower == "" then
         ShowOverview()
+    elseif lower == "craft" or lower == "now" then
+        ShowCraftable()
     elseif lower == "shopping" or lower == "list" then
         ShowShopping()
     elseif lower == "trainer" or lower:match("^trainer%s") then
@@ -721,6 +1007,24 @@ end
 
 SLASH_PROFESSIONGUIDE1 = "/profguide"
 SlashCmdList.PROFESSIONGUIDE = ShowPage
+
+-- TRADE_SKILL_SHOW / TRADE_SKILL_LIST_UPDATE (TradeSkillUIDocumentation:1387/1375; neither is a CallbackEvent).
+local scanner = CreateFrame and CreateFrame("Frame")
+if scanner then
+    pcall(scanner.RegisterEvent, scanner, "TRADE_SKILL_SHOW")
+    pcall(scanner.RegisterEvent, scanner, "TRADE_SKILL_LIST_UPDATE")
+    scanner:SetScript("OnEvent", function()
+        local now = GetTime and Safe(GetTime()) or nil
+        if type(now) == "number" and lastScan and now - lastScan < SCAN_SECONDS then
+            return
+        end
+        lastScan = type(now) == "number" and now or nil
+        local ok, err = pcall(ScanRecipes)
+        if not ok and geterrorhandler then
+            geterrorhandler()(err)
+        end
+    end)
+end
 
 ForeverHubStatus = ForeverHubStatus or {}
 -- One row, only when you already own the mats for at least one craft of a current step.

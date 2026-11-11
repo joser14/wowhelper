@@ -2,7 +2,7 @@
 ## OptionalDeps: ForeverHub
 ## Title: RepWatch
 ## Notes: Shows reputation gained this session and how far each faction is from its next standing. Only gives information.
-## Version: 0.1.2
+## Version: 0.2.0
 ## SavedVariablesPerCharacter: RepWatchDB
 
 RepWatch.lua

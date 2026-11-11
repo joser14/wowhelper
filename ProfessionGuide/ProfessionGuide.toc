@@ -1,8 +1,9 @@
 ## Interface: 16001
 ## Title: ProfessionGuide
 ## Notes: Leveling paths for every profession: what to make next, the materials you still need, and where the trainers are. Only gives information.
-## Version: 0.1.0
+## Version: 0.2.0
 ## OptionalDeps: ForeverHub
+## SavedVariablesPerCharacter: ProfessionGuideDB
 
 Data_Alchemy.lua
 Data_Blacksmithing.lua

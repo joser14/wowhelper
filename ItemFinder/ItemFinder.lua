@@ -101,6 +101,12 @@ local FIRST_GEAR_SLOT, LAST_GEAR_SLOT = 1, 19
 local MAX_RESULTS = 30
 local MAIL_DAYS = 30
 local DAY = 86400
+-- Round 5 (research\re_round5.md #14): mail that expires within this long is warned about, once per login as
+-- a pop-up and at the top of every search. Expired mail is returned or deleted by the game, so it matters.
+local EXPIRY_WARN = 3 * DAY
+local LOGIN_WARN_DELAY = 8       -- seconds after login, so the hub window is ready for the pop-up
+local MAX_MONEY_MAIL = 50        -- mails with money kept per character (for the warning only)
+local EXPIRING_COMMAND = "expiring"
 -- Places in the order searches and tooltips list them, with their labels.
 local PLACES = { "bags", "keys", "bank", "gear", "mail" }
 local PLACE_LABEL = { bags = "bags", keys = "keyring", bank = "bank", gear = "worn", mail = "mail" }
@@ -110,6 +116,7 @@ local LEGACY = { bags = "bags", bank = "bank", gear = "gear" }
 local charData
 local bankOpen = false
 local myKey
+local warnedThisLogin = false
 
 local function Safe(value)
     if issecretvalue and issecretvalue(value) then
@@ -318,6 +325,21 @@ local function RebuildMail(record)
             end
         end
     end
+    -- Mail holding only money: kept for the expiry warning, not counted as items.
+    local money = record.mailMoney
+    if type(money) == "table" then
+        for index = #money, 1, -1 do
+            local entry = money[index]
+            if type(entry) ~= "table" or type(entry.expires) ~= "number" or entry.expires <= now or type(entry.money) ~= "number" then
+                table.remove(money, index)
+            end
+        end
+        if #money == 0 then
+            record.mailMoney = nil
+        end
+    elseif money ~= nil then
+        record.mailMoney = nil
+    end
     Items(record).mail = counts
     PruneNames(record)
 end
@@ -335,10 +357,13 @@ local function SaveInbox()
     if type(total) ~= "number" then
         return
     end
-    local now, inbox = time(), {}
+    local now, inbox, moneyMail = time(), {}, {}
     local names = Items(charData) and charData.names
     for index = 1, total do
-        local _, _, _, _, _, _, daysLeft, hasItem = Call(GetInboxHeaderInfo, index)
+        local _, _, _, _, money, _, daysLeft, hasItem = Call(GetInboxHeaderInfo, index)
+        if type(money) == "number" and money > 0 and type(daysLeft) == "number" and #moneyMail < MAX_MONEY_MAIL then
+            moneyMail[#moneyMail + 1] = { money = money, expires = now + daysLeft * DAY }
+        end
         if hasItem and type(daysLeft) == "number" then
             for attachment = 1, ATTACHMENTS_MAX_RECEIVE or 16 do
                 local link = Call(GetInboxItemLink, index, attachment)
@@ -352,6 +377,7 @@ local function SaveInbox()
         end
     end
     charData.inbox = #inbox > 0 and inbox or nil
+    charData.mailMoney = #moneyMail > 0 and moneyMail or nil
     -- Everything sent here is in the inbox now (or was taken out), so the guesses from sending are done.
     charData.incoming = nil
     RebuildMail(charData)
@@ -438,6 +464,108 @@ local function DisplayName(key, data, short)
     return short and key:match("^[^-]+") or key
 end
 
+-- Mail expiry ------------------------------------------------------------------------------------------
+
+local function LeftText(seconds)
+    if seconds < 3600 then
+        return "in under an hour"
+    elseif seconds < DAY then
+        local hours = math.floor(seconds / 3600)
+        return string.format("in %d hour%s", hours, hours == 1 and "" or "s")
+    end
+    local days = math.floor(seconds / DAY)
+    return string.format("in %d day%s", days, days == 1 and "" or "s")
+end
+
+local function MoneyText(copper)
+    local gold, silver, rest = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+    if gold > 0 then
+        return string.format("%dg %ds", gold, silver)
+    elseif silver > 0 then
+        return string.format("%ds %dc", silver, rest)
+    end
+    return string.format("%dc", rest)
+end
+
+-- Every character's stored mail that expires within `within` seconds (nil = any), soonest first:
+-- { { name, items = n, money = copper, soonest = expires } }. Read from what was saved when each mailbox
+-- was last opened (and mail you sent to your own characters).
+local function ExpiringMail(within)
+    local now = time()
+    local list = {}
+    for key, record in pairs(ItemFinderDB or {}) do
+        if type(record) == "table" then
+            local entry = { name = DisplayName(key, record), items = 0, money = 0 }
+            local function consider(expires)
+                if type(expires) == "number" and expires > now and (not within or expires - now <= within) then
+                    entry.soonest = math.min(entry.soonest or expires, expires)
+                    return true
+                end
+            end
+            for _, field in ipairs({ "inbox", "incoming" }) do
+                for _, mail in ipairs(type(record[field]) == "table" and record[field] or {}) do
+                    if type(mail) == "table" and consider(mail.expires) then
+                        entry.items = entry.items + (tonumber(mail.count) or 1)
+                    end
+                end
+            end
+            for _, mail in ipairs(type(record.mailMoney) == "table" and record.mailMoney or {}) do
+                if type(mail) == "table" and type(mail.money) == "number" and consider(mail.expires) then
+                    entry.money = entry.money + mail.money
+                end
+            end
+            if entry.soonest then
+                list[#list + 1] = entry
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.soonest ~= b.soonest then
+            return a.soonest < b.soonest
+        end
+        return a.name < b.name
+    end)
+    return list, now
+end
+
+local function ExpiringEntryText(entry, now)
+    local parts = {}
+    if entry.items > 0 then
+        parts[#parts + 1] = string.format("%d item%s", entry.items, entry.items == 1 and "" or "s")
+    end
+    if entry.money > 0 then
+        parts[#parts + 1] = MoneyText(entry.money)
+    end
+    return string.format("%s: %s, first %s", entry.name, table.concat(parts, " and "), LeftText(entry.soonest - now))
+end
+
+-- One line about mail running out in the next three days, or nil.
+local function ExpiryWarning()
+    local list, now = ExpiringMail(EXPIRY_WARN)
+    if #list == 0 then
+        return nil
+    end
+    local parts = {}
+    for _, entry in ipairs(list) do
+        parts[#parts + 1] = ExpiringEntryText(entry, now)
+    end
+    return "|cffff9933Mail expiring soon|r: " .. table.concat(parts, "; ") .. ". Take it out before it's returned or lost."
+end
+
+local function ShowExpiring()
+    local list, now = ExpiringMail(nil)
+    if #list == 0 then
+        Print("No mail stored for any of your characters. Mail is read when you open each character's mailbox.")
+        return
+    end
+    Print("|cffffd100Mail by character, soonest to expire first|r")
+    for _, entry in ipairs(list) do
+        local warn = entry.soonest - now <= EXPIRY_WARN and "|cffff9933" or ""
+        Print(warn .. ExpiringEntryText(entry, now) .. (warn ~= "" and "|r" or ""))
+    end
+    Print("|cff999999As of the last time each mailbox was opened; mail taken out on another computer may still be listed.|r")
+end
+
 -- Counts of one item on a record, by ID (or by name in an old record). Returns { [place] = n }.
 local function CountsOn(record, id, name)
     local counts = {}
@@ -491,6 +619,11 @@ local function Search(term)
         end
         return a.place < b.place
     end)
+    -- The search page is ItemFinder's window, so mail about to expire is shown on top of every search.
+    local warning = ExpiryWarning()
+    if warning then
+        Print(warning .. " |cff999999Type: " .. EXPIRING_COMMAND .. "|r")
+    end
     for index = 1, math.min(#matches, MAX_RESULTS) do
         local match = matches[index]
         Print(string.format("%s: %s x%d (%s)", match.name, match.character, match.count, match.place))
@@ -579,7 +712,7 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
                 end
             end
             -- Mail that has expired since is gone (returned or deleted).
-            if ItemFinderDB[other] and (record.inbox or record.incoming) then
+            if ItemFinderDB[other] and (record.inbox or record.incoming or record.mailMoney) then
                 RebuildMail(record)
             end
         end
@@ -589,6 +722,21 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         end
         SaveBags()
         SaveGear()
+        -- One pop-up per login when any character's mail runs out within three days.
+        if not warnedThisLogin then
+            warnedThisLogin = true
+            local function warn()
+                local text = ExpiryWarning()
+                if text then
+                    Print(text .. " Details on the Find an item page: type " .. EXPIRING_COMMAND .. ".")
+                end
+            end
+            if C_Timer and C_Timer.After then
+                C_Timer.After(LOGIN_WARN_DELAY, warn)
+            else
+                warn()
+            end
+        end
         return
     end
     if not charData then
@@ -643,7 +791,13 @@ SlashCmdList.ITEMFINDER = function(message)
         return
     end
     if term == "" then
-        Print("Use /find <part of an item name, an item ID, or a shift-clicked item>. Bank items appear after you've opened that character's bank, mail after you've opened its mailbox.")
+        Print("Use /find <part of an item name, an item ID, or a shift-clicked item>. Bank items appear after you've opened that character's bank, mail after you've opened its mailbox. Type " .. EXPIRING_COMMAND .. " to see when each character's mail runs out.")
+        local warning = ExpiryWarning()
+        if warning then
+            Print(warning)
+        end
+    elseif term:lower() == EXPIRING_COMMAND then
+        ShowExpiring()
     else
         Search(term)
     end

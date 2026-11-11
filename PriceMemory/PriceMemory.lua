@@ -12,7 +12,14 @@
 --   qty = how many were listed then,
 --   days = { [dayNumber] = { min = lowest, max = highest of the lowest prices seen that day, qty = most listed } },
 --   suffixes = { [itemSuffix] = { price, seen, qty } }   -- random-suffix variants, from item searches
+--   speed = { watched = seconds, sold = units, value = copper, since = time }   -- sell speed, see below
 -- }
+--
+-- Sell speed (research\re_round5.md #13; the method is Turnover's, MIT, idea only, no code taken; its
+-- automatic scans are not): when YOU search the same item again within 15 minutes, an auction that was in
+-- the first full list and is gone from the second, although its time left was longer than the gap, was
+-- bought (or cancelled, so this is a lower bound). A new auction with the same quantity and price as a
+-- missing one is a relist, not a sale. Your own auctions are left out. Shown once 10 minutes were watched.
 
 local SECONDS_PER_HOUR, SECONDS_PER_DAY = 3600, 86400
 local HISTORY_DAYS = 14          -- days of min/max/quantity kept per item
@@ -22,6 +29,13 @@ local STALE_SECONDS = 10 * SECONDS_PER_DAY  -- older than this counts as an old 
 local BROWSE_BATCH = 500         -- a browse list longer than this was already read as it grew
 local MAX_MERCHANT_ITEMS = 200
 local VENDOR_KEY = "__vendor"
+local SPEED_GAP = 15 * 60        -- two searches further apart than this aren't compared
+local SPEED_MIN_WATCHED = 10 * 60   -- watched time needed before a speed is shown
+local SPEED_KEEP = 7 * SECONDS_PER_DAY   -- a speed older than this starts over
+local MAX_SNAPSHOTS = 30         -- items whose last full result list is kept in memory (never saved)
+local MAX_SNAPSHOT_ROWS = 500    -- longer lists aren't compared
+-- AuctionHouseTimeLeftBand (AuctionHouseEnumsDocumentation): the least time each band can have left.
+local BAND_MIN_SECONDS = { [0] = 0, [1] = 30 * 60, [2] = 2 * 3600, [3] = 12 * 3600 }
 
 local function Safe(value)
     if issecretvalue and issecretvalue(value) then
@@ -230,6 +244,144 @@ local function OnBrowseUpdated()
 end
 
 ----------------------------------------------------------------------------------------------------
+-- Sell speed from two full result lists of the same item (kept in memory only, never saved)
+
+local building, finished = {}, {}
+local finishedCount = 0
+
+local function StartSnapshot(key, id)
+    local now = Now()
+    -- Lists that never filled up (you clicked away) are of no use later.
+    for other, snap in pairs(building) do
+        if (snap.at or 0) < now - SPEED_GAP then
+            building[other] = nil
+        end
+    end
+    building[key] = { id = id, at = now, rows = {}, rowCount = 0, qty = 0 }
+end
+
+-- One result row: its auction ID, quantity, unit price (nil for bid-only) and least time left (nil if unknown).
+local function AddSnapshotRow(key, row, unitPrice)
+    local snap = building[key]
+    if not snap or snap.done or type(row) ~= "table" then
+        return
+    end
+    local quantity = Number(row.quantity) or 0
+    snap.qty = snap.qty + quantity
+    local auctionID = Number(row.auctionID)
+    if not auctionID then
+        snap.bad = true -- can't be matched with a later list
+        return
+    end
+    -- Your own auctions: their disappearing says nothing about buyers.
+    local own = Safe(row.containsOwnerItem)
+    local ownCount = Number(row.numOwnerItems)
+    if own == true or (ownCount and ownCount > 0) then
+        return
+    end
+    snap.rowCount = snap.rowCount + 1
+    if snap.rowCount > MAX_SNAPSHOT_ROWS then
+        snap.bad = true
+        return
+    end
+    local left = Number(row.timeLeftSeconds)
+    if not left then
+        local band = Number(row.timeLeft)
+        left = band and BAND_MIN_SECONDS[band]
+    end
+    snap.rows[auctionID] = { qty = quantity, price = unitPrice, left = left }
+end
+
+local function RecordSpeed(id, watched, sold, value, valued, now)
+    local entry = EntryFor(PriceTable(true), id)
+    local speed = entry.speed
+    if type(speed) ~= "table" or type(speed.since) ~= "number" or now - speed.since > SPEED_KEEP then
+        speed = { watched = 0, sold = 0, value = 0, valued = 0, since = now }
+        entry.speed = speed
+    end
+    speed.watched = (tonumber(speed.watched) or 0) + watched
+    speed.sold = (tonumber(speed.sold) or 0) + sold
+    speed.value = (tonumber(speed.value) or 0) + value
+    speed.valued = (tonumber(speed.valued) or 0) + valued
+    speed.seen = now
+end
+
+-- Compares the last full list with this one and records what was bought in between.
+local function CompareSnapshots(old, new)
+    if not (old and new and old.at and new.at) or old.bad or new.bad then
+        return
+    end
+    local gap = new.at - old.at
+    if gap <= 0 or gap > SPEED_GAP then
+        return
+    end
+    -- New auctions that could be a missing one put up again.
+    local fresh = {}
+    for auctionID, row in pairs(new.rows) do
+        if not old.rows[auctionID] then
+            fresh[#fresh + 1] = row
+        end
+    end
+    local sold, value, valued = 0, 0, 0
+    local function count(units, price)
+        sold = sold + units
+        if price then
+            value, valued = value + units * price, valued + units
+        end
+    end
+    for auctionID, row in pairs(old.rows) do
+        local now = new.rows[auctionID]
+        if now then
+            -- Part of a commodity stack was bought.
+            if now.qty < row.qty then
+                count(row.qty - now.qty, row.price)
+            end
+        elseif row.left and row.left > gap then
+            local relist
+            for index, candidate in ipairs(fresh) do
+                if not candidate.used and candidate.qty == row.qty and candidate.price == row.price then
+                    relist = index
+                    break
+                end
+            end
+            if relist then
+                fresh[relist].used = true
+            else
+                count(row.qty, row.price)
+            end
+        end
+    end
+    RecordSpeed(new.id, gap, sold, value, valued, new.at)
+end
+
+-- Called after rows were read: once the list holds every auction, it is compared and kept.
+local function FinishSnapshot(key, totalQuantity)
+    local snap = building[key]
+    if not snap or snap.done or not totalQuantity or snap.qty ~= totalQuantity then
+        return
+    end
+    snap.done = true
+    building[key] = nil
+    pcall(CompareSnapshots, finished[key], snap)
+    if not finished[key] then
+        finishedCount = finishedCount + 1
+    end
+    finished[key] = snap
+    if finishedCount > MAX_SNAPSHOTS then
+        local oldestKey, oldestAt
+        for other, value in pairs(finished) do
+            if not oldestAt or (value.at or 0) < oldestAt then
+                oldestKey, oldestAt = other, value.at or 0
+            end
+        end
+        if oldestKey then
+            finished[oldestKey] = nil
+            finishedCount = finishedCount - 1
+        end
+    end
+end
+
+----------------------------------------------------------------------------------------------------
 -- Commodity results (you clicked a stackable item such as cloth or herbs)
 
 -- How many rows of each search were already read, so added rows are read only once.
@@ -244,8 +396,10 @@ local function ReadCommodity(itemID, fresh)
     if not itemID then
         return
     end
+    local key = "c:" .. itemID
     if fresh then
         commodityRead[itemID], commodityLow[itemID] = 0, nil
+        StartSnapshot(key, itemID)
     end
     local total = Number(api.GetNumCommoditySearchResults(itemID)) or 0
     local low = commodityLow[itemID]
@@ -256,13 +410,15 @@ local function ReadCommodity(itemID, fresh)
         if price and price > 0 and quantity ~= 0 and not (low and low <= price) then
             low = price
         end
+        AddSnapshotRow(key, row, price or nil)
     end
     commodityRead[itemID] = math.max(total, commodityRead[itemID] or 0)
     commodityLow[itemID] = low
+    local quantity = api.GetCommoditySearchResultsQuantity and Number(api.GetCommoditySearchResultsQuantity(itemID))
     if low then
-        local quantity = api.GetCommoditySearchResultsQuantity and Number(api.GetCommoditySearchResultsQuantity(itemID))
         Record(PriceTable(true), itemID, low, quantity, Now())
     end
+    FinishSnapshot(key, quantity)
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -286,8 +442,10 @@ local function ReadItems(itemKey, fresh)
         return
     end
     local text = KeyText(itemKey)
+    local key = "i:" .. text
     if fresh then
         itemRead[text], itemLow[text] = 0, nil
+        StartSnapshot(key, id)
     end
     local total = Number(api.GetNumItemSearchResults(itemKey)) or 0
     local low = itemLow[text]
@@ -297,19 +455,22 @@ local function ReadItems(itemKey, fresh)
         local quantity = type(row) == "table" and Number(row.quantity) or 1
         -- Bid-only auctions have no buyout and say nothing firm about the price.
         -- Assumed: buyoutAmount covers the whole auction, so it is split by its quantity (almost always 1).
+        local unit
         if buyout and buyout > 0 and quantity > 0 then
-            local unit = math.floor(buyout / quantity + 0.5)
+            unit = math.floor(buyout / quantity + 0.5)
             if not (low and low <= unit) then
                 low = unit
             end
         end
+        AddSnapshotRow(key, row, unit)
     end
     itemRead[text] = math.max(total, itemRead[text] or 0)
     itemLow[text] = low
+    local quantity = api.GetItemSearchResultsQuantity and Number(api.GetItemSearchResultsQuantity(itemKey))
     if not low then
+        FinishSnapshot(key, quantity)
         return
     end
-    local quantity = api.GetItemSearchResultsQuantity and Number(api.GetItemSearchResultsQuantity(itemKey))
     local suffix = Number(itemKey.itemSuffix) or 0
     local prices, now = PriceTable(true), Now()
     if suffix ~= 0 then
@@ -317,6 +478,7 @@ local function ReadItems(itemKey, fresh)
     else
         Record(prices, id, low, quantity, now)
     end
+    FinishSnapshot(key, quantity)
 end
 
 ----------------------------------------------------------------------------------------------------
@@ -399,7 +561,9 @@ end
 --   min / max = lowest and highest of the daily lowest prices over the kept days (the price itself when
 --   there is no history yet), quantity = how many were listed the last time, days = days with history,
 --   vendorBuy = what a merchant charges per unit (unlimited stock only),
---   suffixPrice / suffixSeen = the price of that random-suffix variant, when asked for and known.
+--   suffixPrice / suffixSeen = the price of that random-suffix variant, when asked for and known,
+--   soldPerHour / soldPrice / watchedSeconds = sell speed (a lower bound) from your repeated searches, once
+--   at least 10 minutes were watched; soldPrice is the average unit price of what sold (nil if unknown).
 function PriceMemory_Get(itemID, itemSuffix)
     itemID = Number(itemID)
     if not itemID or type(PriceMemoryDB) ~= "table" then
@@ -436,6 +600,18 @@ function PriceMemory_Get(itemID, itemSuffix)
             result.suffixPrice, result.suffixSeen = variant.price, variant.seen
         end
     end
+    local speed = type(entry) == "table" and entry.speed
+    local watched = type(speed) == "table" and tonumber(speed.watched)
+    if watched and watched >= SPEED_MIN_WATCHED and type(speed.since) == "number" and Now() - speed.since <= SPEED_KEEP then
+        result = result or {}
+        local sold = tonumber(speed.sold) or 0
+        result.soldPerHour = sold * SECONDS_PER_HOUR / watched
+        result.watchedSeconds = watched
+        local valued = tonumber(speed.valued) or 0
+        if valued > 0 then
+            result.soldPrice = math.floor((tonumber(speed.value) or 0) / valued + 0.5)
+        end
+    end
     local vendor = type(PriceMemoryDB[VENDOR_KEY]) == "table" and PriceMemoryDB[VENDOR_KEY][itemID]
     if type(vendor) == "table" and type(vendor.buy) == "number" and vendor.buy > 0 then
         result = result or {}
@@ -447,13 +623,33 @@ end
 ----------------------------------------------------------------------------------------------------
 -- Own tooltip line, only when the Tooltips helper isn't there to show it
 
+-- The Tooltips helper shows the price (and can switch it off); without it PriceMemory adds its own line.
+-- Tooltips has no sell-speed line, so that one is always PriceMemory's.
+local ownPriceLine = true
+
+local function SpeedText(record)
+    if not record.soldPerHour then
+        return nil
+    end
+    local minutes = math.floor(record.watchedSeconds / 60)
+    if record.soldPerHour <= 0 then
+        return string.format("Auction: none bought in %d min you watched", minutes)
+    end
+    local near = record.soldPrice and (" near " .. FormatMoney(record.soldPrice)) or ""
+    return string.format("Auction: about %.1f bought per hour%s (at least; %d min watched)", record.soldPerHour, near, minutes)
+end
+
 local function OnTooltip(tooltip)
     if not PriceMemoryDB or (tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip) then
         return
     end
     local _, _, id = TooltipUtil.GetDisplayedItem(tooltip)
     local record = PriceMemory_Get(id)
-    if record and record.price then
+    local speed = record and SpeedText(record)
+    if speed then
+        tooltip:AddLine(speed, 0.9, 0.8, 0.4)
+    end
+    if ownPriceLine and record and record.price then
         local note = record.legacy and " (older save, realm/faction unknown)" or ""
         if record.stale then
             note = note .. " (old)"
@@ -516,8 +712,9 @@ events:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
         PriceMemoryDB = type(PriceMemoryDB) == "table" and PriceMemoryDB or {}
         pcall(Prune)
-        -- The Tooltips helper shows this price (and can switch it off); only add our own line without it.
-        if not (SlashCmdList and SlashCmdList.TOOLTIPS) and TooltipDataProcessor and TooltipUtil and Enum and Enum.TooltipDataType then
+        -- The Tooltips helper shows this price (and can switch it off); only add our own price line without it.
+        ownPriceLine = not (SlashCmdList and SlashCmdList.TOOLTIPS)
+        if TooltipDataProcessor and TooltipUtil and Enum and Enum.TooltipDataType then
             TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
                 pcall(OnTooltip, tooltip)
             end)
