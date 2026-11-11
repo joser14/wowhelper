@@ -711,8 +711,9 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
                     ItemFinderDB[other] = nil
                 end
             end
-            -- Mail that has expired since is gone (returned or deleted).
-            if ItemFinderDB[other] and (record.inbox or record.incoming or record.mailMoney) then
+            -- Mail that has expired since is gone (returned or deleted). A saved entry that isn't a
+            -- character record is skipped, as every other reader of ItemFinderDB does.
+            if type(record) == "table" and ItemFinderDB[other] and (record.inbox or record.incoming or record.mailMoney) then
                 RebuildMail(record)
             end
         end
