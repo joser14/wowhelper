@@ -114,7 +114,7 @@ local PLACE_LABEL = { bags = "bags", keys = "keyring", bank = "bank", gear = "wo
 local LEGACY = { bags = "bags", bank = "bank", gear = "gear" }
 
 local charData
-local bankOpen = false
+local bankOpen, mailOpen = false, false
 local myKey
 local warnedThisLogin = false
 
@@ -758,8 +758,12 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
     elseif event == "PLAYERBANKSLOTS_CHANGED" then
         SaveBank()
     elseif event == "MAIL_INBOX_UPDATE" then
-        SaveInbox()
+        -- Only while the mailbox is open: an update with it closed could read an empty inbox and wipe the saved one.
+        if mailOpen then
+            SaveInbox()
+        end
     elseif event == "MAIL_SHOW" or event == "MAIL_CLOSED" then
+        mailOpen = (event == "MAIL_SHOW")
         outgoing, sending = {}, nil
     elseif event == "MAIL_SEND_INFO_UPDATE" then
         -- The game empties the attachments just before MAIL_SEND_SUCCESS; keep the last full list.
