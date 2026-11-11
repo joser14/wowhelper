@@ -86,11 +86,12 @@ fire("PLAYER_LOGIN")
 fire("TRAINER_SHOW")
 local text = badgeText(ClassTrainerFrame)
 assert(text == "10% off at Honored with Stormwind", "closest faction named, got " .. tostring(text))
--- 2. Honored with one: the discount is on.
+-- 2. Honored with one: the discount is on at that faction's trainers. This trainer's prices can't tell
+-- (no services), so the badge names where it applies (review 4 note 10; prices checked in test_fix4_wb.lua).
 rep[47].reaction = 6
 fire("TRAINER_UPDATE")
 text = badgeText(ClassTrainerFrame)
-assert(text == "10% off (Honored with Ironforge)", "discount on, got " .. tostring(text))
+assert(text == "10% off at Ironforge trainers", "discount on, got " .. tostring(text))
 -- 3. A profession trainer: no badge. Reputation unreadable or no data: no badge.
 fire("TRAINER_CLOSED")
 C_Trainer.GetTrainerType = function() return 2 end

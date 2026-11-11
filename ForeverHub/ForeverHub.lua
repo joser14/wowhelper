@@ -1170,13 +1170,24 @@ local function ToSixty()
     end
 end
 
+-- Bookkeeping the stat lines rely on, also done while the panel is hidden (perf audit 8): old XP samples
+-- leave the window, and gold is counted from the first time it can be read.
+local function StatsUpkeep(now)
+    while xpSamples[1] and now - xpSamples[1].time > XP_WINDOW_SECONDS do
+        table.remove(xpSamples, 1)
+    end
+    local money = Safe(GetMoney())
+    if money and not session.money then
+        -- Gold was hidden at login; start counting from the first time it can be read.
+        session.money, session.moneySince = money, now
+    end
+end
+
 -- The always-on panel: your rates at the top, then only what needs doing.
 local function RefreshStats()
     local now = GetTime()
     local elapsed = math.max(now - session.start, 60)
-    while xpSamples[1] and now - xpSamples[1].time > XP_WINDOW_SECONDS do
-        table.remove(xpSamples, 1)
-    end
+    StatsUpkeep(now)
     local recentXP = 0
     for _, sample in ipairs(xpSamples) do
         recentXP = recentXP + sample.amount
@@ -1224,11 +1235,7 @@ local function RefreshStats()
         statLines[5]:SetText("")
     end
     local money = Safe(GetMoney())
-    if money and not session.money then
-        -- Gold was hidden at login; start counting from the first time it can be read.
-        session.money, session.moneySince = money, now
-    end
-    if money then
+    if money and session.money then
         local earned = money - session.money
         local goldElapsed = now - session.moneySince
         if earned == 0 or goldElapsed < GOLD_RATE_MIN_SECONDS then
@@ -1369,6 +1376,21 @@ local function BuildPanel()
         panel:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", db.panelTopLeft[1], db.panelTopLeft[2])
     else
         panel:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -220)
+    end
+    -- The ticker skips the stat lines while the panel is hidden (perf audit 8): fresh ones when it shows.
+    local function RefreshOnShow()
+        if not (session and session.start and statLines[5]) then
+            return
+        end
+        local ok, err = pcall(RefreshStats)
+        if not ok then
+            geterrorhandler()(err)
+        end
+    end
+    if panel.GetScript and panel:GetScript("OnShow") and panel.HookScript then
+        panel:HookScript("OnShow", RefreshOnShow)
+    else
+        panel:SetScript("OnShow", RefreshOnShow)
     end
 
     local details = CreateFrame("Button", nil, panel)
@@ -1648,7 +1670,14 @@ local ROWS_REFRESH_SECONDS = 5
 local rowsAt
 
 local function OnTick()
-    Attempt(RefreshStats)
+    -- Lines nobody sees aren't formatted (perf audit 8); the panel's OnShow refreshes them.
+    if panel and panel:IsShown() then
+        Attempt(RefreshStats)
+    elseif session.start then
+        Attempt(function()
+            StatsUpkeep(GetTime())
+        end)
+    end
     local now = GetTime()
     local due = rowsDirty or not rowsAt or now - rowsAt >= ROWS_REFRESH_SECONDS
     if due and panel and panel:IsShown() and not (InCombatLockdown and InCombatLockdown()) then

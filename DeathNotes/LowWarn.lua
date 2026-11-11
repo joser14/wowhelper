@@ -99,8 +99,12 @@ local function HideAll()
     end
 end
 
+-- In a fight, from the regen events (review 4, suspicion 1): PLAYER_REGEN_DISABLED is commonly dispatched
+-- before InCombatLockdown() turns true, and the cue must show at once rather than wait for the next health
+-- or mana event. InCombatLockdown() only seeds it at login (a /reload in the middle of a fight).
+local fighting = false
 local function InCombat()
-    return InCombatLockdown and InCombatLockdown() and true or false
+    return fighting
 end
 
 -- Out of combat (values readable): whether you have a mana bar at all (warriors and rogues don't).
@@ -164,16 +168,22 @@ for _, name in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "U
 end
 events:SetScript("OnEvent", function(_, event, unit)
     if event == "PLAYER_LOGIN" then
+        fighting = InCombatLockdown and InCombatLockdown() and true or false
         Build()
         ReadMana()
+        if fighting then
+            ApplyNow()
+        end
         return
     elseif not edge then
         return
     elseif event == "PLAYER_REGEN_ENABLED" then
+        fighting = false
         ReadMana()
         ApplyNow()   -- hides
         return
     elseif event == "PLAYER_REGEN_DISABLED" then
+        fighting = true
         ApplyNow()
         return
     end

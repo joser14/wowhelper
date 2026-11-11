@@ -97,33 +97,35 @@ print("1 ok")
 ----- 2. Buff reminders: opt in by typing a buff you have; a pop-up at 3 minutes and when gone; never in
 ----- combat; none before the login delay; "ran out while you were away" after login.
 runTimers() -- the login delay passes
+-- FoodCheck coalesces your UNIT_AURA bursts (perf audit 10): the check runs on the timer right after.
+local function auraNow() fire(fc, "UNIT_AURA", "player"); runTimers() end
 auras["Well Fed"] = { spellId = 24870, name = "Well Fed", expirationTime = now + 900 }
 out = {}
 SlashCmdList.FOODCHECK("remind well fed")
 assert(text():find("Watching Well Fed.", 1, true), "opt in:\n" .. text())
 assert(text():find("Reminder: Well Fed, 15 min left", 1, true), "listed:\n" .. text())
 out = {}
-fire(fc, "UNIT_AURA", "player")
+auraNow()
 assert(#out == 0, "plenty left: quiet")
 now = now + 750
-fire(fc, "UNIT_AURA", "player")
+auraNow()
 assert(text():find("Well Fed runs out in 3 min.", 1, true), "low:\n" .. text())
 out = {}
-fire(fc, "UNIT_AURA", "player")
+auraNow()
 assert(#out == 0, "warned once")
 -- In combat the buff can't be read: never "gone".
 auras = {}
 combat = true
 fire(fc, "PLAYER_REGEN_ENABLED")
-fire(fc, "UNIT_AURA", "player")
+auraNow()
 assert(#out == 0, "combat: unknown, no pop-up")
 combat = false
-fire(fc, "UNIT_AURA", "player")
+auraNow()
 assert(text():find("Well Fed is gone.", 1, true), "gone:\n" .. text())
 -- Another Well Fed (a different food, another spell ID) re-arms it by name.
 auras["Well Fed"] = { spellId = 99999, name = "Well Fed", expirationTime = now + 900 }
 out = {}
-fire(fc, "UNIT_AURA", "player")
+auraNow()
 assert(#out == 0, "back: quiet")
 -- A buff you don't have can't be added; stop removes one.
 out = {}
@@ -137,7 +139,7 @@ SlashCmdList.FOODCHECK("remind weapon")
 assert(text():find("Watching your weapon oil or stone.", 1, true), "weapon:\n" .. text())
 enchant = {}
 out = {}
-fire(fc, "UNIT_AURA", "player")
+auraNow()
 assert(text():find("Weapon oil or stone is gone.", 1, true), "weapon gone:\n" .. text())
 out = {}
 SlashCmdList.FOODCHECK("stop weapon")

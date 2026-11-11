@@ -113,6 +113,40 @@ XP Horizon, MobSpot, TomTom/Leatrix ideas) were already credited.
 14. **NIT, RareWatch watch list learns only the first NPC ID for a name**: a second NPC with the same name and a
     different ID no longer matches once the first ID is stored (MobSpot's behaviour, kept).
 
+## Follow-up fixes (fix4, 2026-11-11)
+
+Fixed from code, each with a `tests\test_fix4_*.lua` that failed first; `tests\runall.ps1`: 0 failed.
+
+| # | Fix | Test |
+|---|-----|------|
+| 1 | LowWarn tracks combat from `PLAYER_REGEN_DISABLED/ENABLED` (seeded from `InCombatLockdown()` at login), so the cue shows at the start of a fight and hides at its end even if the lockdown flag lags. | `test_fix4_lowwarn` |
+| 2 | ManaFull reads drink amounts with decimals and thousands commas ("1,344.6"). | `test_fix4_manafull` |
+| 3 | Dungeons re-reads Group Finder ranges every 30 s while any came back empty, at most 10 times a session; a range once read is kept. | `test_fix4_dungeons` |
+| 4 | LevelGuide: `PLAYER_ALIVE` clears the death spot only if, 1 s later, you are neither a ghost nor dead (and it's still the same spot); `PLAYER_UNGHOST` clears at once. No new top-level locals. | `test_fix4_deathspot` |
+| 5 | Dungeons doesn't store "not an upgrade" when ItemAdvisor answers false with no reason (no character data) or "still loading"/"Can't read"; the next look asks again. | `test_fix4_dungeons` |
+| 6 | TrainerNotes rank chains count a later rank only when it has the same spell name (a name still loading is trusted, as before). | `test_fix4_trainer` |
+| 7 | Warlock tomes: a known tome covers older tomes of the same pet spell (by spell name); remembered per character. | `test_fix4_trainer` |
+| 10 | WindowBadges compares this trainer's prices with TrainerNotesData's list prices: "10% off (Honored with X)" only when they show the discount, no badge at full prices, "10% off at X trainers" (gold) when it can't tell. | `test_fix4_wb` |
+| 11 | ItemAdvisor's reward coin is no longer hidden by "your current item has stats I can't score". | `test_fix4_itemadvisor` |
+| 12 | MapPins' info-line zone cache keys on your level too. | `test_fix4_mappins` |
+| 13 | A tome shared by Succubus and Incubus is listed once. | `test_fix4_trainer` |
+| 14 | RareWatch: a name entry keeps matching by name after learning an ID; extra IDs kept in `entry.ids` (max 10). New ID entries are `byID` and match only that NPC (older ID entries with a learned name also match by name). | `test_fix4_rarewatch` |
+
+Perf audit NITs: hub stat lines only refreshed while the panel is shown (XP-sample pruning and gold start still run;
+OnShow refreshes) (`test_fix4_hub`); FoodCheck coalesces your `UNIT_AURA` bursts into one check 0.5 s later
+(`test_fix4_foodcheck`); WindowBadges' watcher OnUpdate runs only while a reward, merchant or trainer window is open
+(`test_fix4_wb`); QuestMobs skips a plate whose answer is pending until its 2 s read window passes, instead of
+re-running the unit checks every frame (`test_fix4_questmobs`); ItemAdvisor debounces `QUEST_LOG_UPDATE` (one walk
+1 s after a burst) and rebuilds on demand before any verdict, so `test_itemadvisor_extra` passes unchanged
+(`test_fix4_itemadvisor`).
+
+Existing tests changed to the new behaviour: `test_windowbadges` (watcher off until a window opens),
+`test_r4a_wb_trainer` (no prices to compare: "10% off at Ironforge trainers"), `test_r3b_supplies` (runs the
+coalesced aura timer after each `UNIT_AURA`), `test_r4b_trainer_extras` (both Slam ranks named "Slam" in the mock).
+
+Left alone (need the game): 8 (edge-arrow art orientation) and 9 (outgoing mail without `MAIL_LOCK_SEND_ITEMS`).
+Still worth an in-game look: the trainer price comparison assumes TrainerNotesData's list prices match Forever's.
+
 ## Summary
 One real bug: Dungeons' upgrade check never received its three events because their registration lines had been
 folded into a comment, so uncached loot was never judged and upgrade marks went stale after new gear or a level;

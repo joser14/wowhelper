@@ -32,7 +32,8 @@ C_SpellBook = {
     IsSpellKnown = function(id, bank) if bank == 1 then return petKnown[id] == true end return known[id] == true end,
     GetNumSpellBookSkillLines = function() return 0 end,
 }
-local NAMES = { [71] = "Defensive Stance", [6572] = "Revenge", [355] = "Taunt", [7386] = "Sunder Armor" }
+-- Both Slam ranks carry the game's one name (rank chains only count same-name ranks: review 4, suspicion 6).
+local NAMES = { [71] = "Defensive Stance", [6572] = "Revenge", [355] = "Taunt", [7386] = "Sunder Armor", [1240193] = "Slam", [1464] = "Slam" }
 C_Spell = { GetSpellName = function(id) return NAMES[id] or ("S" .. id) end, GetSpellSubtext = function() return "" end }
 local rep = { [72] = { name = "Stormwind", reaction = 6 }, [47] = { name = "Ironforge", reaction = 5 } }
 C_Reputation = { GetFactionDataByID = function(id) return rep[id] end }

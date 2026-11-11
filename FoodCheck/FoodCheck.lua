@@ -361,6 +361,9 @@ SlashCmdList.FOODCHECK = function(message)
     ShowReminders()
 end
 
+local AURA_COALESCE = 0.5
+local auraCheckPending = false
+
 -- (Loaded without a frame API in some tests: then only the page works.)
 local events = CreateFrame and CreateFrame("Frame") or { RegisterEvent = function() end, SetScript = function() end }
 events:RegisterEvent("PLAYER_LOGIN")
@@ -390,8 +393,20 @@ events:SetScript("OnEvent", function(_, event, unit)
         if C_Timer and C_Timer.NewTicker then
             C_Timer.NewTicker(CHECK_SECONDS, CheckReminders)
         end
-    elseif event == "UNIT_AURA" and Safe(unit) ~= "player" then
-        return
+    elseif event == "UNIT_AURA" then
+        -- Perf audit 10: auras change in bursts (every buff, debuff and stack); one check AURA_COALESCE later.
+        if Safe(unit) ~= "player" or auraCheckPending then
+            return
+        end
+        if C_Timer and C_Timer.After then
+            auraCheckPending = true
+            C_Timer.After(AURA_COALESCE, function()
+                auraCheckPending = false
+                CheckReminders()
+            end)
+        else
+            CheckReminders()
+        end
     else
         CheckReminders()
     end

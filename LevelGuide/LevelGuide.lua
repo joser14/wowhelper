@@ -5129,7 +5129,8 @@ X.CorpseTarget = CorpseTarget
 -- corpse, and an optional sound on arriving at the arrow's target (off unless you switch it on).
 do -- (a block, so its helpers don't count toward the file's 200-local limit)
     -- PLAYER_DEAD outdoors: where you lie, per character. Cleared once you're alive again: PLAYER_UNGHOST, or
-    -- PLAYER_ALIVE while not a ghost (a resurrection; releasing your spirit fires PLAYER_ALIVE too).
+    -- PLAYER_ALIVE when a moment later you're neither a ghost nor dead (a resurrection; releasing your spirit
+    -- fires PLAYER_ALIVE too).
     function X.DeathEvent(event)
         if not charData then
             return
@@ -5142,9 +5143,30 @@ do -- (a block, so its helpers don't count toward the file's 200-local limit)
             if mapID and x and y and (x > 0 or y > 0) then
                 charData.deathSpot = { map = mapID, x = x, y = y, t = (time and Safe(time())) or Now() }
             end
-        elseif event == "PLAYER_UNGHOST" or not (UnitIsGhost and Safe(UnitIsGhost("player"))) then
+        elseif event == "PLAYER_UNGHOST" then
             charData.deathSpot = nil
+        elseif event == "PLAYER_ALIVE" then
+            -- Review 4, suspicion 4: releasing fires PLAYER_ALIVE too, and UnitIsGhost may still read false
+            -- during it. Decide a moment later; a newer death's spot (another table) is left alone.
+            local spot = charData.deathSpot
+            if spot and C_Timer and C_Timer.After then
+                C_Timer.After(1, function()
+                    pcall(X.ClearIfAlive, spot)
+                end)
+            else
+                X.ClearIfAlive(spot)
+            end
         end
+    end
+
+    function X.ClearIfAlive(spot)
+        if not (charData and spot and charData.deathSpot == spot) then
+            return
+        end
+        if (UnitIsGhost and Safe(UnitIsGhost("player"))) or (UnitIsDeadOrGhost and Safe(UnitIsDeadOrGhost("player"))) then
+            return
+        end
+        charData.deathSpot = nil
     end
 
     function X.SavedCorpse()

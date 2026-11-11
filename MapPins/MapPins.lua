@@ -1035,7 +1035,9 @@ do
 
     function Info.Zone(mapID, cx, cy)
         local key = mapID .. ":" .. math.floor(cx * 200) .. ":" .. math.floor(cy * 200)
-        if Info.zones.key == key then
+        -- Your level is part of the answer (the colour): a level-up redraws it in the same cell (review 4, note 12).
+        local level = Safe(UnitLevel("player"))
+        if Info.zones.key == key and Info.zones.level == level then
             return Info.zones.label
         end
         local label
@@ -1052,7 +1054,6 @@ do
                 end
             end
             if low then
-                local level = Safe(UnitLevel("player"))
                 local colour = "|cffffd100"
                 if type(level) == "number" and level < low then
                     colour = "|cffff4040"       -- above you
@@ -1062,7 +1063,7 @@ do
                 label = string.format("%s%s (%d-%d)|r", colour, name, low, high)
             end
         end
-        Info.zones.key, Info.zones.label = key, label
+        Info.zones.key, Info.zones.label, Info.zones.level = key, label, level
         return label
     end
 

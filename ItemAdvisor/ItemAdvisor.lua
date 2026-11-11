@@ -505,6 +505,32 @@ local function RebuildQuestItems()
     return changed
 end
 
+-- Perf audit 5: QUEST_LOG_UPDATE fires for every kill and loot. It only marks the list stale; the walk runs
+-- once QUEST_ITEMS_DELAY after the first event of a burst, or at once when a verdict needs it (Evaluate), so
+-- a tooltip right after the event still sees the new quest items.
+local QUEST_ITEMS_DELAY = 1
+local questItemsDirty = false
+local function FlushQuestItems()
+    if not questItemsDirty then
+        return
+    end
+    questItemsDirty = false
+    if RebuildQuestItems() and charData then
+        ScheduleRepaint()
+    end
+end
+local function QuestItemsChanged()
+    if questItemsDirty then
+        return
+    end
+    questItemsDirty = true
+    if C_Timer and C_Timer.After then
+        C_Timer.After(QUEST_ITEMS_DELAY, FlushQuestItems)
+    else
+        FlushQuestItems()
+    end
+end
+
 local function QuestNeeding(name)
     for _, entry in ipairs(questItems) do
         -- Text without a count is matched loosely, since there's nothing to strip.
@@ -1444,6 +1470,8 @@ local function EvaluateNow(link, isBound, inBags)
 end
 
 local function Evaluate(link, isBound, inBags)
+    -- Quest items first: a change forgets the cached verdicts (through ScheduleRepaint).
+    FlushQuestItems()
     local key = link .. (isBound and "|b" or "|") .. (inBags and "i" or "")
     local cached = verdictCache[key]
     if cached then
@@ -2067,9 +2095,11 @@ local function ReadRewardChoices()
 end
 
 -- True for a verdict that says the item couldn't be scored: no stats at all, or stats we can't weigh.
+-- "Your current item has stats I can't score" doesn't count: the choice itself was scored (review 4, note 11).
 local function RewardUnscored(verdict, reason)
     return verdict == "CHECK" and type(reason) == "string"
-        and (reason:find("can't score", 1, true) or reason:find("No stats", 1, true)) and true or false
+        and (reason:find("can't score", 1, true) or reason:find("No stats", 1, true))
+        and not reason:find("your current item", 1, true) and true or false
 end
 
 local function RefreshRewardMarks()
@@ -2295,10 +2325,8 @@ events:SetScript("OnEvent", function(_, event, arg1)
     end
     if event == "QUEST_LOG_UPDATE" then
         -- Picking up or finishing a quest can change whether an item is safe to sell. A count going up
-        -- (a loot, a kill) changes nothing here, and this event fires for every one of them.
-        if RebuildQuestItems() and charData then
-            ScheduleRepaint()
-        end
+        -- (a loot, a kill) changes nothing here, and this event fires for every one of them: debounced.
+        QuestItemsChanged()
         return
     end
     if event ~= "PLAYER_LOGIN" then

@@ -551,6 +551,22 @@ function Watch.Label(entry)
 end
 
 -- The entry for this NPC (by ID first, then by name, learning the ID), or nil.
+-- Review 4, note 14: an entry added by name keeps matching by name after it learned an ID, so a second NPC
+-- with the same name and another ID is caught too (its ID kept in entry.ids, at most Watch.MAX_IDS). An
+-- entry added by ID (byID) matches only that NPC.
+Watch.MAX_IDS = 10
+function Watch.HasID(entry, npcID)
+    if entry.id == npcID then
+        return true
+    end
+    for _, id in ipairs(type(entry.ids) == "table" and entry.ids or {}) do
+        if id == npcID then
+            return true
+        end
+    end
+    return false
+end
+
 function Watch.Match(npcID, name)
     local list = Watch.List()
     if #list == 0 then
@@ -558,7 +574,7 @@ function Watch.Match(npcID, name)
     end
     local lower = type(name) == "string" and name:lower() or nil
     for _, entry in ipairs(list) do
-        if npcID and entry.id == npcID then
+        if npcID and Watch.HasID(entry, npcID) then
             if name and not entry.name then
                 entry.name = name
             end
@@ -566,8 +582,15 @@ function Watch.Match(npcID, name)
         end
     end
     for _, entry in ipairs(list) do
-        if lower and not entry.id and type(entry.name) == "string" and entry.name:lower() == lower then
-            entry.id = npcID
+        if lower and not entry.byID and type(entry.name) == "string" and entry.name:lower() == lower then
+            if not entry.id then
+                entry.id = npcID
+            elseif npcID then
+                entry.ids = type(entry.ids) == "table" and entry.ids or {}
+                if #entry.ids < Watch.MAX_IDS then
+                    entry.ids[#entry.ids + 1] = npcID
+                end
+            end
             return entry
         end
     end
@@ -610,7 +633,7 @@ function Watch.Command(verb, rest)
     elseif #list >= Watch.MAX then
         Print(string.format("Your watch list is full (%d). Type unwatch <name> to make room.", Watch.MAX))
     else
-        list[#list + 1] = id and { id = id } or { name = rest }
+        list[#list + 1] = id and { id = id, byID = true } or { name = rest }
         Print("Watching " .. Watch.Label(list[#list]) .. ". You'll get a pop-up and a sound when it's near.")
     end
 end

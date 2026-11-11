@@ -294,7 +294,12 @@ local poolBefore = #created
 fire("PLAYER_LOGIN")
 check(type(WindowBadgesDB) == "table", "DB created")
 check(#created - poolBefore >= 40, "badge pool made at login (" .. (#created - poolBefore) .. " frames)")
-check(overlay.scripts and overlay.scripts.OnUpdate, "watcher runs on our overlay")
+-- The watcher runs on our overlay only while a window is open (perf audit 11; test_fix4_wb.lua).
+check(overlay.scripts and overlay.scripts.OnUpdate == nil, "no watcher until a window opens")
+fire("MERCHANT_SHOW")
+check(overlay.scripts.OnUpdate, "watcher runs on our overlay while a window is open")
+fire("MERCHANT_CLOSED")
+check(overlay.scripts.OnUpdate == nil, "and stops when it closes")
 
 -- The quest-reward badges start off, since ItemAdvisor already marks rewards; toggling turns them on.
 out = {}

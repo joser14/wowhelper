@@ -697,8 +697,16 @@ local function ActivityInfo(id)
 end
 
 local gameRanges          -- dungeon -> { enter, lo, hi } or false; nil = not read this session
+-- Review 4, suspicion 3: the Group Finder may not have its data yet on the first read after login. While
+-- any dungeon came back without a range, read again every RANGE_RETRY_SECONDS, up to RANGE_RETRIES times
+-- per session (some dungeons are never listed); a range once read is kept.
+local RANGE_RETRY_SECONDS, RANGE_RETRIES = 30, 10
+local rangeRead = { at = nil, missing = false, retries = 0 }
 local function ReadGameRanges()
+    local old = gameRanges or {}
     gameRanges = {}
+    rangeRead.at = GetTime and tonumber(Safe(GetTime())) or 0
+    rangeRead.missing = false
     -- Activities the game lists (undocumented call; pcall), for dungeons without an ID of ours.
     local available = {}
     if C_LFGList and C_LFGList.GetAvailableActivities then
@@ -730,7 +738,8 @@ local function ReadGameRanges()
         if type(lo) == "number" and type(hi) == "number" and lo > 0 and hi >= lo then
             gameRanges[dungeon] = { enter = type(enter) == "number" and enter > 0 and enter or nil, lo = lo, hi = hi }
         else
-            gameRanges[dungeon] = false
+            gameRanges[dungeon] = old[dungeon] or false
+            rangeRead.missing = rangeRead.missing or not old[dungeon]
         end
     end
 end
@@ -738,7 +747,14 @@ end
 -- The game's range for a dungeon, or nil.
 local function GameRange(dungeon)
     if not gameRanges then
+        rangeRead.retries = 0
         ReadGameRanges()
+    elseif rangeRead.missing and rangeRead.retries < RANGE_RETRIES then
+        local now = GetTime and tonumber(Safe(GetTime())) or 0
+        if now - (rangeRead.at or 0) >= RANGE_RETRY_SECONDS then
+            rangeRead.retries = rangeRead.retries + 1
+            ReadGameRanges()
+        end
     end
     return gameRanges[dungeon] or nil
 end
@@ -799,8 +815,15 @@ local function JudgeItem(id)
         end
         return
     end
-    local okJudge, yes = pcall(ItemAdvisor_IsUpgrade, link)
-    upgradeOf[id] = okJudge and Safe(yes) == true
+    local okJudge, yes, reason = pcall(ItemAdvisor_IsUpgrade, link)
+    yes, reason = okJudge and Safe(yes) == true, okJudge and Safe(reason) or nil
+    -- Review 4, suspicion 5: ItemAdvisor says false with no reason while it has no character data, and
+    -- "still loading" / "Can't read" while stats load. That isn't a final "no": leave it unanswered, so the
+    -- next look at the page asks again.
+    if not yes and (type(reason) ~= "string" or reason:find("loading", 1, true) or reason:find("Can't read", 1, true)) then
+        return
+    end
+    upgradeOf[id] = yes
 end
 
 local function RunUpgradeQueue()

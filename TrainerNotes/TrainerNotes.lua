@@ -505,15 +505,26 @@ local function RankOf(id)
     return Full.rankOf[id]
 end
 
+-- Spell name for the rank-chain check, or nil while it can't be read (SpellText, below, asks to load it).
+local SpellNameOf
+
 local function Known(id)
     if Full.known[id] then
         return true
     end
     local rank = RankOf(id)
     if rank then
+        -- Review 4, suspicion 6: the generated chains can link two different spells, so a later rank
+        -- only counts when it has the same name (as ReadyCheck checks). A name still loading: trusted.
+        local name
         for position = rank.position + 1, #rank.group do
-            if Full.known[rank.group[position]] then
-                return true
+            local other = rank.group[position]
+            if Full.known[other] then
+                name = name or SpellNameOf(id) or false
+                local otherName = SpellNameOf(other)
+                if not name or not otherName or otherName == name then
+                    return true
+                end
             end
         end
     end
@@ -604,6 +615,9 @@ local function SpellText(id)
     end
     local rank = C_Spell and SafeCall(C_Spell.GetSpellSubtext, id)
     return name, type(rank) == "string" and rank or ""
+end
+SpellNameOf = function(id)
+    return (SpellText(id))
 end
 
 local function SpellLabel(id)
@@ -843,14 +857,29 @@ local function TomeLines(level)
     end
     charData.tomes = type(charData.tomes) == "table" and charData.tomes or {}
     local petBank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet) or 1
-    local lines = {}
+    -- Review 4, suspicion 7: the pet spellbook may report only the top rank, so a known tome also covers
+    -- the older tomes of the same pet spell (same spell name, lower tome level).
+    local topKnown = {}   -- pet spell name -> highest tome level known
     for _, tome in ipairs(tomes) do
-        local tomeLevel, itemID, cost, family, spell = tome[1], tome[2], tome[3], tome[4], tome[5]
+        local spell = tome[5]
         if spell and not charData.tomes[spell] and C_SpellBook and SafeCall(C_SpellBook.IsSpellKnown, spell, petBank) == true then
             charData.tomes[spell] = true
         end
+        local name = spell and charData.tomes[spell] and C_Spell and SafeCall(C_Spell.GetSpellName, spell)
+        if type(name) == "string" and name ~= "" and tome[1] > (topKnown[name] or 0) then
+            topKnown[name] = tome[1]
+        end
+    end
+    local lines, listed = {}, {}
+    for _, tome in ipairs(tomes) do
+        local tomeLevel, itemID, cost, family, spell = tome[1], tome[2], tome[3], tome[4], tome[5]
+        local name = spell and not charData.tomes[spell] and C_Spell and SafeCall(C_Spell.GetSpellName, spell)
+        local olderRank = type(name) == "string" and topKnown[name] and topKnown[name] > tomeLevel
         local summon = SUMMONS[family]
-        if tomeLevel <= level + NEXT_LEVELS and summon and AskKnown(summon) and not (spell and charData.tomes[spell]) then
+        -- Succubus and Incubus share their tomes: one line per item (review 4, note 13).
+        if tomeLevel <= level + NEXT_LEVELS and summon and not listed[itemID] and AskKnown(summon)
+            and not (spell and charData.tomes[spell]) and not olderRank then
+            listed[itemID] = true
             local name = C_Item and SafeCall(C_Item.GetItemNameByID, itemID)
             local inBags = C_Item and (tonumber(SafeCall(C_Item.GetItemCount, itemID)) or 0) > 0
             lines[#lines + 1] = string.format("  Level %d: %s (%s), %s%s", tomeLevel,

@@ -413,7 +413,8 @@ local function Lookup(unit, now)
         if hit.gen == logGen then
             return hit, false
         end
-        return nil, false
+        -- Third value: when it may be read again (the tick waits for it: perf audit 9).
+        return nil, false, hit.at + READ_EVERY
     end
     local status, progress, title, objectiveKey = ReadTooltip(unit)
     local result = {
@@ -681,18 +682,23 @@ local function Tick()
         if reads >= MAX_READS_PER_FRAME then
             break
         end
-        if plate.dirty then
+        -- A pending answer (the log changed, the tooltip was read under READ_EVERY ago) waits for its time
+        -- instead of re-running the unit checks every frame (perf audit 9).
+        if plate.dirty and not (plate.waitUntil and now < plate.waitUntil) then
+            plate.waitUntil = nil
             if not Allowed(unit) then
                 plate.dirty = false
                 Apply(unit, plate, nil)
             else
-                local result, didRead = Lookup(unit, now)
+                local result, didRead, readAt = Lookup(unit, now)
                 if didRead then
                     reads = reads + 1
                 end
                 if result then
                     plate.dirty = false
                     Apply(unit, plate, result)
+                else
+                    plate.waitUntil = readAt
                 end
             end
         end
@@ -706,13 +712,13 @@ end
 local function CheckInstance()
     if InInstance() then
         for _, plate in pairs(plates) do
-            plate.result = nil
+            plate.result, plate.waitUntil = nil, nil
             plate.dirty = true
         end
         ReleaseAll()
     else
         for _, plate in pairs(plates) do
-            plate.dirty = true
+            plate.dirty, plate.waitUntil = true, nil
         end
     end
     windowDirty = true
@@ -875,7 +881,7 @@ events:SetScript("OnEvent", function(_, event, unit)
             if key and cache[key] then
                 cache[key].gen = -1
             end
-            plate.dirty = true
+            plate.dirty, plate.waitUntil = true, nil
         end
     elseif event == "QUEST_LOG_UPDATE" or event == "UNIT_QUEST_LOG_CHANGED" then
         logDirty = true

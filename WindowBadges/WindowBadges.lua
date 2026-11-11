@@ -606,6 +606,55 @@ end
 -- Forever pricing, MIT, via TrainerNotesData.trainerFactions when TrainerNotes is loaded). Returns the badge text:
 -- "10% off (Honored with X)", or "10% off at Honored with Y" naming the closest faction; nil when unknown.
 local HONORED = 6
+
+-- Review 4, note 10: the trainer's own faction isn't known, so its prices tell. Each service the list
+-- (TrainerNotesData.classes) knows by name and rank is compared with its list price: 10 % under it means the
+-- discount applies at this trainer, the list price means it doesn't. Returns "on", "off", or nil (can't tell).
+local function DiscountHere()
+    local data = type(TrainerNotesData) == "table" and type(TrainerNotesData.classes) == "table" and TrainerNotesData.classes
+    local class
+    if data and type(UnitClass) == "function" then
+        local ok, _, file = pcall(UnitClass, "player")
+        class = ok and Safe(file) or nil
+    end
+    local rows = type(class) == "string" and type(data[class]) == "table" and data[class].spells
+    local count = type(rows) == "table" and type(GetTrainerServiceInfo) == "function" and type(GetTrainerServiceCost) == "function"
+        and SafeCall(GetNumTrainerServices)
+    if type(count) ~= "number" or count <= 0 or not (C_Spell and C_Spell.GetSpellName) then
+        return nil
+    end
+    local listPrice = {}
+    for _, row in ipairs(rows) do
+        local name = type(row) == "table" and SafeCall(C_Spell.GetSpellName, row[2])
+        local rank = name and SafeCall(C_Spell.GetSpellSubtext, row[2])
+        if type(name) == "string" and type(row[3]) == "number" and row[3] > 0 then
+            listPrice[name:lower() .. "|" .. (type(rank) == "string" and rank:lower() or "")] = row[3]
+        end
+    end
+    local on, off = false, false
+    for index = 1, math.min(count, 300) do
+        local ok, r1, r2, r3, _, r5 = pcall(GetTrainerServiceInfo, index)
+        local name, rank = ok and Safe(r1), ok and Safe(r5)
+        local third = ok and Safe(r3)
+        if third == "available" or third == "unavailable" or third == "used" or third == "header" then
+            rank = Safe(r2)
+        end
+        local list = type(name) == "string" and listPrice[name:lower() .. "|" .. (type(rank) == "string" and rank:lower() or "")]
+        local cost = list and tonumber(SafeCall(GetTrainerServiceCost, index))
+        if cost and cost > 0 then
+            if cost == list then
+                off = true
+            elseif cost == math.floor((list * 90 + 50) / 100) then
+                on = true
+            end
+        end
+    end
+    if on ~= off then
+        return on and "on" or "off"
+    end
+    return nil
+end
+
 local function DiscountText()
     local data = type(TrainerNotesData) == "table" and type(TrainerNotesData.trainerFactions) == "table" and TrainerNotesData.trainerFactions
     local class
@@ -625,7 +674,7 @@ local function DiscountText()
         local name = type(info) == "table" and Safe(info.name)
         if type(reaction) == "number" and type(name) == "string" and name ~= "" then
             if reaction >= HONORED then
-                honored = honored or name
+                honored = honored and (honored .. ", " .. name) or name
             else
                 local standing = tonumber(Safe(info.currentStanding)) or 0
                 if not closest or standing > closestStanding then
@@ -635,7 +684,14 @@ local function DiscountText()
         end
     end
     if honored then
-        return "10% off (Honored with " .. honored .. ")", true
+        -- Only claimed here when this trainer's prices show it; at full prices it doesn't apply here.
+        local here = DiscountHere()
+        if here == "on" then
+            return "10% off (Honored with " .. honored .. ")", true
+        elseif here == "off" then
+            return nil
+        end
+        return "10% off at " .. honored .. " trainers", "maybe"
     elseif closest then
         return "10% off at Honored with " .. closest, false
     end
@@ -648,7 +704,8 @@ local function PaintTrainer()
     end
     local discount, on = DiscountText()
     if discount and Visible(ClassTrainerFrame) then
-        Place("trainer", ClassTrainerFrame, { texture = COIN_TEXTURE, text = discount, color = on and { 0.2, 1, 0.2 } or { 0.7, 0.7, 0.7 } },
+        local color = (on == "maybe" and { 1, 0.82, 0 }) or (on and { 0.2, 1, 0.2 }) or { 0.7, 0.7, 0.7 }
+        Place("trainer", ClassTrainerFrame, { texture = COIN_TEXTURE, text = discount, color = color },
             "TOPRIGHT", "TOPRIGHT", -30, -28)
     end
     local rows, box = TrainerRows()
@@ -759,6 +816,16 @@ local function AnyOpen()
     return rewardOpen or merchantOpen or trainerOpen
 end
 
+-- Perf audit 11: the watcher runs only while a reward, merchant or trainer window is open.
+local watcherOn
+local function SetWatching()
+    local want = AnyOpen() and true or false
+    if want ~= watcherOn then
+        watcherOn, sinceWatch = want, 0
+        overlay:SetScript("OnUpdate", want and Watch or nil)
+    end
+end
+
 local function OnEvent(_, event, arg1)
     if event == "PLAYER_LOGIN" then
         if type(WindowBadgesDB) ~= "table" then
@@ -770,8 +837,8 @@ local function OnEvent(_, event, arg1)
         else
             BuildPool()
         end
-        overlay:SetScript("OnUpdate", Watch)
         loggedIn = true
+        SetWatching()
         return
     end
     if not loggedIn then
@@ -831,6 +898,9 @@ local function OnEvent(_, event, arg1)
 end
 events:SetScript("OnEvent", function(...)
     Report(OnEvent, ...)
+    if loggedIn then
+        Report(SetWatching)
+    end
 end)
 
 ----------------------------------------------------------------------------------------------------

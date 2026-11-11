@@ -103,9 +103,12 @@ local function DrinkInfo()
     for _, line in ipairs(data and data.lines or {}) do
         local text = Safe(line.leftText)
         if type(text) == "string" then
-            local amount, seconds = text:lower():match("restores (%d+) mana over (%d+) sec")
-            if amount then
-                drinkCache.link, drinkCache.amount, drinkCache.seconds = link, tonumber(amount), tonumber(seconds)
+            -- Classic-style tooltips can have decimals and thousands commas ("Restores 1,344.6 mana over 27 sec").
+            local amount, seconds = text:lower():match("restores (%d[%d,]*%.?%d*) mana over (%d+%.?%d*) sec")
+            amount = amount and tonumber((amount:gsub(",", "")))
+            seconds = tonumber(seconds)
+            if amount and seconds and seconds > 0 then
+                drinkCache.link, drinkCache.amount, drinkCache.seconds = link, amount, seconds
                 break
             end
         end
