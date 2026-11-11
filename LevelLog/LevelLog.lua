@@ -504,7 +504,7 @@ local function ShowLog(showAll)
         if eta then
             Print(eta)
         end
-        Print("|cff999999Your journey by day, lifetime stats and where your time goes are in the LevelLog window.|r")
+        Print("|cff999999Your journey by day, lifetime stats and where your time goes are in the LevelLog window (the button above).|r")
     end
 end
 
@@ -1300,8 +1300,15 @@ local VIEWS = {
 -- Kept in this character's record, so LevelLogDB stays one record per character.
 local function Settings()
     local settings = Table(levels, "window")
+    -- Off by default (cross-addon review): at its default spot this window covers most of the hub's
+    -- Level log page it opened with, and the page has its own "Show or hide window" button. Saves from
+    -- before, when it was on by default, move over once.
+    if not settings.pageDefault2 then
+        settings.openWithPage = false
+        settings.pageDefault2 = true
+    end
     if type(settings.openWithPage) ~= "boolean" then
-        settings.openWithPage = true
+        settings.openWithPage = false
     end
     return settings
 end
@@ -1547,8 +1554,8 @@ end
 
 SLASH_LEVELLOG1 = "/levellog"
 -- With the hub, its "Level log" page runs this with "all": the page text, and this helper's own window
--- beside it (unless switched off in the window). Without the hub, /levellog opens the window. "window"
--- opens or closes the window either way.
+-- too when "Open this window with the hub's Level log page" is ticked (off by default). Without the hub,
+-- /levellog opens the window. "window" (the page's button) opens or closes the window either way.
 SlashCmdList.LEVELLOG = function(message)
     -- Saved data isn't ready until login, and the hub can open this page before then.
     if not levels then

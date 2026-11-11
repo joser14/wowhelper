@@ -153,13 +153,28 @@ local ALERT_OPTIONS = {
         about = "Flashes the game's taskbar icon for the same pop-ups, so you notice them while the game is in the background." },
 }
 
--- Which pop-ups count. RareWatch already plays its own sound, so it only gets the flash.
+-- QuestTracker's own "Quest complete" sound (on unless switched off on its Snd pop-up) already marks the
+-- moment a quest is ready; its saved switch is only read here.
+local function TrackerPlaysCompleteSound()
+    if type(QuestTracker_SoundScan) ~= "function" then
+        return false
+    end
+    local sounds = type(QuestTrackerDB) == "table" and QuestTrackerDB.sounds
+    local entry = type(sounds) == "table" and sounds.complete
+    if type(entry) == "table" and type(entry.on) == "boolean" then
+        return entry.on
+    end
+    return true
+end
+
+-- Which pop-ups count. RareWatch already plays its own sound, so it only gets the flash; so does a
+-- quest ready to turn in while QuestTracker plays its own sound for it.
 local function AlertKind(source, text)
     local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     if source == "RareWatch" and plain:match("^Rare[%s:]") then
         return "rare", true
     elseif source == "Quests" and plain:find("Ready to turn in:", 1, true) then
-        return "quest"
+        return "quest", TrackerPlaysCompleteSound()
     elseif source == "DeathNotes" and plain:match("^Careful:") then
         return "death"
     elseif source == "ZoneLevels" and plain:find("Careful!", 1, true) then

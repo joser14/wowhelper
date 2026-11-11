@@ -322,6 +322,17 @@ local function ShowCharacters()
             row.name, data.level or 0, FormatMoney(data.money or 0), FormatNumber(data.rested or 0)))
     end
     Print("Total gold: " .. FormatMoney(total))
+    -- The to-dos you add on this page, so they show here too and not only in the window.
+    local tasks = char and char.tasks or {}
+    Print(" ")
+    if #tasks == 0 then
+        Print("|cff999999No to-dos for this character yet.|r")
+    else
+        Print("|cffffd100To-do for this character:|r")
+        for index, task in ipairs(tasks) do
+            Print(string.format("%d. %s%s", index, tostring(task.text), task.done and " |cff33ff33(done)|r" or ""))
+        end
+    end
 end
 
 local HELP = {
@@ -368,7 +379,10 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_LOGOUT")
 events:SetScript("OnEvent", function(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
-        ForeverHelperDB = ForeverHelperDB or { characters = {}, shown = true }
+        -- With the hub, a new install starts with the window closed (cross-addon review): its default spot at
+        -- the right edge sits on the quest trackers, and the hub's side panel already shows these rates.
+        -- The Characters page lists the to-dos and has an "Own window" button.
+        ForeverHelperDB = ForeverHelperDB or { characters = {}, shown = ForeverHub_Receive == nil }
         db = ForeverHelperDB
         db.characters = db.characters or {}
         -- Older saves have no shown field; without this the window would hide at every login.

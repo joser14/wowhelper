@@ -245,7 +245,7 @@ local VIEWS = {
         { label = "PvP", arg = "pvp" }, { label = "Tank", arg = "tank" }, { label = "Healer", arg = "healer" }, { label = "Damage", arg = "dps" } },
     ["Weapon skills"] = { { label = "All skills", arg = "all" }, { label = "Equipped", arg = "" } },
     ["Reputation"] = { { label = "All factions", arg = "all" }, { label = "This session", arg = "" } },
-    ["Level log"] = { { label = "Open window", arg = "window", action = true } },
+    ["Level log"] = { { label = "Show or hide window", arg = "window", action = true } },
     ["Ready check"] = { { label = "Checks", arg = "" }, { label = "Ignored spells", arg = "ignored" } },
     ["Places"] = { { label = "Nearest repair", arg = "repair", action = true }, { label = "Vendor", arg = "vendor", action = true },
         { label = "Inn", arg = "inn", action = true }, { label = "Flight", arg = "flight", action = true },
@@ -761,8 +761,12 @@ end
 --------------------------------------------------------------------------------------------------
 
 -- The page's views; profession guides are added for the professions you have now.
+-- None when the helper's addon isn't loaded: its buttons would only say so.
 local function ViewsFor(tab)
     local list = {}
+    if not (tab.key and (originals[tab.key] or SlashCmdList[tab.key])) then
+        return list
+    end
     for _, view in ipairs(tab.views or {}) do
         list[#list + 1] = view
     end
@@ -910,14 +914,13 @@ ViewClicked = function(view)
         return
     end
     if view.action then
-        -- A window toggle answers nothing, so the page stays; a pin answers with the page and its note.
+        -- A window toggle answers nothing, so the page stays as it is: running the page's command again
+        -- could undo the toggle (LevelLog's page opens its window too). A pin answers with the page and its note.
         local lines = RunCommand(tab.key, view.arg)
         if #lines > 0 then
             renderedTab = tab
             SetBody(table.concat(lines, "\n"))
             ShowManage(false)
-        else
-            RenderPage()
         end
         rowsDirty = true
         return

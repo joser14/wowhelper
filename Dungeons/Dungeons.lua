@@ -1333,6 +1333,14 @@ pcall(events.RegisterEvent, events, "PLAYER_ENTERING_WORLD")
 pcall(events.RegisterEvent, events, "ITEM_DATA_LOAD_RESULT")
 pcall(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")
 pcall(events.RegisterEvent, events, "PLAYER_LEVEL_UP")
+-- ItemAdvisor's answers follow your talents too (its role), on these events (none is a CallbackEvent).
+local TALENT_EVENTS = { TRAIT_CONFIG_UPDATED = true, PLAYER_TALENT_UPDATE = true, CHARACTER_POINTS_CHANGED = true }
+for name in pairs(TALENT_EVENTS) do
+    pcall(events.RegisterEvent, events, name)
+end
+-- UnitLevel can still give the old level for about a second after a level-up (ItemAdvisor judges again
+-- then too), and the event order between addons isn't fixed: answers asked for meanwhile are forgotten again.
+local UPGRADE_SETTLE_SECONDS = 2
 events:SetScript("OnEvent", function(_, event, ...)
     if event == "UNIT_DIED" then
         KillByGUID((...))
@@ -1355,9 +1363,14 @@ events:SetScript("OnEvent", function(_, event, ...)
             QueueItem(id)
         end
         return
-    elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_LEVEL_UP" then
-        -- Answers depend on what you wear and your level: ask again on the next look.
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_LEVEL_UP" or TALENT_EVENTS[event] then
+        -- Answers depend on what you wear, your level and your talents: ask again on the next look.
         upgradeOf = {}
+        if event ~= "PLAYER_EQUIPMENT_CHANGED" and C_Timer and C_Timer.After then
+            C_Timer.After(UPGRADE_SETTLE_SECONDS, function()
+                upgradeOf = {}
+            end)
+        end
         return
     elseif event == "ENCOUNTER_END" then
         -- encounterID, encounterName, difficultyID, groupSize, success (1 on a kill).

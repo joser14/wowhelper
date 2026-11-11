@@ -1289,8 +1289,33 @@ local function Order(quests)
     return table.concat(ids, ",")
 end
 
+-- The left edge of Blizzard's quest tracker, in UIParent's units, while it's visible and its right part
+-- reaches into [left, right] (our panel's spot). Only read: nothing is written to Blizzard's frame.
+local function BlizzardTrackerLeft(left, right, ours)
+    local tracker = ObjectiveTrackerFrame
+    if not (db.keepBlizzard and tracker and tracker.GetLeft and tracker.GetRight) then
+        return nil
+    end
+    local ok, shown, alpha, tLeft, tRight, scale = pcall(function()
+        return tracker:IsShown(), tracker:GetAlpha(), tracker:GetLeft(), tracker:GetRight(), tracker:GetEffectiveScale()
+    end)
+    if not ok then
+        return nil
+    end
+    shown, alpha, tLeft, tRight, scale = Safe(shown), Safe(alpha), Safe(tLeft), Safe(tRight), Safe(scale)
+    if not shown or (type(alpha) == "number" and alpha <= 0) or type(tLeft) ~= "number" or type(tRight) ~= "number"
+        or type(scale) ~= "number" then
+        return nil
+    end
+    tLeft, tRight = tLeft * scale / ours, tRight * scale / ours
+    if tRight > left and tLeft < right then
+        return tLeft
+    end
+end
+
 -- Until you drag it, the panel sits just under the minimap. It copies the spot rather than anchoring to
 -- MinimapCluster, so Blizzard's frame never gets tied to one holding secure buttons. Out of combat only.
+-- Blizzard's own tracker is visible by default and sits there too, so then the panel goes to its left.
 local function PlaceDefault()
     local cluster = MinimapCluster
     local bottom = cluster and Safe(cluster:GetBottom())
@@ -1302,7 +1327,12 @@ local function PlaceDefault()
         -- Edit Mode can scale the minimap, so convert into UIParent's units.
         bottom, right = bottom * scale / ours, right * scale / ours
         if bottom - MINIMAP_GAP > MIN_ROOM + HEADER_HEIGHT then
-            panel:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", right - 4, bottom - MINIMAP_GAP)
+            local edge = right - 4
+            local trackerLeft = BlizzardTrackerLeft(edge - WIDTH, edge, ours)
+            if trackerLeft and trackerLeft - 8 - WIDTH >= 0 then
+                edge = trackerLeft - 8
+            end
+            panel:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", edge, bottom - MINIMAP_GAP)
             return
         end
     end

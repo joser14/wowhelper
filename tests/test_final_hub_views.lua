@@ -145,7 +145,7 @@ click("First Aid"); check(calls[#calls] == "PROFESSIONGUIDE:first aid", "first a
 -- 4. Level log: its window opens from a button; the page stays.
 open("Level log")
 check(calls[#calls] == "LEVELLOG:all", "level log page")
-click("Open window")
+click("Show or hide window")
 check(windows.levellog == true, "level log window opened")
 check(body():find("log [all]", 1, true), "page still shown after the window opened:\n" .. body())
 

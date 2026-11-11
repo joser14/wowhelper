@@ -197,14 +197,18 @@ rec[9].seconds = 3600
 assert(LevelLog_ETA(61) == nil and LevelLog_ETA(11) == nil, "no ETA for 61 or the level you're on")
 say("6 ok")
 
--- 7. The hub's Level log page: the page text plus this window beside it.
+-- 7. The hub's Level log page: the page text; the window opens from the page's button (cross-addon
+-- review: by default it no longer opens over the page by itself).
 out = {}
 SlashCmdList.LEVELLOG("all")
 local page = table.concat(out, "\n")
 assert(page:find("Level 12 about", 1, true), "ETA on the page:\n" .. page)
 assert(page:find("LevelLog window", 1, true), "points to the window")
+assert(not (LevelLogWindow and LevelLogWindow.shown), "the page alone doesn't open the window by default")
+SlashCmdList.LEVELLOG("window")
 local win = LevelLogWindow
-assert(win and win.shown, "window opened with the page")
+assert(win and win.shown, "window opened from the page's button")
+assert(win.auto.checked == false, "'open with the page' starts unticked")
 assert(win.text.text:find("Reached level 11", 1, true) and win.text.text:find("First visit: Darkshore", 1, true), "journey:\n" .. win.text.text)
 assert(win.text.text:find("Entered dungeon: The Deadmines", 1, true) and win.text.text:find("Died", 1, true), "dungeon and death")
 -- By level.
@@ -219,7 +223,11 @@ assert(win.text.text:find("Darkshore", 1, true), "most time in")
 button("Time and ETA").scripts.OnClick()
 assert(win.text.text:find("Level 11 so far", 1, true) and win.text.text:find("Fighting", 1, true), "time split:\n" .. win.text.text)
 assert(win.text.text:find("Level 15 about", 1, true) and win.text.text:find("Level 60 about", 1, true), "ETAs")
--- Switched off: the page no longer opens it.
+-- Ticked: the page opens it; unticked again: it doesn't.
+win:Hide()
+win.auto.checked = true; win.auto.scripts.OnClick(win.auto)
+SlashCmdList.LEVELLOG("all")
+assert(win.shown, "opens with the page when ticked")
 win:Hide()
 win.auto.checked = false; win.auto.scripts.OnClick(win.auto)
 SlashCmdList.LEVELLOG("all")
