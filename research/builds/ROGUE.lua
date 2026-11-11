@@ -61,7 +61,7 @@ return {
         train = { "Slice and Dice (10)", "Sprint (10)", "Kick (12)", "Expose Armor (14)", "Poisons (20, quest)", "Vanish (22)", "Shank (24)", "Cheap Shot (26)", "Kidney Shot (30)", "Blind (34)" },
         stats = { "Crit", "Agility", "Attack Power", "Strength", "Stamina", "Armor" },
         source = "https://www.method.gg/wow-forever/wow-forever-rogue-leveling-guide-and-talents", sourceDate = "2026-11-07",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Backstab PvP (Subtlety hybrid)", spec = "Subtlety",
@@ -123,7 +123,7 @@ return {
         keyTalents = { "Improved Gouge", "Remorseless Attacks", "Malice", "Improved Expose Armor", "Lethality", "Cold Blood", "Puncturing Wounds", "Endurance", "Improved Ambush", "Dirty Tricks", "Initiative", "Premeditation", "Elusiveness", "Quick Getaway", "Preparation" },
         stats = { "Agility", "Attack Power", "Stamina", "Crit", "Hit" },
         source = "https://mobalytics.gg/wow-forever/classes/rogue-pvp-guide", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pvp2 = {
         name = "Hemorrhage PvP", spec = "Subtlety",
@@ -185,7 +185,7 @@ return {
         keyTalents = { "Improved Gouge", "Malice", "Blood Splatter", "Lethality", "Cold Blood", "Serrated Blades", "Ghostly Strike", "Elusiveness", "Preparation", "Heightened Senses", "Hemorrhage" },
         stats = { "Agility", "Attack Power", "Stamina", "Crit", "Hit" },
         source = "https://mobalytics.gg/wow-forever/classes/rogue-pvp-guide", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         dps = {
@@ -248,7 +248,7 @@ return {
             keyTalents = { "Adrenaline Rush", "Flash of Steel", "Hack and Slash", "Blade Flurry", "Dual Wield Specialization", "Aggression", "Weapon Expertise", "Precision", "Coup de Grace", "Malice", "Ruthlessness", "Improved Expose Armor", "Improved Slice and Dice", "Cold Blood" },
             stats = { "Expertise (to 6.5%)", "Hit (to 8%)", "Agility", "Weapon DPS", "Crit", "Strength", "Stamina" },
             source = "https://www.icy-veins.com/wow-forever/combat-rogue-melee-dps-pve-spec-builds-talents", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }

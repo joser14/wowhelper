@@ -62,7 +62,7 @@ return {
         train = { "Judgement (4)", "Holy Strike (6)", "Seal of Fury (10)", "Consecration (20)", "Exorcism (20)", "Divine Shield (32)", "Hammer of Wrath (44)" },
         stats = { "Weapon DPS", "Strength", "Stamina", "Spell Power", "Intellect", "Armor" },
         source = "https://www.icy-veins.com/wow-forever/retribution-paladin-leveling (updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Holy healer (PvP use)", spec = "Holy",
@@ -123,7 +123,7 @@ return {
         keyTalents = { "Light's Vigil", "Holy Shock", "Holy Power", "Illumination", "Divine Favor", "Infusion of Light", "Boundless Light", "Guardian's Favor", "Divine Intellect", "Conviction" },
         stats = { "Healing Power", "Stamina", "Intellect", "Crit", "MP5" },
         source = "https://www.icy-veins.com/wow-forever/holy-paladin-healer-pve-spec-builds-talents (updated 2026-11-04); PvP ranking: seemeta.com/en/wow-forever/pvp-tier-list (2026-11-08)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pvp2 = {
         name = "Retribution (Unsealed Wrath, PvP use)", spec = "Retribution",
@@ -184,7 +184,7 @@ return {
         keyTalents = { "Unsealed Wrath", "Champion of the Light", "Repentance", "Vengeance", "Seal of Command", "Sacred Arbiter", "Two-Handed Weapon Specialization", "Precision" },
         stats = { "Weapon DPS", "Hit", "Strength", "Stamina", "Spell Power", "Crit" },
         source = "https://www.icy-veins.com/wow-forever/retribution-paladin-melee-dps-pve-spec-builds-talents (updated 2026-11-04); skycoach.gg best PvP specs (2026-11-06)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         tank = {
@@ -246,7 +246,7 @@ return {
             keyTalents = { "Shieldsworn", "Iron Creed", "Reckoning", "Holy Shield", "Improved Righteous Fury", "Anticipation", "Redoubt", "Templar's Bulwark", "Sacred Arbiter", "Sanctified Judgement" },
             stats = { "Defense (to 440)", "Stamina", "Hit (to 8%)", "Expertise", "Spell Power", "Intellect", "Block" },
             source = "https://www.method.gg/wow-forever/class-guides/protection-paladin/talents (Standard Prot: Sacred Arbiter, updated 2026-11-09)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         healer = {
             name = "Holy raid (Light's Vigil)", spec = "Holy",
@@ -307,7 +307,7 @@ return {
             keyTalents = { "Light's Vigil", "Holy Shock", "Holy Power", "Illumination", "Divine Favor", "Infusion of Light", "Holy Conduit", "Divine Intellect", "Benediction", "Conviction" },
             stats = { "Healing Power", "Intellect", "Crit", "MP5", "Spirit", "Haste" },
             source = "https://www.method.gg/wow-forever/class-guides/holy-paladin/talents (updated 2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         dps = {
             name = "Deep Retribution (Unsealed Wrath)", spec = "Retribution",
@@ -368,7 +368,7 @@ return {
             keyTalents = { "Unsealed Wrath", "Champion of the Light", "Vengeance", "Sacred Arbiter", "Seal of Command", "Two-Handed Weapon Specialization", "Conviction", "Precision", "Divine Strength", "Improved Seals", "Holy Conduit" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Expertise (to 6.5%)", "Strength", "Spell Power", "Intellect", "Crit" },
             source = "https://www.icy-veins.com/wow-forever/retribution-paladin-melee-dps-pve-spec-builds-talents (updated 2026-11-04); same build at https://www.method.gg/wow-forever/class-guides/retribution-paladin/talents (2026-11-09)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }

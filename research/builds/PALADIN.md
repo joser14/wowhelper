@@ -74,3 +74,6 @@ Veins' order (Ret first, valid). Alternative: Shockadin / Holy Shock DPS (Icy Ve
 ## Gaps / risks
 - PvP builds are not published; confidence low.
 - Class tuning announced for 2026-11-10 (Warcraft Tavern blue-post feed).
+
+## Recheck 2026-11-11 (after the 2026-11-10 tuning)
+only a Cooldown Manager change for Redoubt (Nov 10) and Consecration/Seal fixes (Nov 9); no talent reworked, renamed or moved. Icy Veins paladin pages still 2026-11-04, Method protection/retribution 2026-11-09 and holy 2026-11-04. All builds kept.

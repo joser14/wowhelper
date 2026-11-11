@@ -6,7 +6,7 @@ Tree split below is Beast Mastery/Marksmanship/Survival.
 
 | Goal | Build | BM/MM/SV | Source (date) | Order | Confidence |
 |---|---|---|---|---|---|
-| leveling | Beast Mastery | 31/20/0 | Method hunter leveling guide (upd. 2026-11-08) | exact, author's | high |
+| leveling | Beast Mastery | 31/20/0 | Method hunter leveling guide (upd. 2026-11-10) | exact, author's | high |
 | pvp | BM PvP / world | 31/3/17 | Icy Veins BM spec-builds, "PvP / World / Leveling" (2026-11-04) | author's, 1 point moved | medium |
 | pvp2 | MM PvP / world | 18/33/0 | Icy Veins MM spec-builds, "PvP / World / Leveling" (2026-11-04) | totals exact, order re-sequenced by me | medium |
 | pve.dps | MM Lone Wolf | 5/33/13 | Method marksmanship-hunter/talents (2026-11-05) | exact, author's | medium |
@@ -15,7 +15,11 @@ Tree split below is Beast Mastery/Marksmanship/Survival.
 10-14 Deadly Aspects, 15-16 Focused Fire, 17-18 Improved Revive Pet, 19 Endurance Training, 20-21 Pathfinding,
 22-24 Unleashed Fury, 25 Summon Hawk, 26 Bestial Swiftness, 27 Unleashed Fury 4, 28-29 Ferocity, 30 Intimidation,
 31-32 Bestial Discipline, 33-35 Ferocity 5, 36-39 Frenzy 4, 40 Bestial Wrath; 41-45 Lethal Attacks, 46-50 Careful
-Aim, 51-52 Rapid Killing, 53-55 Efficiency, 56-60 Mortal Shots.
+Aim, 51-52 Rapid Killing, 53-55 Efficiency, 56 Trueshot Aura, 57-60 Mortal Shots 4/5.
+- Method changed this on 2026-11-10 (read 2026-11-11): its `data-talent` order string is now
+  `AAAAAOOLLPMMJJJGKJHHEDDHHHCCCCBtttttrrrrroosssnllll`; `n` = Trueshot Aura (MM row 4, spell 1299346), `l` = Mortal Shots
+  (spell 19485). Before: Mortal Shots 5/5 at 56-60. The Beast Mastery part is unchanged. The text now says Unleashed Fury and
+  Frenzy stay at 4/5 and Trueshot Aura is taken as a damage cooldown.
 - Icy Veins beast-mastery-hunter-leveling (2026-11-04) has the same Beast Mastery path to Bestial Wrath at 40
   (32 BM incl. Unleashed Fury 5/5), then Lethal Attacks, Careful Aim, Rapid Killing, Survival Improved Tracking 5,
   Improved Stings 2 (32/14/5). Picked Method because it is newer and ends with Mortal Shots, which both raid guides take.
@@ -60,4 +64,7 @@ Sources agree on the core but not the last ~13 points:
 ## Gaps / risks
 - Survival raid builds (Icy Veins melee / weaving / ranged; Method weaving / full melee) decoded but not stored –
   the data shape has one dps slot.
-- Class tuning announced for 2026-11-10 (Warcraft Tavern blue-post feed).
+- 2026-11-10 tuning (Blizzard hotfixes): pets had 150% health by mistake, now 115%; Arcane Shot and Summon Hawk cost 11% of
+  base mana at every rank; hawks deal ~80% more melee damage. No talent was renamed or moved. Icy Veins (Nov 4), Method MM/BM
+  talents (Nov 5) and Warcraft Tavern hunter pages (same links as before) have not changed their builds. See
+  research\builds_tuning_2026-11-10.md.

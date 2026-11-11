@@ -185,7 +185,7 @@ setTrees({
 level, unspent = 18, 1
 local p = page()
 check(has(p, "Warlock") and has(p, "Leveling") and has(p, "Affliction leveling"), "class, goal, build name")
-check(has(p, "high confidence") and has(p, "2026-11-09") and has(p, "warcrafttavern.com"), "confidence, date, source")
+check(has(p, "high confidence") and has(p, "2026-11-11") and has(p, "warcrafttavern.com"), "confidence, date, source")
 check(has(p, "order: from guide"), "order provenance shown")
 check(has(p, "Forever is new") and has(p, "class tuning for 2026-11-10"), "early-builds and tuning note")
 check(has(p, "Next talent:|r Suppression (Affliction, rank 3)"), "next talent from points")
@@ -235,7 +235,8 @@ GetTalentInfo, C_SpecializationInfo = nil, nil
 level = 18
 p = page()
 check(has(p, "Affliction leveling") and has(p, "can't be read"), "page without talent API")
-check(has(p, "At level 18 the build takes:|r Suppression (Affliction, rank 4)"), "level's point shown without API")
+-- Warcraft Tavern's leveling order since 2026-11-11: Suppression 3 by 17, then Unholy Power from 18.
+check(has(p, "At level 18 the build takes:|r Unholy Power (Demonology, rank 1)"), "level's point shown without API")
 check(has(p, "Stats:") and not has(p, "Off-build"), "rest of page still there")
 fire("SPELLS_CHANGED")
 check(status() == nil, "no status row when next talent unknown")

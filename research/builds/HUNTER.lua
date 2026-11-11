@@ -4,7 +4,7 @@
 return {
     leveling = {
         name = "Beast Mastery leveling (Method)", spec = "Beast Mastery",
-        summary = "Beast Mastery straight to Bestial Wrath at 40 (Unleashed Fury, Summon Hawk, Ferocity, Intimidation at 30, Frenzy), then Marksmanship for Lethal Attacks, Careful Aim, Rapid Killing, Efficiency and Mortal Shots. Icy Veins uses the same Beast Mastery path.",
+        summary = "Beast Mastery straight to Bestial Wrath at 40 (Unleashed Fury, Summon Hawk, Ferocity, Intimidation at 30, Frenzy), then Marksmanship for Lethal Attacks, Careful Aim, Rapid Killing, Efficiency, Trueshot Aura and Mortal Shots 4/5. Icy Veins uses the same Beast Mastery path. The 10 Nov 2026 tuning made Summon Hawk cheaper (11% of base mana) and its hawks hit about 80% harder, and cut pet health from 150% to the intended 115%.",
         points = {
             { level = 10, talent = "Deadly Aspects", tree = "Beast Mastery", rank = 1 },
             { level = 11, talent = "Deadly Aspects", tree = "Beast Mastery", rank = 2 },
@@ -52,17 +52,17 @@ return {
             { level = 53, talent = "Efficiency", tree = "Marksmanship", rank = 1 },
             { level = 54, talent = "Efficiency", tree = "Marksmanship", rank = 2 },
             { level = 55, talent = "Efficiency", tree = "Marksmanship", rank = 3 },
-            { level = 56, talent = "Mortal Shots", tree = "Marksmanship", rank = 1 },
-            { level = 57, talent = "Mortal Shots", tree = "Marksmanship", rank = 2 },
-            { level = 58, talent = "Mortal Shots", tree = "Marksmanship", rank = 3 },
-            { level = 59, talent = "Mortal Shots", tree = "Marksmanship", rank = 4 },
-            { level = 60, talent = "Mortal Shots", tree = "Marksmanship", rank = 5 },
+            { level = 56, talent = "Trueshot Aura", tree = "Marksmanship", rank = 1 },
+            { level = 57, talent = "Mortal Shots", tree = "Marksmanship", rank = 1 },
+            { level = 58, talent = "Mortal Shots", tree = "Marksmanship", rank = 2 },
+            { level = 59, talent = "Mortal Shots", tree = "Marksmanship", rank = 3 },
+            { level = 60, talent = "Mortal Shots", tree = "Marksmanship", rank = 4 },
         },
-        keyTalents = { "Deadly Aspects", "Unleashed Fury", "Summon Hawk", "Ferocity", "Intimidation", "Bestial Discipline", "Frenzy", "Bestial Wrath", "Lethal Attacks", "Careful Aim", "Mortal Shots" },
+        keyTalents = { "Deadly Aspects", "Unleashed Fury", "Summon Hawk", "Ferocity", "Intimidation", "Bestial Discipline", "Frenzy", "Bestial Wrath", "Lethal Attacks", "Careful Aim", "Trueshot Aura", "Mortal Shots" },
         train = { "Serpent Sting (4)", "Arcane Shot (6)", "Tame Beast (10)", "Mend Pet (12)", "Multi-Shot (18)", "Aimed Shot (20)", "Aspect of the Cheetah (20)", "Feign Death (30)" },
         stats = { "Agility", "Attack Power", "Crit", "Intellect", "Stamina", "Spirit", "Armor" },
-        source = "https://www.method.gg/wow-forever/wow-forever-hunter-leveling-guide-and-talents (updated 2026-11-08)",
-        checked = "2026-11-09", confidence = "high",
+        source = "https://www.method.gg/wow-forever/wow-forever-hunter-leveling-guide-and-talents (updated 2026-11-10: Trueshot Aura added, Mortal Shots 4/5)",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Beast Mastery PvP / world (31/3/17)", spec = "Beast Mastery",
@@ -123,7 +123,7 @@ return {
         keyTalents = { "Bestial Wrath", "Intimidation", "Frenzy", "Entrapment", "Clever Traps", "Survival Tactics", "Deterrence", "Surefooted", "Hawk Eye" },
         stats = { "Agility", "Stamina", "Hit", "Crit", "Intellect" },
         source = "https://www.icy-veins.com/wow-forever/beast-mastery-hunter-ranged-dps-pve-spec-builds-talents (PvP / World build, updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pvp2 = {
         name = "Marksmanship PvP / world (18/33/0)", spec = "Marksmanship",
@@ -184,7 +184,7 @@ return {
         keyTalents = { "Sniper Shot", "Scatter Shot", "Hawk Eye", "Mortal Shots", "Ranged Weapon Specialization", "Barrage", "Trueshot Aura", "Unleashed Fury", "Summon Hawk" },
         stats = { "Agility", "Stamina", "Hit", "Crit", "Intellect" },
         source = "https://www.icy-veins.com/wow-forever/marksmanship-hunter-ranged-dps-pve-spec-builds-talents (PvP / World build, updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         dps = {
@@ -246,7 +246,7 @@ return {
             keyTalents = { "Sniper Shot", "Lone Wolf", "Mortal Shots", "Ranged Weapon Specialization", "Barrage", "Trueshot Aura", "Careful Aim", "Lethal Attacks", "Deadly Aspects", "Improved Tracking", "Surefooted" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Crit", "Agility", "Intellect", "Attack Power" },
             source = "https://www.method.gg/wow-forever/class-guides/marksmanship-hunter/talents (Lone Wolf Marksmanship, updated 2026-11-05)",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
     },
 }

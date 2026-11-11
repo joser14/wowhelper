@@ -61,7 +61,7 @@ return {
         train = { "Shadow Word: Pain (4)", "Power Word: Shield (6)", "Renew (8)", "Mind Blast (10)", "Psychic Scream (14)", "Flash Heal (20)" },
         stats = { "Spell Damage", "Spirit", "Intellect", "Stamina", "Crit" },
         source = "https://mobalytics.gg/wow-forever/classes/priest-leveling-guide", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Shadow PvP", spec = "Shadow",
@@ -123,7 +123,7 @@ return {
         keyTalents = { "Blackout", "Improved Psychic Scream", "Silence", "Vampiric Embrace", "Shadow Weaving", "Darkness", "Shadowform", "Martyrdom", "Inner Focus", "Mental Strength" },
         stats = { "Spell Damage", "Stamina", "Hit", "Crit", "Intellect" },
         source = "https://leprestore.com/guides/world-of-warcraft-forever/wow-forever-shadow-priest-guide-best-builds-race-professions/", sourceDate = "2026-11-05",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pvp2 = {
         name = "Discipline PvP", spec = "Discipline",
@@ -185,7 +185,7 @@ return {
         keyTalents = { "Power Infusion", "Penance", "Divine Aegis", "Renewed Hope", "Soul Warding", "Improved Power Word: Shield", "Martyrdom", "Improved Inner Fire", "Improved Mana Burn", "Blackout", "Improved Psychic Scream" },
         stats = { "Healing Power", "Stamina", "Intellect", "MP5", "Spirit" },
         source = "https://rankedboost.com/world-of-warcraft/forever/build/priest/", sourceDate = "2026-11-09",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         healer = {
@@ -248,7 +248,7 @@ return {
             keyTalents = { "Prayer of Mending", "Spiritual Healing", "Spiritual Guidance", "Spirit of Redemption", "Litany of Light", "Improved Healing", "Inspiration", "Divine Fury", "Holy Specialization", "Improved Renew", "Meditation", "Mental Strength", "Inner Focus" },
             stats = { "Healing Power", "MP5", "Spirit", "Intellect", "Crit" },
             source = "https://www.icy-veins.com/wow-forever/holy-priest-healer-pve-spec-builds-talents", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
         dps = {
             name = "Shadow raid 15/3/33", spec = "Shadow",
@@ -310,7 +310,7 @@ return {
             keyTalents = { "Shadowform", "Darkness", "Devouring Contagion", "Shadow Weaving", "Vampiric Embrace", "Dark Inspiration", "Improved Mind Flay", "Mind Flay", "Improved Mind Blast", "Shadow Focus", "Twin Disciplines", "Silent Resolve", "Meditation" },
             stats = { "Hit (to 17%)", "Spell Damage", "Crit", "Spell Penetration", "Intellect", "Spirit" },
             source = "https://mobalytics.gg/wow-forever/classes/shadow-priest-guide-progress", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }

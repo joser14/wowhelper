@@ -62,7 +62,7 @@ return {
         train = { "Rend (4)", "Charge (4)", "Defensive Stance (10, quest)", "Overpower (12)", "Slam (20)", "Victory Rush (20)", "Execute (24)", "Berserker Stance (30, quest)", "Whirlwind (36)" },
         stats = { "Weapon DPS", "Strength", "Hit", "Expertise", "Crit", "Agility", "Stamina" },
         source = "https://www.icy-veins.com/wow-forever/arms-warrior-leveling (updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Arms battleground (35/16/0)", spec = "Arms",
@@ -123,7 +123,7 @@ return {
         keyTalents = { "Mortal Strike", "Improved Hamstring", "Bloodthrill", "Weaponmaster", "Deflection", "Piercing Howl", "Booming Voice", "Cruelty", "Enrage" },
         stats = { "Weapon DPS", "Hit", "Strength", "Crit", "Stamina" },
         source = "https://mobalytics.gg/wow-forever/classes/warrior-pvp-guide (2026-11-07, Default Battleground Build)",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         tank = {
@@ -185,7 +185,7 @@ return {
             keyTalents = { "Shield Slam", "Bastion", "Defiance", "Anticipation", "Shield Specialization", "Improved Shield Wall", "Master of Defense", "Deflection", "Deep Wounds", "Impale" },
             stats = { "Stamina", "Expertise (to 6.5%)", "Hit (to 8%)", "Armor", "Agility", "Defense", "Strength" },
             source = "https://www.method.gg/wow-forever/class-guides/protection-warrior/talents (Standard Raid Build, updated 2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         dps = {
             name = "Fury dual-wield raid (17/34/0)", spec = "Fury",
@@ -246,7 +246,7 @@ return {
             keyTalents = { "Bloodthirst", "Flurry", "Death Wish", "Improved Whirlwind", "Dual Wield Specialization", "Furious Precision", "Cruelty", "Unbridled Wrath", "Deep Wounds", "Impale", "Improved Overpower" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Expertise (to 6.5%)", "Crit", "Strength", "Haste", "Agility" },
             source = "https://www.method.gg/wow-forever/class-guides/fury-warrior/talents (updated 2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }

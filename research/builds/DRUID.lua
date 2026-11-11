@@ -38,7 +38,7 @@ return {
         train = { "Bear Form (10, class quest)", "Faerie Fire (18)", "Cat Form, Prowl, Claw, Rip (20, class quest)", "Rake, Ferocious Bite (24)", "Dash (26)", "Travel Form (30)", "Ravage (32)", "Pounce (36)", "Dire Bear Form, Innervate (40)", "Barkskin (44)" },
         stats = { "Weapon DPS", "Strength", "Agility", "Attack Power", "Stamina", "Intellect", "Spirit", "Armor" },
         source = "https://www.warcrafttavern.com/forever/guides/druid-leveling/ (calculator link t=B1111144555a99bbedffchccjjkkkkkqpC22222A222227766B22222); cross-check https://www.icy-veins.com/wow-forever/feral-druid-leveling (Nov 4, 2026)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Restoration PvP (rankedboost)", spec = "Restoration",
@@ -75,7 +75,7 @@ return {
         keyTalents = { "Heart of the Wild", "Nature's Focus", "Naturalist", "Natural Shapeshifter", "Gift of Nature", "Bloom", "Subtlety", "Improved Rejuvenation", "Swiftmend", "Nature's Swiftness", "Living Spirit", "Improved Regrowth", "Wild Growth", "Furor", "Feral Swiftness", "Brutal Impact", "Thick Hide", "Feral Charge" },
         stats = { "Healing Power", "Stamina", "Intellect", "Spirit", "MP5", "Crit" },
         source = "https://rankedboost.com/world-of-warcraft/forever/build/druid/#build=auth-druid-restoration-pvp (updated 2026-11-04); ranking: skycoach.gg best PvP specs (2026-11-06), seemeta PvP tier list",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pvp2 = {
         name = "Feral hybrid PvP", spec = "Feral Combat",
@@ -112,7 +112,7 @@ return {
         keyTalents = { "Ferocity", "Feral Swiftness", "Feral Instinct", "Shredding Attacks", "Savage Fury", "Feral Charge", "Sharpened Claws", "Predatory Strikes", "Lacerate", "Predatory Discipline", "Blood Frenzy", "Leader of the Pack", "Natural Instinct", "Rend and Tear", "Primal Bite", "Shifting Power", "Heart of the Wild", "Genesis", "Nature's Reach", "Nature's Majesty", "Thick Hide" },
         stats = { "Weapon DPS", "Stamina", "Agility", "Strength", "Hit (to 8%)", "Crit" },
         source = "https://www.warcrafttavern.com/forever/guides/feral-druid/ (talents); https://seemeta.com/en/wow-forever/pvp-tier-list (rating)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         tank = {
@@ -150,7 +150,7 @@ return {
             keyTalents = { "Ferocity", "Feral Swiftness", "Feral Instinct", "Shredding Attacks", "Savage Fury", "Feral Charge", "Sharpened Claws", "Predatory Strikes", "Lacerate", "Predatory Discipline", "Blood Frenzy", "Leader of the Pack", "Natural Instinct", "Rend and Tear", "Primal Bite", "Shifting Power", "Heart of the Wild", "Genesis", "Nature's Reach", "Nature's Majesty", "Thick Hide" },
             stats = { "Weapon DPS", "Armor", "Stamina", "Defense (to 440)", "Agility", "Hit (to 8%)", "Expertise (to 6.5%)", "Dodge" },
             source = "https://www.warcrafttavern.com/forever/guides/feral-druid/ (calculator t=B111114455588899abbcccdeffhjjkkkkkpqC22222A222227766B77); compare https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-spec-builds-talents (Nov 4, 2026), https://www.method.gg/wow-forever/class-guides/feral-tank-druid/talents (Nov 4, 2026)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         healer = {
             name = "Restoration 13/0/38 (Warcraft Tavern)", spec = "Restoration",
@@ -187,7 +187,7 @@ return {
             keyTalents = { "Heart of the Wild", "Nature's Focus", "Reflection", "Naturalist", "Gift of Nature", "Bloom", "Swiftmend", "Improved Rejuvenation", "Living Spirit", "Nature's Swiftness", "Improved Regrowth", "Wild Growth", "Genesis", "Nature's Majesty", "Nature's Reach", "Moonglow", "Nature's Splendor" },
             stats = { "Healing Power", "Intellect", "Spirit", "MP5", "Crit", "Haste" },
             source = "https://www.warcrafttavern.com/forever/guides/restoration-druid/ (calculator t=C222221111155544444aaaaabfeeehhhgmmmmmpA222226677444a); compare https://www.icy-veins.com/wow-forever/restoration-druid-healer-pve-spec-builds-talents (Nov 4, 2026)",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
         dps = {
             name = "Cat DPS 8/33/10 (Icy Veins)", spec = "Feral Combat",
@@ -224,7 +224,7 @@ return {
             keyTalents = { "Ferocity", "Feral Swiftness", "Furor", "Savage Fury", "Sharpened Claws", "Feral Charge", "Predatory Strikes", "Blood Frenzy", "Leader of the Pack", "Natural Instinct", "Shredding Attacks", "Rend and Tear", "Predatory Discipline", "Shifting Power", "Heart of the Wild", "Naturalist", "Genesis", "Nature's Majesty", "Nature's Reach" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Expertise (to 6.5%)", "Agility", "Strength", "Crit", "Haste" },
             source = "https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-spec-builds-talents (Nov 4, 2026); stats https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-stat-priority",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
     },
 }

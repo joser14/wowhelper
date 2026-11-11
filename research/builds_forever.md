@@ -1,4 +1,10 @@
-# WoW Forever talent builds: leveling, PvP, PvE (researched 2026-11-09)
+# WoW Forever talent builds: leveling, PvP, PvE (researched 2026-11-09, rechecked 2026-11-11)
+
+> **Update 2026-11-11:** the first pass below is history. The shipped data (`Builds\Data.lua`, generated from
+> `research\builds\<CLASS>.lua` by `research\builds\gen_data.js`) now has exact 51-point lists for 40 builds; per-class sources
+> are in `research\builds\<CLASS>.md`. After Blizzard's 2026-11-10 class tuning, Warlock leveling (41/7/3, Wrack at 47) and
+> Warlock raid (Affliction Wrack 35/11/5) were rebuilt from Warcraft Tavern, Hunter leveling gained Trueshot Aura (Method),
+> and Enhancement Shaman stats now put Strength above Intellect. Details: `research\builds_tuning_2026-11-10.md`.
 
 Data file: `Builds\Data.lua` (`BuildsData[CLASS].leveling / pvp / pvp2 / pve.{tank,healer,dps}`).
 All guidance below is summarized in my own words; builds are lists of talent choices from the cited pages.

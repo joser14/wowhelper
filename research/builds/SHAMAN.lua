@@ -2,7 +2,7 @@
 return {
     leveling = {
         name = "Enhancement leveling", spec = "Enhancement",
-        summary = "Enhancement to Stormstrike at 25 and Rage of the Farseer at 40, with Improved Ghost Wolf early for travel, then Elemental for crit (Elemental Devastation) and Convection. Icy Veins opens identically up to level 34.",
+        summary = "Enhancement to Stormstrike at 25 and Rage of the Farseer at 40, with Improved Ghost Wolf early for travel, then Elemental for crit (Elemental Devastation) and Convection. Icy Veins opens identically up to level 34. The 10 Nov 2026 tuning cut Stormstrike (100% weapon damage, 8 sec cooldown), Mental Dexterity (33/66/100% of Intellect as attack power) and Maelstrom Weapon (6-10 procs a minute by rank), and lets weapon imbues and totems stack (Windfury Weapon plus Windfury Totem); no guide had re-published its talent build by 11 Nov, so the points are unchanged and Strength now comes before Intellect.",
         points = {
             { level = 10, talent = "Thundering Strikes", tree = "Enhancement", rank = 1 },
             { level = 11, talent = "Thundering Strikes", tree = "Enhancement", rank = 2 },
@@ -59,9 +59,9 @@ return {
         orderFrom = "source", -- "source" = order as published; "constructed" = only final ranks published
         keyTalents = { "Thundering Strikes", "Mental Dexterity", "Ancestral Knowledge", "Shamanistic Focus", "Elemental Weapons", "Stormstrike", "Improved Ghost Wolf", "Flurry", "Improved Stormstrike", "Mental Quickness", "Maelstrom Weapon", "Rage of the Farseer", "Spirit Weapons", "Concussion", "Elemental Devastation", "Convection" },
         train = { "Earth Shock (4)", "Lightning Shield (8)", "Flame Shock (10)", "Flametongue Weapon (10)", "Ghost Wolf (20)", "Call of the Elements (20)", "Windfury Weapon (30)" },
-        stats = { "Weapon DPS", "Hit", "Intellect", "Strength", "Crit", "Stamina" },
+        stats = { "Weapon DPS", "Hit", "Strength", "Intellect", "Crit", "Stamina" },
         source = "https://www.method.gg/wow-forever/wow-forever-shaman-leveling-guide-and-talents", sourceDate = "2026-11-08",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Elemental PvP / world", spec = "Elemental",
@@ -123,7 +123,7 @@ return {
         keyTalents = { "Lightning Mastery", "Elemental Fury", "Lightning Overload", "Call of Thunder", "Earthbound", "Eye of the Storm", "Trial by Fire", "Elemental Focus", "Concussion", "Water Shield", "Improved Reincarnation", "Tidal Focus" },
         stats = { "Spell Damage", "Stamina", "Intellect", "Crit", "Hit" },
         source = "https://www.icy-veins.com/wow-forever/elemental-shaman-ranged-dps-pve-spec-builds-talents", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         healer = {
@@ -186,11 +186,11 @@ return {
             keyTalents = { "Riptide", "Purification", "Nature's Swiftness", "Healing Way", "Mana Tide Totem", "Tidal Mastery", "Water Shield", "Mindfulness", "Tidal Focus", "Improved Healing Wave", "Healing Focus", "Ancestral Healing", "Restorative Totems" },
             stats = { "Healing Power", "Crit", "Intellect", "Spirit", "MP5" },
             source = "https://www.icy-veins.com/wow-forever/restoration-shaman-healer-pve-spec-builds-talents", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
         dps = {
             name = "Enhancement raid 17/34/0", spec = "Enhancement",
-            summary = "Enhancement to Rage of the Farseer, then Elemental for Concussion, Elemental Devastation, Call of Flame, Reverberation and Trial by Fire. Icy Veins publishes the same split (Improved Ghost Wolf instead of the last Ancestral Knowledge points). Method's mana variant moves 8 points into Tidal Focus and Mindfulness.",
+            summary = "Enhancement to Rage of the Farseer, then Elemental for Concussion, Elemental Devastation, Call of Flame, Reverberation and Trial by Fire. Icy Veins publishes the same split (Improved Ghost Wolf instead of the last Ancestral Knowledge points). Method's mana variant moves 8 points into Tidal Focus and Mindfulness. The 10 Nov 2026 tuning cut Stormstrike (100% weapon damage, 8 sec cooldown), Mental Dexterity (33/66/100% of Intellect as attack power) and Maelstrom Weapon (6-10 procs a minute by rank), and lets weapon imbues and totems stack (Windfury Weapon plus Windfury Totem); no guide had re-published its talent build by 11 Nov, so the points are unchanged and Strength now comes before Intellect.",
             points = {
                 { level = 10, talent = "Thundering Strikes", tree = "Enhancement", rank = 1 },
                 { level = 11, talent = "Thundering Strikes", tree = "Enhancement", rank = 2 },
@@ -246,9 +246,9 @@ return {
             },
             orderFrom = "source", -- "source" = order as published; "constructed" = only final ranks published
             keyTalents = { "Rage of the Farseer", "Maelstrom Weapon", "Stormstrike", "Improved Stormstrike", "Flurry", "Mental Quickness", "Mental Dexterity", "Elemental Weapons", "Spirit Weapons", "Concussion", "Elemental Devastation", "Call of Flame", "Reverberation" },
-            stats = { "Weapon DPS", "Hit (8%, spells to 17%)", "Expertise", "Intellect", "Strength", "Spell Power", "Crit", "Agility" },
+            stats = { "Weapon DPS", "Hit (8%)", "Expertise", "Strength", "Attack Power", "Intellect", "Crit", "Agility" },
             source = "https://www.method.gg/wow-forever/class-guides/enhancement-shaman/talents", sourceDate = "2026-11-09",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }

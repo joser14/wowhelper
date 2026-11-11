@@ -38,7 +38,7 @@ return {
         train = { "Frostbolt (4)", "Polymorph (8)", "Frost Nova (10)", "Blink (20)", "Blizzard (20)", "Counterspell (24)", "Cone of Cold (26)", "Mage Armor (34)" },
         stats = { "Spell Damage", "Intellect", "MP5", "Stamina", "Spirit", "Armor" },
         source = "https://www.warcrafttavern.com/forever/guides/mage-leveling/ (calculator t=A1111177C1111122555a4444dfff4iihggmmmmmp2A66666CgB11111A9); compare https://www.icy-veins.com/wow-forever/frost-mage-leveling (Nov 4, 2026)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Frost PvP 17/0/34 (rankedboost)", spec = "Frost",
@@ -75,7 +75,7 @@ return {
         keyTalents = { "Improved Frostbolt", "Precision", "Frostbite", "Ice Shards", "Ice Lance", "Improved Frost Nova", "Permafrost", "Shatter", "Ice Block", "Arctic Reach", "Cold Snap", "Fingers of Frost", "Ice Barrier", "Frost Warding", "Wand Specialization", "Improved Channeling", "Arcane Resilience", "Arcane Subtlety", "Magic Absorption", "Arcane Concentration", "Arcane Geometry", "Improved Counterspell" },
         stats = { "Spell Damage", "Stamina", "Crit", "Hit (4% vs players)", "Intellect" },
         source = "https://rankedboost.com/world-of-warcraft/forever/build/mage/#build=auth-mage-frost-pvp (read 2026-11-09); rating: seemeta PvP tier list (Frost S)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         dps = {
@@ -113,7 +113,7 @@ return {
             keyTalents = { "Incineration", "Accelerant", "Ignite", "Pyroblast", "Burning Soul", "Heating Up", "Critical Mass", "Improved Scorch", "Fire Power", "Master of Elements", "Combustion", "Precision", "Improved Channeling", "Arcane Concentration", "Arcane Impact", "Missile Barrage", "Arcane Meditation" },
             stats = { "Hit (to 17%)", "Spell Damage", "Crit", "Intellect", "Haste", "Spirit", "MP5" },
             source = "https://www.warcrafttavern.com/forever/guides/fire-mage/ (calculator t=B111112222244444a888ehhhcccmmmpfC22A111116666699977eee); stats https://www.icy-veins.com/wow-forever/fire-mage-ranged-dps-pve-stat-priority (Nov 4, 2026), https://www.method.gg/wow-forever/class-guides/fire-mage",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
     },
 }

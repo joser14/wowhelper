@@ -91,3 +91,6 @@ Nature's Reach, Nature's Majesty, Furor (56-60). Skips Shredding Attacks (WT: yo
 - https://www.method.gg/wow-forever/class-guides/feral-tank-druid/talents (2026-11-04), method druid leveling (2026-11-07, no point map)
 - PvP ratings: skycoach.gg best PvP specs (2026-11-06), seemeta.com PvP tier list (2026-11-08); IV PvP tier lists still TBD (2026-10-26).
 - Not found: any Forever druid PvP guide from WT/IV/Method/Mobalytics/Wowhead; Mobalytics has no druid PvP guide.
+
+## Recheck 2026-11-11 (after the 2026-11-10 tuning)
+Restoration Nature's Swiftness now also makes Wild Growth instant; Omen of Clarity works again after a spec swap; Nov 9 feral fixes (Feral Charge (Cat) enters combat at once, Natural Instinct applies to Lacerate and Pounce). No talent reworked, renamed or moved. Warcraft Tavern druid-leveling, feral, balance and restoration calculator links are unchanged; Icy Veins and Method druid pages still 2026-11-04; rankedboost 2026-11-08. All builds kept.

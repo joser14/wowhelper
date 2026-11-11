@@ -96,3 +96,6 @@ Impale 56-57, Cruelty 58-60). Protection 10-40 is Method's own order.
 - Warcraft Tavern shows "Class Tuning Incoming – 10 November" in its blue-post feed; builds may shift next week.
 - No warrior source states it was written from level-60 play; all are launch-day (2026-11-04) guides.
 - Sources not usable: Mobalytics Lexd/Kargoz pages (410), Warcraft Tavern warrior pages (level-30 images only).
+
+## Recheck 2026-11-11 (after the 2026-11-10 tuning)
+no warrior talent changed except a fix (Arms Sweeping Strikes no longer loses charges when no second target is hit; Nov 9 Thunderclap Cooldown Manager fix). Sources unchanged: Icy Veins arms leveling, fury and protection pages still dated 2026-11-04; Method fury/protection talents 2026-11-04; Mobalytics warrior PvP 2026-11-07. Method's warrior leveling guide was re-dated 2026-11-10 but still decodes to 34/15/2 (not used here). All builds kept.

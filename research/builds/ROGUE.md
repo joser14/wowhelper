@@ -68,3 +68,6 @@ Scripts: scratchpad `talentdec\decode.js`, `gen.js`, `assemble.js` (not part of 
 - https://www.warcrafttavern.com/forever/guides/rogue-leveling/, /combat-rogue/, /assassination-rogue/, /subtlety-rogue/ (no dates shown)
 - https://rankedboost.com/world-of-warcraft/forever/build/rogue/ (game build 1.60.1.70862)
 - https://metabot.gg/en/wow-forever/talent-calculator/rogue (tree check, 1.60.1.70790)
+
+## Recheck 2026-11-11 (after the 2026-11-10 tuning)
+no rogue changes on Nov 9-10 (Nov 6: Shank tooltip ranks and Boot Knife combo point display only). Method rogue leveling still 2026-11-07, Mobalytics rogue PvP still shows 2026-11-04, Icy Veins combat 2026-11-04. All builds kept.

@@ -1,0 +1,24 @@
+-- Talent builds for World of Warcraft: Forever (client 1.60.1), researched 2026-11-09, rechecked 2026-11-11.
+-- Forever keeps three talent trees per class: 51 points by level 60, one per level from 10,
+-- tier N needs 5*(N-1) points in that tree, the 31-point capstone (tier 7) is reachable at 40.
+-- Talent names are as the game shows them (checked against the 1.60.1.70790 tree data; rechecked 2026-11-11
+-- against the Icy Veins Forever calculators, whose names are the trait spells' names).
+--
+-- Shape: BuildsData[classFile] = { leveling = build, pvp = build, pvp2 = build (optional),
+--   pve = { tank = build, healer = build, dps = build, dps2 = build (optional second damage choice) }
+--   (only the roles the class can fill) }
+-- A build has either points = { { level, talent, tree, rank }, ... } (exact order) or
+-- steps = { { from, to, text }, ... } (tier-level guidance when no source gives an exact order).
+-- Optional build fields: orderFrom = "source" (the point order is the guide's own) or "constructed"
+-- (the guide gives final ranks only; the order is a tier-legal sequence we built), split = "a/b/c"
+-- points per tree in tab order, sourceDate = when the source was published or updated.
+-- Talents named in steps texts are listed in keyTalents so they can be matched by name.
+--
+-- Where each class's data came from: each class block below is research\builds\<CLASS>.lua, and
+-- research\builds\<CLASS>.md names its sources (Icy Veins, Warcraft Tavern, Method, Mobalytics,
+-- rankedboost), how the calculator links were decoded, and where the sources disagree. orderFrom was
+-- filled in from the "Order" column of those .md files where the .lua didn't carry it. The Druid
+-- Balance build (pve.dps2) is the Warcraft Tavern / Icy Veins Balance 41 listed in DRUID.md.
+-- Most builds are now full 51-point lists; Warlock pvp2 (Demonology Soul Link) is still steps.
+-- Rechecked after the 2026-11-10 class tuning: research\builds_tuning_2026-11-10.md lists what changed.
+-- The first-pass notes are in research\builds_forever.md.

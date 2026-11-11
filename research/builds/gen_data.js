@@ -1,4 +1,6 @@
 // Builds Builds\Data.lua from research\builds\<CLASS>.lua (+ orderFrom where the file lacks it, + Druid Balance dps2).
+// Run from the repo root: node research\builds\gen_data.js <repo root>. The file comment at the top of Data.lua is
+// research\builds\data_header.lua.
 const fs = require('fs');
 const path = require('path');
 const W = process.argv[2];
@@ -16,7 +18,7 @@ const ORDER = {
   MAGE: { 'Frost leveling, 7 Arcane first (Warcraft Tavern)': 'source', 'Frost PvP 17/0/34 (rankedboost)': 'constructed',
     'Fire 18/31/2 (Warcraft Tavern)': 'source' },
   WARLOCK: { 'Affliction leveling (Warcraft Tavern)': 'source', 'Destruction PvP 7/7/37 (Mobalytics)': 'constructed',
-    'Affliction Wrack 33/0/18': 'source' },
+    'Affliction Wrack 35/11/5 (Warcraft Tavern)': 'source' },
   DRUID: { 'Feral leveling (Warcraft Tavern)': 'source', 'Restoration PvP (rankedboost)': 'constructed',
     'Feral hybrid PvP': 'source', 'Hybrid Bear/Cat 9/37/5 (Warcraft Tavern)': 'source',
     'Restoration 13/0/38 (Warcraft Tavern)': 'source', 'Cat DPS 8/33/10 (Icy Veins)': 'constructed' },
@@ -54,7 +56,7 @@ ${rows.join('\n')}
             keyTalents = { ${keys} },
             stats = { "Hit (to 17%)", "Spell Damage", "Crit", "Intellect", "Spirit" },
             source = "https://www.warcrafttavern.com/forever/guides/balance-druid/ ; same Balance 41 at https://www.icy-veins.com/wow-forever/balance-druid-ranged-dps-pve-spec-builds-talents (2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
 `;
 }

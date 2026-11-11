@@ -38,8 +38,11 @@ are exact 51-point orders from the source, validated against the 1.60.1 tree. Tr
   pvp2.
 
 ## Stats
-- Enhancement (Icy Veins, post-release buffs): **Weapon DPS > Hit > Expertise > Intellect > Strength ≈ Spell Power**;
-  Crit and Agility are nice-to-have. Mental Dexterity converts Int to AP, so Int is now the best main stat.
+- Enhancement after the 2026-11-10 tuning: **Weapon DPS > Hit > Expertise > Strength (AP) > Intellect**, Crit/Agility after.
+  Blizzard's note says the changes move Enhancement back to Windfury and away from Spell Power/Intellect gear, and Icy Veins'
+  news (2026-11-11) says the spec now wants Strength and Attack Power instead of Intellect and Spell Power. WT's page already had
+  Weapon Damage > Hit/Expertise > Strength > Intellect > Crit. (Before: Icy Veins' Nov 4 stat page put Intellect first because
+  Mental Dexterity converted 50/100/150% of Int to AP; that page has not been re-dated yet.)
   Method (first pass): Hit 8% (to 17%) > Str > Int > Crit = Agi > Spirit = MP5.
 - Elemental (Icy Veins): **Spell Power > Hit (to 17%) > Crit > Intellect > MP5** (Method: Hit first).
 - Restoration (Icy Veins): **Healing Power > Crit > Intellect > Spirit > MP5** (crit feeds Water Shield and Ancestral
@@ -48,7 +51,17 @@ are exact 51-point orders from the source, validated against the 1.60.1 tree. Tr
   weight above Str no longer matches either source (crit is optional in IV). Healer profile for shamans: Crit is #2 in
   IV, above Int/Spirit, unlike priests (MP5/Spirit first) – a shared healer profile fits neither perfectly.
 
-## Sources (read 2026-11-09)
+## 2026-11-10 tuning
+- Enhancement: Stormstrike 100% weapon damage (was 150%), 8 sec cooldown (was 6); Mental Dexterity 33/66/100% of Intellect as
+  attack power (was 50/100/150%); Maelstrom Weapon 20% per stack at every rank, 6/7/8/9/10 procs per minute by rank (was 4-20%
+  per rank, 20 per minute). All shamans: weapon imbues and weapon totems now work together (Windfury Weapon + Windfury Totem).
+- Nov 9: Lightning Overload now deals the right Lightning Bolt damage; Lightning Mastery visual.
+- Builds: no source has re-published a shaman talent build since (Method enhancement/elemental talents 2026-11-09, Method
+  leveling 2026-11-08, Icy Veins 2026-11-04, WT still the level-30 beta links, all read 2026-11-11). Talent points unchanged;
+  Enhancement stats changed as above and the summaries note the nerf. Recheck when Method/Icy Veins re-publish Enhancement:
+  the weaker Mental Dexterity 3 and Maelstrom Weapon 5 are the points most likely to move.
+
+## Sources (read 2026-11-09; rechecked 2026-11-11)
 - https://www.method.gg/wow-forever/wow-forever-shaman-leveling-guide-and-talents (2026-11-08)
 - https://www.method.gg/wow-forever/class-guides/enhancement-shaman/talents, …/elemental-shaman/talents (2026-11-09)
 - https://www.icy-veins.com/wow-forever/enhancement-shaman-melee-dps-pve-spec-builds-talents, elemental-…, restoration-…, *-leveling, *-pve-stat-priority (2026-11-04)

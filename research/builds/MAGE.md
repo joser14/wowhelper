@@ -73,3 +73,6 @@ Arcane Impact 3, Missile Barrage 2, Arcane Meditation 3; Frost is Precision 2 (W
 - https://rankedboost.com/world-of-warcraft/forever/build/mage/#build=auth-mage-frost-pvp
 - https://www.method.gg/wow-forever/class-guides/fire-mage (2026-11-09; first pass)
 - Not found: a human-written Forever mage PvP guide (Mobalytics PvP hub has none for mage; IV PvP tier lists TBD).
+
+## Recheck 2026-11-11 (after the 2026-11-10 tuning)
+no mage change on Nov 10; Nov 9 fixed Flamestrike ground ticks eating Clearcasting and split Arcane Concentration's chance across the cast and each Arcane Missiles bolt (it was 10% on the cast and on each bolt). Warcraft Tavern mage-leveling and fire-mage calculator links are unchanged; rankedboost mage PvP updated 2026-11-08; Icy Veins frost leveling re-dated 2026-11-09 (before the tuning). Method's mage leveling guide was re-dated 2026-11-10 (18/0/33 Frost, not used here). All builds kept.

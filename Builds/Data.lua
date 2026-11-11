@@ -1,7 +1,8 @@
--- Talent builds for World of Warcraft: Forever (client 1.60.1), researched 2026-11-09.
+-- Talent builds for World of Warcraft: Forever (client 1.60.1), researched 2026-11-09, rechecked 2026-11-11.
 -- Forever keeps three talent trees per class: 51 points by level 60, one per level from 10,
 -- tier N needs 5*(N-1) points in that tree, the 31-point capstone (tier 7) is reachable at 40.
--- Talent names are as the game shows them (checked against the 1.60.1.70790 tree data).
+-- Talent names are as the game shows them (checked against the 1.60.1.70790 tree data; rechecked 2026-11-11
+-- against the Icy Veins Forever calculators, whose names are the trait spells' names).
 --
 -- Shape: BuildsData[classFile] = { leveling = build, pvp = build, pvp2 = build (optional),
 --   pve = { tank = build, healer = build, dps = build, dps2 = build (optional second damage choice) }
@@ -19,7 +20,7 @@
 -- filled in from the "Order" column of those .md files where the .lua didn't carry it. The Druid
 -- Balance build (pve.dps2) is the Warcraft Tavern / Icy Veins Balance 41 listed in DRUID.md.
 -- Most builds are now full 51-point lists; Warlock pvp2 (Demonology Soul Link) is still steps.
--- Blizzard announced class tuning for 2026-11-10, so these builds may shift after that patch.
+-- Rechecked after the 2026-11-10 class tuning: research\builds_tuning_2026-11-10.md lists what changed.
 -- The first-pass notes are in research\builds_forever.md.
 
 BuildsData = {}
@@ -86,7 +87,7 @@ BuildsData.WARRIOR = {
         train = { "Rend (4)", "Charge (4)", "Defensive Stance (10, quest)", "Overpower (12)", "Slam (20)", "Victory Rush (20)", "Execute (24)", "Berserker Stance (30, quest)", "Whirlwind (36)" },
         stats = { "Weapon DPS", "Strength", "Hit", "Expertise", "Crit", "Agility", "Stamina" },
         source = "https://www.icy-veins.com/wow-forever/arms-warrior-leveling (updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Arms battleground (35/16/0)", orderFrom = "constructed", spec = "Arms",
@@ -147,7 +148,7 @@ BuildsData.WARRIOR = {
         keyTalents = { "Mortal Strike", "Improved Hamstring", "Bloodthrill", "Weaponmaster", "Deflection", "Piercing Howl", "Booming Voice", "Cruelty", "Enrage" },
         stats = { "Weapon DPS", "Hit", "Strength", "Crit", "Stamina" },
         source = "https://mobalytics.gg/wow-forever/classes/warrior-pvp-guide (2026-11-07, Default Battleground Build)",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         tank = {
@@ -209,7 +210,7 @@ BuildsData.WARRIOR = {
             keyTalents = { "Shield Slam", "Bastion", "Defiance", "Anticipation", "Shield Specialization", "Improved Shield Wall", "Master of Defense", "Deflection", "Deep Wounds", "Impale" },
             stats = { "Stamina", "Expertise (to 6.5%)", "Hit (to 8%)", "Armor", "Agility", "Defense", "Strength" },
             source = "https://www.method.gg/wow-forever/class-guides/protection-warrior/talents (Standard Raid Build, updated 2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         dps = {
             name = "Fury dual-wield raid (17/34/0)", orderFrom = "source", spec = "Fury",
@@ -270,7 +271,7 @@ BuildsData.WARRIOR = {
             keyTalents = { "Bloodthirst", "Flurry", "Death Wish", "Improved Whirlwind", "Dual Wield Specialization", "Furious Precision", "Cruelty", "Unbridled Wrath", "Deep Wounds", "Impale", "Improved Overpower" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Expertise (to 6.5%)", "Crit", "Strength", "Haste", "Agility" },
             source = "https://www.method.gg/wow-forever/class-guides/fury-warrior/talents (updated 2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }
@@ -337,7 +338,7 @@ BuildsData.PALADIN = {
         train = { "Judgement (4)", "Holy Strike (6)", "Seal of Fury (10)", "Consecration (20)", "Exorcism (20)", "Divine Shield (32)", "Hammer of Wrath (44)" },
         stats = { "Weapon DPS", "Strength", "Stamina", "Spell Power", "Intellect", "Armor" },
         source = "https://www.icy-veins.com/wow-forever/retribution-paladin-leveling (updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Holy healer (PvP use)", orderFrom = "source", spec = "Holy",
@@ -398,7 +399,7 @@ BuildsData.PALADIN = {
         keyTalents = { "Light's Vigil", "Holy Shock", "Holy Power", "Illumination", "Divine Favor", "Infusion of Light", "Boundless Light", "Guardian's Favor", "Divine Intellect", "Conviction" },
         stats = { "Healing Power", "Stamina", "Intellect", "Crit", "MP5" },
         source = "https://www.icy-veins.com/wow-forever/holy-paladin-healer-pve-spec-builds-talents (updated 2026-11-04); PvP ranking: seemeta.com/en/wow-forever/pvp-tier-list (2026-11-08)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pvp2 = {
         name = "Retribution (Unsealed Wrath, PvP use)", orderFrom = "source", spec = "Retribution",
@@ -459,7 +460,7 @@ BuildsData.PALADIN = {
         keyTalents = { "Unsealed Wrath", "Champion of the Light", "Repentance", "Vengeance", "Seal of Command", "Sacred Arbiter", "Two-Handed Weapon Specialization", "Precision" },
         stats = { "Weapon DPS", "Hit", "Strength", "Stamina", "Spell Power", "Crit" },
         source = "https://www.icy-veins.com/wow-forever/retribution-paladin-melee-dps-pve-spec-builds-talents (updated 2026-11-04); skycoach.gg best PvP specs (2026-11-06)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         tank = {
@@ -521,7 +522,7 @@ BuildsData.PALADIN = {
             keyTalents = { "Shieldsworn", "Iron Creed", "Reckoning", "Holy Shield", "Improved Righteous Fury", "Anticipation", "Redoubt", "Templar's Bulwark", "Sacred Arbiter", "Sanctified Judgement" },
             stats = { "Defense (to 440)", "Stamina", "Hit (to 8%)", "Expertise", "Spell Power", "Intellect", "Block" },
             source = "https://www.method.gg/wow-forever/class-guides/protection-paladin/talents (Standard Prot: Sacred Arbiter, updated 2026-11-09)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         healer = {
             name = "Holy raid (Light's Vigil)", orderFrom = "source", spec = "Holy",
@@ -582,7 +583,7 @@ BuildsData.PALADIN = {
             keyTalents = { "Light's Vigil", "Holy Shock", "Holy Power", "Illumination", "Divine Favor", "Infusion of Light", "Holy Conduit", "Divine Intellect", "Benediction", "Conviction" },
             stats = { "Healing Power", "Intellect", "Crit", "MP5", "Spirit", "Haste" },
             source = "https://www.method.gg/wow-forever/class-guides/holy-paladin/talents (updated 2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         dps = {
             name = "Deep Retribution (Unsealed Wrath)", orderFrom = "source", spec = "Retribution",
@@ -643,7 +644,7 @@ BuildsData.PALADIN = {
             keyTalents = { "Unsealed Wrath", "Champion of the Light", "Vengeance", "Sacred Arbiter", "Seal of Command", "Two-Handed Weapon Specialization", "Conviction", "Precision", "Divine Strength", "Improved Seals", "Holy Conduit" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Expertise (to 6.5%)", "Strength", "Spell Power", "Intellect", "Crit" },
             source = "https://www.icy-veins.com/wow-forever/retribution-paladin-melee-dps-pve-spec-builds-talents (updated 2026-11-04); same build at https://www.method.gg/wow-forever/class-guides/retribution-paladin/talents (2026-11-09)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }
@@ -652,7 +653,7 @@ BuildsData.PALADIN = {
 BuildsData.HUNTER = {
     leveling = {
         name = "Beast Mastery leveling (Method)", orderFrom = "source", spec = "Beast Mastery",
-        summary = "Beast Mastery straight to Bestial Wrath at 40 (Unleashed Fury, Summon Hawk, Ferocity, Intimidation at 30, Frenzy), then Marksmanship for Lethal Attacks, Careful Aim, Rapid Killing, Efficiency and Mortal Shots. Icy Veins uses the same Beast Mastery path.",
+        summary = "Beast Mastery straight to Bestial Wrath at 40 (Unleashed Fury, Summon Hawk, Ferocity, Intimidation at 30, Frenzy), then Marksmanship for Lethal Attacks, Careful Aim, Rapid Killing, Efficiency, Trueshot Aura and Mortal Shots 4/5. Icy Veins uses the same Beast Mastery path. The 10 Nov 2026 tuning made Summon Hawk cheaper (11% of base mana) and its hawks hit about 80% harder, and cut pet health from 150% to the intended 115%.",
         points = {
             { level = 10, talent = "Deadly Aspects", tree = "Beast Mastery", rank = 1 },
             { level = 11, talent = "Deadly Aspects", tree = "Beast Mastery", rank = 2 },
@@ -700,17 +701,17 @@ BuildsData.HUNTER = {
             { level = 53, talent = "Efficiency", tree = "Marksmanship", rank = 1 },
             { level = 54, talent = "Efficiency", tree = "Marksmanship", rank = 2 },
             { level = 55, talent = "Efficiency", tree = "Marksmanship", rank = 3 },
-            { level = 56, talent = "Mortal Shots", tree = "Marksmanship", rank = 1 },
-            { level = 57, talent = "Mortal Shots", tree = "Marksmanship", rank = 2 },
-            { level = 58, talent = "Mortal Shots", tree = "Marksmanship", rank = 3 },
-            { level = 59, talent = "Mortal Shots", tree = "Marksmanship", rank = 4 },
-            { level = 60, talent = "Mortal Shots", tree = "Marksmanship", rank = 5 },
+            { level = 56, talent = "Trueshot Aura", tree = "Marksmanship", rank = 1 },
+            { level = 57, talent = "Mortal Shots", tree = "Marksmanship", rank = 1 },
+            { level = 58, talent = "Mortal Shots", tree = "Marksmanship", rank = 2 },
+            { level = 59, talent = "Mortal Shots", tree = "Marksmanship", rank = 3 },
+            { level = 60, talent = "Mortal Shots", tree = "Marksmanship", rank = 4 },
         },
-        keyTalents = { "Deadly Aspects", "Unleashed Fury", "Summon Hawk", "Ferocity", "Intimidation", "Bestial Discipline", "Frenzy", "Bestial Wrath", "Lethal Attacks", "Careful Aim", "Mortal Shots" },
+        keyTalents = { "Deadly Aspects", "Unleashed Fury", "Summon Hawk", "Ferocity", "Intimidation", "Bestial Discipline", "Frenzy", "Bestial Wrath", "Lethal Attacks", "Careful Aim", "Trueshot Aura", "Mortal Shots" },
         train = { "Serpent Sting (4)", "Arcane Shot (6)", "Tame Beast (10)", "Mend Pet (12)", "Multi-Shot (18)", "Aimed Shot (20)", "Aspect of the Cheetah (20)", "Feign Death (30)" },
         stats = { "Agility", "Attack Power", "Crit", "Intellect", "Stamina", "Spirit", "Armor" },
-        source = "https://www.method.gg/wow-forever/wow-forever-hunter-leveling-guide-and-talents (updated 2026-11-08)",
-        checked = "2026-11-09", confidence = "high",
+        source = "https://www.method.gg/wow-forever/wow-forever-hunter-leveling-guide-and-talents (updated 2026-11-10: Trueshot Aura added, Mortal Shots 4/5)",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Beast Mastery PvP / world (31/3/17)", orderFrom = "source", spec = "Beast Mastery",
@@ -771,7 +772,7 @@ BuildsData.HUNTER = {
         keyTalents = { "Bestial Wrath", "Intimidation", "Frenzy", "Entrapment", "Clever Traps", "Survival Tactics", "Deterrence", "Surefooted", "Hawk Eye" },
         stats = { "Agility", "Stamina", "Hit", "Crit", "Intellect" },
         source = "https://www.icy-veins.com/wow-forever/beast-mastery-hunter-ranged-dps-pve-spec-builds-talents (PvP / World build, updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pvp2 = {
         name = "Marksmanship PvP / world (18/33/0)", orderFrom = "constructed", spec = "Marksmanship",
@@ -832,7 +833,7 @@ BuildsData.HUNTER = {
         keyTalents = { "Sniper Shot", "Scatter Shot", "Hawk Eye", "Mortal Shots", "Ranged Weapon Specialization", "Barrage", "Trueshot Aura", "Unleashed Fury", "Summon Hawk" },
         stats = { "Agility", "Stamina", "Hit", "Crit", "Intellect" },
         source = "https://www.icy-veins.com/wow-forever/marksmanship-hunter-ranged-dps-pve-spec-builds-talents (PvP / World build, updated 2026-11-04)",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         dps = {
@@ -894,7 +895,7 @@ BuildsData.HUNTER = {
             keyTalents = { "Sniper Shot", "Lone Wolf", "Mortal Shots", "Ranged Weapon Specialization", "Barrage", "Trueshot Aura", "Careful Aim", "Lethal Attacks", "Deadly Aspects", "Improved Tracking", "Surefooted" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Crit", "Agility", "Intellect", "Attack Power" },
             source = "https://www.method.gg/wow-forever/class-guides/marksmanship-hunter/talents (Lone Wolf Marksmanship, updated 2026-11-05)",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
     },
 }
@@ -962,7 +963,7 @@ BuildsData.ROGUE = {
         train = { "Slice and Dice (10)", "Sprint (10)", "Kick (12)", "Expose Armor (14)", "Poisons (20, quest)", "Vanish (22)", "Shank (24)", "Cheap Shot (26)", "Kidney Shot (30)", "Blind (34)" },
         stats = { "Crit", "Agility", "Attack Power", "Strength", "Stamina", "Armor" },
         source = "https://www.method.gg/wow-forever/wow-forever-rogue-leveling-guide-and-talents", sourceDate = "2026-11-07",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Backstab PvP (Subtlety hybrid)", spec = "Subtlety",
@@ -1024,7 +1025,7 @@ BuildsData.ROGUE = {
         keyTalents = { "Improved Gouge", "Remorseless Attacks", "Malice", "Improved Expose Armor", "Lethality", "Cold Blood", "Puncturing Wounds", "Endurance", "Improved Ambush", "Dirty Tricks", "Initiative", "Premeditation", "Elusiveness", "Quick Getaway", "Preparation" },
         stats = { "Agility", "Attack Power", "Stamina", "Crit", "Hit" },
         source = "https://mobalytics.gg/wow-forever/classes/rogue-pvp-guide", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pvp2 = {
         name = "Hemorrhage PvP", spec = "Subtlety",
@@ -1086,7 +1087,7 @@ BuildsData.ROGUE = {
         keyTalents = { "Improved Gouge", "Malice", "Blood Splatter", "Lethality", "Cold Blood", "Serrated Blades", "Ghostly Strike", "Elusiveness", "Preparation", "Heightened Senses", "Hemorrhage" },
         stats = { "Agility", "Attack Power", "Stamina", "Crit", "Hit" },
         source = "https://mobalytics.gg/wow-forever/classes/rogue-pvp-guide", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         dps = {
@@ -1149,7 +1150,7 @@ BuildsData.ROGUE = {
             keyTalents = { "Adrenaline Rush", "Flash of Steel", "Hack and Slash", "Blade Flurry", "Dual Wield Specialization", "Aggression", "Weapon Expertise", "Precision", "Coup de Grace", "Malice", "Ruthlessness", "Improved Expose Armor", "Improved Slice and Dice", "Cold Blood" },
             stats = { "Expertise (to 6.5%)", "Hit (to 8%)", "Agility", "Weapon DPS", "Crit", "Strength", "Stamina" },
             source = "https://www.icy-veins.com/wow-forever/combat-rogue-melee-dps-pve-spec-builds-talents", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }
@@ -1217,7 +1218,7 @@ BuildsData.PRIEST = {
         train = { "Shadow Word: Pain (4)", "Power Word: Shield (6)", "Renew (8)", "Mind Blast (10)", "Psychic Scream (14)", "Flash Heal (20)" },
         stats = { "Spell Damage", "Spirit", "Intellect", "Stamina", "Crit" },
         source = "https://mobalytics.gg/wow-forever/classes/priest-leveling-guide", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Shadow PvP", spec = "Shadow",
@@ -1279,7 +1280,7 @@ BuildsData.PRIEST = {
         keyTalents = { "Blackout", "Improved Psychic Scream", "Silence", "Vampiric Embrace", "Shadow Weaving", "Darkness", "Shadowform", "Martyrdom", "Inner Focus", "Mental Strength" },
         stats = { "Spell Damage", "Stamina", "Hit", "Crit", "Intellect" },
         source = "https://leprestore.com/guides/world-of-warcraft-forever/wow-forever-shadow-priest-guide-best-builds-race-professions/", sourceDate = "2026-11-05",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pvp2 = {
         name = "Discipline PvP", spec = "Discipline",
@@ -1341,7 +1342,7 @@ BuildsData.PRIEST = {
         keyTalents = { "Power Infusion", "Penance", "Divine Aegis", "Renewed Hope", "Soul Warding", "Improved Power Word: Shield", "Martyrdom", "Improved Inner Fire", "Improved Mana Burn", "Blackout", "Improved Psychic Scream" },
         stats = { "Healing Power", "Stamina", "Intellect", "MP5", "Spirit" },
         source = "https://rankedboost.com/world-of-warcraft/forever/build/priest/", sourceDate = "2026-11-09",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         healer = {
@@ -1404,7 +1405,7 @@ BuildsData.PRIEST = {
             keyTalents = { "Prayer of Mending", "Spiritual Healing", "Spiritual Guidance", "Spirit of Redemption", "Litany of Light", "Improved Healing", "Inspiration", "Divine Fury", "Holy Specialization", "Improved Renew", "Meditation", "Mental Strength", "Inner Focus" },
             stats = { "Healing Power", "MP5", "Spirit", "Intellect", "Crit" },
             source = "https://www.icy-veins.com/wow-forever/holy-priest-healer-pve-spec-builds-talents", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
         dps = {
             name = "Shadow raid 15/3/33", spec = "Shadow",
@@ -1466,7 +1467,7 @@ BuildsData.PRIEST = {
             keyTalents = { "Shadowform", "Darkness", "Devouring Contagion", "Shadow Weaving", "Vampiric Embrace", "Dark Inspiration", "Improved Mind Flay", "Mind Flay", "Improved Mind Blast", "Shadow Focus", "Twin Disciplines", "Silent Resolve", "Meditation" },
             stats = { "Hit (to 17%)", "Spell Damage", "Crit", "Spell Penetration", "Intellect", "Spirit" },
             source = "https://mobalytics.gg/wow-forever/classes/shadow-priest-guide-progress", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }
@@ -1475,7 +1476,7 @@ BuildsData.PRIEST = {
 BuildsData.SHAMAN = {
     leveling = {
         name = "Enhancement leveling", spec = "Enhancement",
-        summary = "Enhancement to Stormstrike at 25 and Rage of the Farseer at 40, with Improved Ghost Wolf early for travel, then Elemental for crit (Elemental Devastation) and Convection. Icy Veins opens identically up to level 34.",
+        summary = "Enhancement to Stormstrike at 25 and Rage of the Farseer at 40, with Improved Ghost Wolf early for travel, then Elemental for crit (Elemental Devastation) and Convection. Icy Veins opens identically up to level 34. The 10 Nov 2026 tuning cut Stormstrike (100% weapon damage, 8 sec cooldown), Mental Dexterity (33/66/100% of Intellect as attack power) and Maelstrom Weapon (6-10 procs a minute by rank), and lets weapon imbues and totems stack (Windfury Weapon plus Windfury Totem); no guide had re-published its talent build by 11 Nov, so the points are unchanged and Strength now comes before Intellect.",
         points = {
             { level = 10, talent = "Thundering Strikes", tree = "Enhancement", rank = 1 },
             { level = 11, talent = "Thundering Strikes", tree = "Enhancement", rank = 2 },
@@ -1532,9 +1533,9 @@ BuildsData.SHAMAN = {
         orderFrom = "source", -- "source" = order as published; "constructed" = only final ranks published
         keyTalents = { "Thundering Strikes", "Mental Dexterity", "Ancestral Knowledge", "Shamanistic Focus", "Elemental Weapons", "Stormstrike", "Improved Ghost Wolf", "Flurry", "Improved Stormstrike", "Mental Quickness", "Maelstrom Weapon", "Rage of the Farseer", "Spirit Weapons", "Concussion", "Elemental Devastation", "Convection" },
         train = { "Earth Shock (4)", "Lightning Shield (8)", "Flame Shock (10)", "Flametongue Weapon (10)", "Ghost Wolf (20)", "Call of the Elements (20)", "Windfury Weapon (30)" },
-        stats = { "Weapon DPS", "Hit", "Intellect", "Strength", "Crit", "Stamina" },
+        stats = { "Weapon DPS", "Hit", "Strength", "Intellect", "Crit", "Stamina" },
         source = "https://www.method.gg/wow-forever/wow-forever-shaman-leveling-guide-and-talents", sourceDate = "2026-11-08",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Elemental PvP / world", spec = "Elemental",
@@ -1596,7 +1597,7 @@ BuildsData.SHAMAN = {
         keyTalents = { "Lightning Mastery", "Elemental Fury", "Lightning Overload", "Call of Thunder", "Earthbound", "Eye of the Storm", "Trial by Fire", "Elemental Focus", "Concussion", "Water Shield", "Improved Reincarnation", "Tidal Focus" },
         stats = { "Spell Damage", "Stamina", "Intellect", "Crit", "Hit" },
         source = "https://www.icy-veins.com/wow-forever/elemental-shaman-ranged-dps-pve-spec-builds-talents", sourceDate = "2026-11-04",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pve = {
         healer = {
@@ -1659,11 +1660,11 @@ BuildsData.SHAMAN = {
             keyTalents = { "Riptide", "Purification", "Nature's Swiftness", "Healing Way", "Mana Tide Totem", "Tidal Mastery", "Water Shield", "Mindfulness", "Tidal Focus", "Improved Healing Wave", "Healing Focus", "Ancestral Healing", "Restorative Totems" },
             stats = { "Healing Power", "Crit", "Intellect", "Spirit", "MP5" },
             source = "https://www.icy-veins.com/wow-forever/restoration-shaman-healer-pve-spec-builds-talents", sourceDate = "2026-11-04",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
         dps = {
             name = "Enhancement raid 17/34/0", spec = "Enhancement",
-            summary = "Enhancement to Rage of the Farseer, then Elemental for Concussion, Elemental Devastation, Call of Flame, Reverberation and Trial by Fire. Icy Veins publishes the same split (Improved Ghost Wolf instead of the last Ancestral Knowledge points). Method's mana variant moves 8 points into Tidal Focus and Mindfulness.",
+            summary = "Enhancement to Rage of the Farseer, then Elemental for Concussion, Elemental Devastation, Call of Flame, Reverberation and Trial by Fire. Icy Veins publishes the same split (Improved Ghost Wolf instead of the last Ancestral Knowledge points). Method's mana variant moves 8 points into Tidal Focus and Mindfulness. The 10 Nov 2026 tuning cut Stormstrike (100% weapon damage, 8 sec cooldown), Mental Dexterity (33/66/100% of Intellect as attack power) and Maelstrom Weapon (6-10 procs a minute by rank), and lets weapon imbues and totems stack (Windfury Weapon plus Windfury Totem); no guide had re-published its talent build by 11 Nov, so the points are unchanged and Strength now comes before Intellect.",
             points = {
                 { level = 10, talent = "Thundering Strikes", tree = "Enhancement", rank = 1 },
                 { level = 11, talent = "Thundering Strikes", tree = "Enhancement", rank = 2 },
@@ -1719,9 +1720,9 @@ BuildsData.SHAMAN = {
             },
             orderFrom = "source", -- "source" = order as published; "constructed" = only final ranks published
             keyTalents = { "Rage of the Farseer", "Maelstrom Weapon", "Stormstrike", "Improved Stormstrike", "Flurry", "Mental Quickness", "Mental Dexterity", "Elemental Weapons", "Spirit Weapons", "Concussion", "Elemental Devastation", "Call of Flame", "Reverberation" },
-            stats = { "Weapon DPS", "Hit (8%, spells to 17%)", "Expertise", "Intellect", "Strength", "Spell Power", "Crit", "Agility" },
+            stats = { "Weapon DPS", "Hit (8%)", "Expertise", "Strength", "Attack Power", "Intellect", "Crit", "Agility" },
             source = "https://www.method.gg/wow-forever/class-guides/enhancement-shaman/talents", sourceDate = "2026-11-09",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }
@@ -1764,7 +1765,7 @@ BuildsData.MAGE = {
         train = { "Frostbolt (4)", "Polymorph (8)", "Frost Nova (10)", "Blink (20)", "Blizzard (20)", "Counterspell (24)", "Cone of Cold (26)", "Mage Armor (34)" },
         stats = { "Spell Damage", "Intellect", "MP5", "Stamina", "Spirit", "Armor" },
         source = "https://www.warcrafttavern.com/forever/guides/mage-leveling/ (calculator t=A1111177C1111122555a4444dfff4iihggmmmmmp2A66666CgB11111A9); compare https://www.icy-veins.com/wow-forever/frost-mage-leveling (Nov 4, 2026)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Frost PvP 17/0/34 (rankedboost)", orderFrom = "constructed", spec = "Frost",
@@ -1801,7 +1802,7 @@ BuildsData.MAGE = {
         keyTalents = { "Improved Frostbolt", "Precision", "Frostbite", "Ice Shards", "Ice Lance", "Improved Frost Nova", "Permafrost", "Shatter", "Ice Block", "Arctic Reach", "Cold Snap", "Fingers of Frost", "Ice Barrier", "Frost Warding", "Wand Specialization", "Improved Channeling", "Arcane Resilience", "Arcane Subtlety", "Magic Absorption", "Arcane Concentration", "Arcane Geometry", "Improved Counterspell" },
         stats = { "Spell Damage", "Stamina", "Crit", "Hit (4% vs players)", "Intellect" },
         source = "https://rankedboost.com/world-of-warcraft/forever/build/mage/#build=auth-mage-frost-pvp (read 2026-11-09); rating: seemeta PvP tier list (Frost S)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         dps = {
@@ -1839,7 +1840,7 @@ BuildsData.MAGE = {
             keyTalents = { "Incineration", "Accelerant", "Ignite", "Pyroblast", "Burning Soul", "Heating Up", "Critical Mass", "Improved Scorch", "Fire Power", "Master of Elements", "Combustion", "Precision", "Improved Channeling", "Arcane Concentration", "Arcane Impact", "Missile Barrage", "Arcane Meditation" },
             stats = { "Hit (to 17%)", "Spell Damage", "Crit", "Intellect", "Haste", "Spirit", "MP5" },
             source = "https://www.warcrafttavern.com/forever/guides/fire-mage/ (calculator t=B111112222244444a888ehhhcccmmmpfC22A111116666699977eee); stats https://www.icy-veins.com/wow-forever/fire-mage-ranged-dps-pve-stat-priority (Nov 4, 2026), https://www.method.gg/wow-forever/class-guides/fire-mage",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
     },
 }
@@ -1848,41 +1849,41 @@ BuildsData.MAGE = {
 BuildsData.WARLOCK = {
     leveling = {
         name = "Affliction leveling (Warcraft Tavern)", orderFrom = "source", spec = "Affliction",
-        summary = "No respec needed: instant Corruption and Suppression first, a Demonology detour for Unholy Power and Demonic Energies, then drains, Pandemic and Soul Siphon, and deep Affliction to Shadow Mastery; four points of Improved Shadow Bolt to finish.",
-        split = "40/7/4",
+        summary = "No respec needed: instant Corruption and Suppression first, a Demonology detour for Unholy Power and Demonic Energies, then drains, Bane of Agony, Pandemic, Siphon Life (37) and Soul Siphon, Shadow Mastery and Wrack at 47, and Malevolence, Fel Concentration, Nightfall and three points of Improved Shadow Bolt to finish. Since the 10 Nov 2026 tuning Wrack is a 6-second channel that makes Corruption, Siphon Life and Bane of Agony tick twice as fast; Warcraft Tavern now takes it while leveling (or respec at 40 for 31 Affliction to get it sooner).",
+        split = "41/7/3",
         points = {
             { level = 10, talent = "Improved Corruption", tree = "Affliction", rank = 1 }, { level = 11, talent = "Improved Corruption", tree = "Affliction", rank = 2 },
             { level = 12, talent = "Improved Corruption", tree = "Affliction", rank = 3 }, { level = 13, talent = "Improved Corruption", tree = "Affliction", rank = 4 },
             { level = 14, talent = "Improved Corruption", tree = "Affliction", rank = 5 }, { level = 15, talent = "Suppression", tree = "Affliction", rank = 1 },
             { level = 16, talent = "Suppression", tree = "Affliction", rank = 2 }, { level = 17, talent = "Suppression", tree = "Affliction", rank = 3 },
-            { level = 18, talent = "Suppression", tree = "Affliction", rank = 4 }, { level = 19, talent = "Suppression", tree = "Affliction", rank = 5 },
-            { level = 20, talent = "Unholy Power", tree = "Demonology", rank = 1 }, { level = 21, talent = "Unholy Power", tree = "Demonology", rank = 2 },
-            { level = 22, talent = "Unholy Power", tree = "Demonology", rank = 3 }, { level = 23, talent = "Unholy Power", tree = "Demonology", rank = 4 },
-            { level = 24, talent = "Unholy Power", tree = "Demonology", rank = 5 }, { level = 25, talent = "Demonic Energies", tree = "Demonology", rank = 1 },
-            { level = 26, talent = "Demonic Energies", tree = "Demonology", rank = 2 }, { level = 27, talent = "Improved Drains", tree = "Affliction", rank = 1 },
-            { level = 28, talent = "Improved Drains", tree = "Affliction", rank = 2 }, { level = 29, talent = "Improved Drains", tree = "Affliction", rank = 3 },
-            { level = 30, talent = "Amplify Curse", tree = "Affliction", rank = 1 }, { level = 31, talent = "Improved Bane of Agony", tree = "Affliction", rank = 1 },
-            { level = 32, talent = "Improved Bane of Agony", tree = "Affliction", rank = 2 }, { level = 33, talent = "Improved Life Tap", tree = "Affliction", rank = 1 },
-            { level = 34, talent = "Improved Life Tap", tree = "Affliction", rank = 2 }, { level = 35, talent = "Pandemic", tree = "Affliction", rank = 1 },
-            { level = 36, talent = "Pandemic", tree = "Affliction", rank = 2 }, { level = 37, talent = "Pandemic", tree = "Affliction", rank = 3 },
+            { level = 18, talent = "Unholy Power", tree = "Demonology", rank = 1 }, { level = 19, talent = "Unholy Power", tree = "Demonology", rank = 2 },
+            { level = 20, talent = "Unholy Power", tree = "Demonology", rank = 3 }, { level = 21, talent = "Unholy Power", tree = "Demonology", rank = 4 },
+            { level = 22, talent = "Unholy Power", tree = "Demonology", rank = 5 }, { level = 23, talent = "Demonic Energies", tree = "Demonology", rank = 1 },
+            { level = 24, talent = "Demonic Energies", tree = "Demonology", rank = 2 }, { level = 25, talent = "Improved Drains", tree = "Affliction", rank = 1 },
+            { level = 26, talent = "Improved Drains", tree = "Affliction", rank = 2 }, { level = 27, talent = "Improved Drains", tree = "Affliction", rank = 3 },
+            { level = 28, talent = "Amplify Curse", tree = "Affliction", rank = 1 }, { level = 29, talent = "Improved Bane of Agony", tree = "Affliction", rank = 1 },
+            { level = 30, talent = "Improved Bane of Agony", tree = "Affliction", rank = 2 }, { level = 31, talent = "Suppression", tree = "Affliction", rank = 4 },
+            { level = 32, talent = "Suppression", tree = "Affliction", rank = 5 }, { level = 33, talent = "Pandemic", tree = "Affliction", rank = 1 },
+            { level = 34, talent = "Pandemic", tree = "Affliction", rank = 2 }, { level = 35, talent = "Pandemic", tree = "Affliction", rank = 3 },
+            { level = 36, talent = "Improved Life Tap", tree = "Affliction", rank = 1 }, { level = 37, talent = "Siphon Life", tree = "Affliction", rank = 1 },
             { level = 38, talent = "Soul Siphon", tree = "Affliction", rank = 1 }, { level = 39, talent = "Soul Siphon", tree = "Affliction", rank = 2 },
-            { level = 40, talent = "Soul Siphon", tree = "Affliction", rank = 3 }, { level = 41, talent = "Malevolence", tree = "Affliction", rank = 1 },
-            { level = 42, talent = "Malevolence", tree = "Affliction", rank = 2 }, { level = 43, talent = "Malevolence", tree = "Affliction", rank = 3 },
-            { level = 44, talent = "Malevolence", tree = "Affliction", rank = 4 }, { level = 45, talent = "Malevolence", tree = "Affliction", rank = 5 },
-            { level = 46, talent = "Shadow Mastery", tree = "Affliction", rank = 1 }, { level = 47, talent = "Shadow Mastery", tree = "Affliction", rank = 2 },
-            { level = 48, talent = "Shadow Mastery", tree = "Affliction", rank = 3 }, { level = 49, talent = "Shadow Mastery", tree = "Affliction", rank = 4 },
-            { level = 50, talent = "Shadow Mastery", tree = "Affliction", rank = 5 }, { level = 51, talent = "Siphon Life", tree = "Affliction", rank = 1 },
-            { level = 52, talent = "Fel Concentration", tree = "Affliction", rank = 1 }, { level = 53, talent = "Fel Concentration", tree = "Affliction", rank = 2 },
-            { level = 54, talent = "Fel Concentration", tree = "Affliction", rank = 3 }, { level = 55, talent = "Nightfall", tree = "Affliction", rank = 1 },
-            { level = 56, talent = "Nightfall", tree = "Affliction", rank = 2 }, { level = 57, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 1 },
-            { level = 58, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 2 }, { level = 59, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 3 },
-            { level = 60, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 4 },
+            { level = 40, talent = "Soul Siphon", tree = "Affliction", rank = 3 }, { level = 41, talent = "Improved Life Tap", tree = "Affliction", rank = 2 },
+            { level = 42, talent = "Shadow Mastery", tree = "Affliction", rank = 1 }, { level = 43, talent = "Shadow Mastery", tree = "Affliction", rank = 2 },
+            { level = 44, talent = "Shadow Mastery", tree = "Affliction", rank = 3 }, { level = 45, talent = "Shadow Mastery", tree = "Affliction", rank = 4 },
+            { level = 46, talent = "Shadow Mastery", tree = "Affliction", rank = 5 }, { level = 47, talent = "Wrack", tree = "Affliction", rank = 1 },
+            { level = 48, talent = "Malevolence", tree = "Affliction", rank = 1 }, { level = 49, talent = "Malevolence", tree = "Affliction", rank = 2 },
+            { level = 50, talent = "Malevolence", tree = "Affliction", rank = 3 }, { level = 51, talent = "Malevolence", tree = "Affliction", rank = 4 },
+            { level = 52, talent = "Malevolence", tree = "Affliction", rank = 5 }, { level = 53, talent = "Fel Concentration", tree = "Affliction", rank = 1 },
+            { level = 54, talent = "Fel Concentration", tree = "Affliction", rank = 2 }, { level = 55, talent = "Fel Concentration", tree = "Affliction", rank = 3 },
+            { level = 56, talent = "Nightfall", tree = "Affliction", rank = 1 }, { level = 57, talent = "Nightfall", tree = "Affliction", rank = 2 },
+            { level = 58, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 1 }, { level = 59, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 2 },
+            { level = 60, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 3 },
         },
-        keyTalents = { "Improved Corruption", "Suppression", "Unholy Power", "Demonic Energies", "Improved Drains", "Amplify Curse", "Improved Bane of Agony", "Improved Life Tap", "Pandemic", "Soul Siphon", "Malevolence", "Shadow Mastery", "Siphon Life", "Fel Concentration", "Nightfall", "Improved Shadow Bolt" },
+        keyTalents = { "Improved Corruption", "Suppression", "Unholy Power", "Demonic Energies", "Improved Drains", "Amplify Curse", "Improved Bane of Agony", "Pandemic", "Improved Life Tap", "Siphon Life", "Soul Siphon", "Shadow Mastery", "Wrack", "Malevolence", "Fel Concentration", "Nightfall", "Improved Shadow Bolt" },
         train = { "Corruption (4)", "Life Tap (6)", "Bane of Agony (8)", "Fear (8)", "Summon Voidwalker (10)", "Drain Life (14)", "Summon Sayaad (20)", "Summon Felhunter (30)" },
         stats = { "Spell Power", "Shadow Damage", "Wand DPS (to 30)", "Spirit", "Intellect", "Stamina" },
-        source = "https://www.warcrafttavern.com/forever/guides/warlock-leveling/ (level bands in the text; calculator t=A00111112222266688999abbbcccccddhiiimmmmmB3333377C1111 has the same final ranks)",
-        checked = "2026-11-09", confidence = "high",
+        source = "https://www.warcrafttavern.com/forever/guides/warlock-leveling/ (level bands in the text; calculator t=A00111112222266688999abbbcccccddhiiimmmmmpB3333377C111 has the same final ranks, 41/7/3)",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Destruction PvP 7/7/37 (Mobalytics)", orderFrom = "constructed", spec = "Destruction",
@@ -1919,7 +1920,7 @@ BuildsData.WARLOCK = {
         keyTalents = { "Bane", "Destructive Reach", "Aftermath", "Molten Skin", "Ruin", "Shadowburn", "Conflagrate", "Intensity", "Agonizing Flames", "Pyroclasm", "Bane of Havoc", "Shadow and Flame", "Incinerate", "Demonic Embrace", "Demonic Aegis", "Improved Corruption", "Grim Reach" },
         stats = { "Spell Power", "Crit", "Stamina" },
         source = "https://mobalytics.gg/wow-forever/classes/destruction-warlock-pvp-guide (Saucy722, 2026-11-06); compare https://rankedboost.com/world-of-warcraft/forever/build/warlock/#build=auth-warlock-destruction-pvp",
-        checked = "2026-11-09", confidence = "medium",
+        checked = "2026-11-11", confidence = "medium",
     },
     pvp2 = {
         name = "Demonology Soul Link PvP", spec = "Demonology",
@@ -1932,13 +1933,13 @@ BuildsData.WARLOCK = {
         keyTalents = { "Soul Link", "Demonic Embrace", "Fel Vitality", "Demonic Aegis", "Improved Sayaad", "Fel Domination", "Demonic Sacrifice", "Master Summoner", "Demonic Knowledge", "Master Demonologist", "Demonic Pact", "Improved Corruption", "Suppression", "Improved Bane of Agony", "Pandemic", "Malevolence" },
         stats = { "Stamina", "Spell Power", "Hit (4% vs players)", "Spell Penetration" },
         source = "https://skycoach.gg/blog/wow-forever/articles/best-pvp-specs (2026-11-06); https://seemeta.com/en/wow-forever/pvp-tier-list (2026-11-08)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         dps = {
-            name = "Affliction Wrack 33/0/18", orderFrom = "source", spec = "Affliction",
-            summary = "Best single-target raid build per Warcraft Tavern, and Icy Veins' Wrack build has exactly the same ranks: deep Affliction to Wrack with Suppression, Pandemic, Malevolence, Nightfall, Soul Siphon and Shadow Mastery, plus Bane, Improved Shadow Bolt, Ruin and Agonizing Flames.",
-            split = "33/0/18",
+            name = "Affliction Wrack 35/11/5 (Warcraft Tavern)", orderFrom = "source", spec = "Affliction",
+            summary = "Warcraft Tavern's strongest raid build after the 10 Nov 2026 Wrack rework: deep Affliction to Wrack (now a 6-second channel that makes Corruption, Siphon Life and Bane of Agony tick twice as fast) with 3/3 Soul Siphon (now 4/8/12% per Corruption, Siphon Life and Bane of Agony on the target, up to 36%), Suppression, Pandemic, Malevolence, Nightfall and Shadow Mastery; Demonology for Demonic Embrace, Demonic Aegis, Fel Vitality and Demonic Sacrifice (sacrifice the Imp, play without a demon); 5 Improved Shadow Bolt for Nightfall procs. Replaces the 33/0/18 Wrack build from before the rework. The Shadow Mastery/Ruin build (30/0/21) is the alternative if you would rather hard-cast Shadow Bolt and keep a demon out.",
+            split = "35/11/5",
             points = {
                 { level = 10, talent = "Suppression", tree = "Affliction", rank = 1 }, { level = 11, talent = "Suppression", tree = "Affliction", rank = 2 },
                 { level = 12, talent = "Suppression", tree = "Affliction", rank = 3 }, { level = 13, talent = "Suppression", tree = "Affliction", rank = 4 },
@@ -1946,31 +1947,31 @@ BuildsData.WARLOCK = {
                 { level = 16, talent = "Improved Corruption", tree = "Affliction", rank = 2 }, { level = 17, talent = "Improved Corruption", tree = "Affliction", rank = 3 },
                 { level = 18, talent = "Improved Corruption", tree = "Affliction", rank = 4 }, { level = 19, talent = "Improved Corruption", tree = "Affliction", rank = 5 },
                 { level = 20, talent = "Improved Life Tap", tree = "Affliction", rank = 1 }, { level = 21, talent = "Improved Life Tap", tree = "Affliction", rank = 2 },
-                { level = 22, talent = "Amplify Curse", tree = "Affliction", rank = 1 }, { level = 23, talent = "Pandemic", tree = "Affliction", rank = 1 },
-                { level = 24, talent = "Pandemic", tree = "Affliction", rank = 2 }, { level = 25, talent = "Pandemic", tree = "Affliction", rank = 3 },
-                { level = 26, talent = "Malevolence", tree = "Affliction", rank = 1 }, { level = 27, talent = "Malevolence", tree = "Affliction", rank = 2 },
-                { level = 28, talent = "Malevolence", tree = "Affliction", rank = 3 }, { level = 29, talent = "Malevolence", tree = "Affliction", rank = 4 },
-                { level = 30, talent = "Malevolence", tree = "Affliction", rank = 5 }, { level = 31, talent = "Nightfall", tree = "Affliction", rank = 1 },
-                { level = 32, talent = "Nightfall", tree = "Affliction", rank = 2 }, { level = 33, talent = "Siphon Life", tree = "Affliction", rank = 1 },
-                { level = 34, talent = "Soul Siphon", tree = "Affliction", rank = 1 }, { level = 35, talent = "Soul Siphon", tree = "Affliction", rank = 2 },
-                { level = 36, talent = "Soul Siphon", tree = "Affliction", rank = 3 }, { level = 37, talent = "Shadow Mastery", tree = "Affliction", rank = 1 },
-                { level = 38, talent = "Shadow Mastery", tree = "Affliction", rank = 2 }, { level = 39, talent = "Shadow Mastery", tree = "Affliction", rank = 3 },
-                { level = 40, talent = "Shadow Mastery", tree = "Affliction", rank = 4 }, { level = 41, talent = "Shadow Mastery", tree = "Affliction", rank = 5 },
-                { level = 42, talent = "Wrack", tree = "Affliction", rank = 1 }, { level = 43, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 1 },
-                { level = 44, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 2 }, { level = 45, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 3 },
-                { level = 46, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 4 }, { level = 47, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 5 },
-                { level = 48, talent = "Bane", tree = "Destruction", rank = 1 }, { level = 49, talent = "Bane", tree = "Destruction", rank = 2 },
-                { level = 50, talent = "Bane", tree = "Destruction", rank = 3 }, { level = 51, talent = "Bane", tree = "Destruction", rank = 4 },
-                { level = 52, talent = "Bane", tree = "Destruction", rank = 5 }, { level = 53, talent = "Ruin", tree = "Destruction", rank = 1 },
-                { level = 54, talent = "Ruin", tree = "Destruction", rank = 2 }, { level = 55, talent = "Ruin", tree = "Destruction", rank = 3 },
-                { level = 56, talent = "Ruin", tree = "Destruction", rank = 4 }, { level = 57, talent = "Ruin", tree = "Destruction", rank = 5 },
-                { level = 58, talent = "Agonizing Flames", tree = "Destruction", rank = 1 }, { level = 59, talent = "Agonizing Flames", tree = "Destruction", rank = 2 },
-                { level = 60, talent = "Agonizing Flames", tree = "Destruction", rank = 3 },
+                { level = 22, talent = "Improved Bane of Agony", tree = "Affliction", rank = 1 }, { level = 23, talent = "Improved Bane of Agony", tree = "Affliction", rank = 2 },
+                { level = 24, talent = "Amplify Curse", tree = "Affliction", rank = 1 }, { level = 25, talent = "Pandemic", tree = "Affliction", rank = 1 },
+                { level = 26, talent = "Pandemic", tree = "Affliction", rank = 2 }, { level = 27, talent = "Pandemic", tree = "Affliction", rank = 3 },
+                { level = 28, talent = "Malevolence", tree = "Affliction", rank = 1 }, { level = 29, talent = "Malevolence", tree = "Affliction", rank = 2 },
+                { level = 30, talent = "Malevolence", tree = "Affliction", rank = 3 }, { level = 31, talent = "Malevolence", tree = "Affliction", rank = 4 },
+                { level = 32, talent = "Malevolence", tree = "Affliction", rank = 5 }, { level = 33, talent = "Nightfall", tree = "Affliction", rank = 1 },
+                { level = 34, talent = "Nightfall", tree = "Affliction", rank = 2 }, { level = 35, talent = "Siphon Life", tree = "Affliction", rank = 1 },
+                { level = 36, talent = "Soul Siphon", tree = "Affliction", rank = 1 }, { level = 37, talent = "Soul Siphon", tree = "Affliction", rank = 2 },
+                { level = 38, talent = "Soul Siphon", tree = "Affliction", rank = 3 }, { level = 39, talent = "Shadow Mastery", tree = "Affliction", rank = 1 },
+                { level = 40, talent = "Shadow Mastery", tree = "Affliction", rank = 2 }, { level = 41, talent = "Shadow Mastery", tree = "Affliction", rank = 3 },
+                { level = 42, talent = "Shadow Mastery", tree = "Affliction", rank = 4 }, { level = 43, talent = "Shadow Mastery", tree = "Affliction", rank = 5 },
+                { level = 44, talent = "Wrack", tree = "Affliction", rank = 1 }, { level = 45, talent = "Demonic Embrace", tree = "Demonology", rank = 1 },
+                { level = 46, talent = "Demonic Embrace", tree = "Demonology", rank = 2 }, { level = 47, talent = "Demonic Embrace", tree = "Demonology", rank = 3 },
+                { level = 48, talent = "Demonic Embrace", tree = "Demonology", rank = 4 }, { level = 49, talent = "Demonic Embrace", tree = "Demonology", rank = 5 },
+                { level = 50, talent = "Demonic Aegis", tree = "Demonology", rank = 1 }, { level = 51, talent = "Demonic Aegis", tree = "Demonology", rank = 2 },
+                { level = 52, talent = "Fel Vitality", tree = "Demonology", rank = 1 }, { level = 53, talent = "Fel Vitality", tree = "Demonology", rank = 2 },
+                { level = 54, talent = "Fel Vitality", tree = "Demonology", rank = 3 }, { level = 55, talent = "Demonic Sacrifice", tree = "Demonology", rank = 1 },
+                { level = 56, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 1 }, { level = 57, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 2 },
+                { level = 58, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 3 }, { level = 59, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 4 },
+                { level = 60, talent = "Improved Shadow Bolt", tree = "Destruction", rank = 5 },
             },
-            keyTalents = { "Suppression", "Improved Corruption", "Improved Life Tap", "Amplify Curse", "Pandemic", "Malevolence", "Nightfall", "Siphon Life", "Soul Siphon", "Shadow Mastery", "Wrack", "Improved Shadow Bolt", "Bane", "Ruin", "Agonizing Flames" },
+            keyTalents = { "Suppression", "Improved Corruption", "Improved Life Tap", "Improved Bane of Agony", "Amplify Curse", "Pandemic", "Malevolence", "Nightfall", "Siphon Life", "Soul Siphon", "Shadow Mastery", "Wrack", "Demonic Embrace", "Demonic Aegis", "Fel Vitality", "Demonic Sacrifice", "Improved Shadow Bolt" },
             stats = { "Hit (to 17%)", "Spell Damage", "Shadow Damage", "Crit", "Haste", "Spell Penetration", "Intellect" },
-            source = "https://www.warcrafttavern.com/forever/guides/affliction-warlock/ (calculator t=A111112222200abbbcccccddhiiimmmmmpC111112222299999ddd); same ranks at https://www.icy-veins.com/wow-forever/affliction-warlock-ranged-dps-pve-spec-builds-talents (Nov 4, 2026)",
-            checked = "2026-11-09", confidence = "high",
+            source = "https://www.warcrafttavern.com/forever/guides/affliction-warlock/ (last updated 2026-11-11; calculator t=A11111222220088abbbcccccddhiiimmmmmpB22222446669C11111, order from the calculator's Talent Order); Icy Veins' Wrack build (Nov 4, 2026) predates the rework",
+            checked = "2026-11-11", confidence = "medium",
         },
     },
 }
@@ -2013,7 +2014,7 @@ BuildsData.DRUID = {
         train = { "Bear Form (10, class quest)", "Faerie Fire (18)", "Cat Form, Prowl, Claw, Rip (20, class quest)", "Rake, Ferocious Bite (24)", "Dash (26)", "Travel Form (30)", "Ravage (32)", "Pounce (36)", "Dire Bear Form, Innervate (40)", "Barkskin (44)" },
         stats = { "Weapon DPS", "Strength", "Agility", "Attack Power", "Stamina", "Intellect", "Spirit", "Armor" },
         source = "https://www.warcrafttavern.com/forever/guides/druid-leveling/ (calculator link t=B1111144555a99bbedffchccjjkkkkkqpC22222A222227766B22222); cross-check https://www.icy-veins.com/wow-forever/feral-druid-leveling (Nov 4, 2026)",
-        checked = "2026-11-09", confidence = "high",
+        checked = "2026-11-11", confidence = "high",
     },
     pvp = {
         name = "Restoration PvP (rankedboost)", orderFrom = "constructed", spec = "Restoration",
@@ -2050,7 +2051,7 @@ BuildsData.DRUID = {
         keyTalents = { "Heart of the Wild", "Nature's Focus", "Naturalist", "Natural Shapeshifter", "Gift of Nature", "Bloom", "Subtlety", "Improved Rejuvenation", "Swiftmend", "Nature's Swiftness", "Living Spirit", "Improved Regrowth", "Wild Growth", "Furor", "Feral Swiftness", "Brutal Impact", "Thick Hide", "Feral Charge" },
         stats = { "Healing Power", "Stamina", "Intellect", "Spirit", "MP5", "Crit" },
         source = "https://rankedboost.com/world-of-warcraft/forever/build/druid/#build=auth-druid-restoration-pvp (updated 2026-11-04); ranking: skycoach.gg best PvP specs (2026-11-06), seemeta PvP tier list",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pvp2 = {
         name = "Feral hybrid PvP", orderFrom = "source", spec = "Feral Combat",
@@ -2087,7 +2088,7 @@ BuildsData.DRUID = {
         keyTalents = { "Ferocity", "Feral Swiftness", "Feral Instinct", "Shredding Attacks", "Savage Fury", "Feral Charge", "Sharpened Claws", "Predatory Strikes", "Lacerate", "Predatory Discipline", "Blood Frenzy", "Leader of the Pack", "Natural Instinct", "Rend and Tear", "Primal Bite", "Shifting Power", "Heart of the Wild", "Genesis", "Nature's Reach", "Nature's Majesty", "Thick Hide" },
         stats = { "Weapon DPS", "Stamina", "Agility", "Strength", "Hit (to 8%)", "Crit" },
         source = "https://www.warcrafttavern.com/forever/guides/feral-druid/ (talents); https://seemeta.com/en/wow-forever/pvp-tier-list (rating)",
-        checked = "2026-11-09", confidence = "low",
+        checked = "2026-11-11", confidence = "low",
     },
     pve = {
         tank = {
@@ -2125,7 +2126,7 @@ BuildsData.DRUID = {
             keyTalents = { "Ferocity", "Feral Swiftness", "Feral Instinct", "Shredding Attacks", "Savage Fury", "Feral Charge", "Sharpened Claws", "Predatory Strikes", "Lacerate", "Predatory Discipline", "Blood Frenzy", "Leader of the Pack", "Natural Instinct", "Rend and Tear", "Primal Bite", "Shifting Power", "Heart of the Wild", "Genesis", "Nature's Reach", "Nature's Majesty", "Thick Hide" },
             stats = { "Weapon DPS", "Armor", "Stamina", "Defense (to 440)", "Agility", "Hit (to 8%)", "Expertise (to 6.5%)", "Dodge" },
             source = "https://www.warcrafttavern.com/forever/guides/feral-druid/ (calculator t=B111114455588899abbcccdeffhjjkkkkkpqC22222A222227766B77); compare https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-spec-builds-talents (Nov 4, 2026), https://www.method.gg/wow-forever/class-guides/feral-tank-druid/talents (Nov 4, 2026)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
         healer = {
             name = "Restoration 13/0/38 (Warcraft Tavern)", orderFrom = "source", spec = "Restoration",
@@ -2162,7 +2163,7 @@ BuildsData.DRUID = {
             keyTalents = { "Heart of the Wild", "Nature's Focus", "Reflection", "Naturalist", "Gift of Nature", "Bloom", "Swiftmend", "Improved Rejuvenation", "Living Spirit", "Nature's Swiftness", "Improved Regrowth", "Wild Growth", "Genesis", "Nature's Majesty", "Nature's Reach", "Moonglow", "Nature's Splendor" },
             stats = { "Healing Power", "Intellect", "Spirit", "MP5", "Crit", "Haste" },
             source = "https://www.warcrafttavern.com/forever/guides/restoration-druid/ (calculator t=C222221111155544444aaaaabfeeehhhgmmmmmpA222226677444a); compare https://www.icy-veins.com/wow-forever/restoration-druid-healer-pve-spec-builds-talents (Nov 4, 2026)",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
         dps = {
             name = "Cat DPS 8/33/10 (Icy Veins)", orderFrom = "constructed", spec = "Feral Combat",
@@ -2199,7 +2200,7 @@ BuildsData.DRUID = {
             keyTalents = { "Ferocity", "Feral Swiftness", "Furor", "Savage Fury", "Sharpened Claws", "Feral Charge", "Predatory Strikes", "Blood Frenzy", "Leader of the Pack", "Natural Instinct", "Shredding Attacks", "Rend and Tear", "Predatory Discipline", "Shifting Power", "Heart of the Wild", "Naturalist", "Genesis", "Nature's Majesty", "Nature's Reach" },
             stats = { "Weapon DPS", "Hit (to 8%)", "Expertise (to 6.5%)", "Agility", "Strength", "Crit", "Haste" },
             source = "https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-spec-builds-talents (Nov 4, 2026); stats https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-stat-priority",
-            checked = "2026-11-09", confidence = "medium",
+            checked = "2026-11-11", confidence = "medium",
         },
         -- Balance (Moonkin) raid build from research\builds\DRUID.md ("Other exact builds found"): WT and IV agree on the
         -- Balance 41; WT's Restoration 10 used. Offered as a second damage choice (goal "dps2" / "balance").
@@ -2238,7 +2239,7 @@ BuildsData.DRUID = {
             keyTalents = { "Improved Wrath", "Genesis", "Moonglow", "Improved Moonfire", "Nature's Majesty", "Nature's Reach", "Nature's Splendor", "Insect Swarm", "Vengeance", "Improved Starfire", "Nature's Grace", "Eclipse", "Moonfury", "Moonkin Form", "Heart of the Wild", "Reflection", "Nature's Focus" },
             stats = { "Hit (to 17%)", "Spell Damage", "Crit", "Intellect", "Spirit" },
             source = "https://www.warcrafttavern.com/forever/guides/balance-druid/ ; same Balance 41 at https://www.icy-veins.com/wow-forever/balance-druid-ranged-dps-pve-spec-builds-talents (2026-11-04)",
-            checked = "2026-11-09", confidence = "high",
+            checked = "2026-11-11", confidence = "high",
         },
     },
 }

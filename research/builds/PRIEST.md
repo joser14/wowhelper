@@ -56,3 +56,6 @@ Decoding method: see ROGUE.md.
 - https://leprestore.com/guides/world-of-warcraft-forever/wow-forever-shadow-priest-guide-best-builds-race-professions/ (Nov 3 fixes, Nov 5)
 - https://rankedboost.com/world-of-warcraft/forever/build/priest/ (game build 1.60.1.70862)
 - https://www.warcrafttavern.com/forever/guides/holy-priest/, /discipline-priest/ (build images only, no calculator links)
+
+## Recheck 2026-11-11 (after the 2026-11-10 tuning)
+fixes only (Revelation enchant no longer procs from Vampiric Embrace healing; Holy Nova unlearns when untalented; Nov 9 Shadowform/Fear Ward and Power Infusion fixes). Mobalytics priest leveling (Twicks) and the <Progress> shadow guide were both re-dated 2026-11-11; their 51-point paths were read again and are identical to the .lua (15/3/33 both). Leprestore PvP still 2026-11-05, rankedboost 2026-11-08 (build 70862), Icy Veins holy 2026-11-04. All builds kept.
