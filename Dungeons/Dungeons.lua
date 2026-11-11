@@ -801,7 +801,7 @@ local function JudgeItem(id)
     end
     if C_Item.DoesItemExistByID then
         local ok, exists = pcall(C_Item.DoesItemExistByID, id)
-        if ok and exists == false then
+        if ok and Safe(exists) == false then
             upgradeOf[id] = false
             return
         end

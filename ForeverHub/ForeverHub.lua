@@ -194,10 +194,10 @@ local TABS = {
     { label = "Home", home = true, about = "What every helper does, and how to use this window." },
     { label = "Manage", manage = true, about = "Switch helpers on or off, and see which addons are loaded." },
     { label = "Professions", key = "PROFESSIONCAP", helper = "ProfessionCap" },
-    { label = "Profession guide", key = "PROFESSIONGUIDE", helper = "ProfessionGuide", hint = "Type a profession to see its full guide. Or: shopping   Or: trainer alchemy" },
+    { label = "Profession guide", key = "PROFESSIONGUIDE", helper = "ProfessionGuide", hint = "Type a profession to see its full guide. Or: trainer alchemy" },
     { label = "Gold goal", key = "GOLDGOAL", helper = "GoldGoal", hint = "Gold and a name: 500 Bags   Or: clear" },
-    { label = "Gold guide", key = "GOLDGUIDE", helper = "GoldGuide", hint = "Type a number to pin that farm. Or: all   Or: tips" },
-    { label = "Dungeons", key = "DUNGEONS", helper = "Dungeons", hint = "Type a number or name for details. Or: pin 2   Or: all" },
+    { label = "Gold guide", key = "GOLDGUIDE", helper = "GoldGuide", hint = "Type a number to pin that farm." },
+    { label = "Dungeons", key = "DUNGEONS", helper = "Dungeons", hint = "Type a number or name for details. Or: pin 2" },
     { label = "Quests", key = "QUESTCHECK", helper = "QuestCheck" },
     { label = "Zone", key = "ZONELEVELS", helper = "ZoneLevels" },
     { label = "Quest mobs", key = "QUESTMOBS", helper = "QuestMobs", hint = "Type: off   Or: on   Or: size large" },
@@ -211,7 +211,7 @@ local TABS = {
     { label = "Repairs", key = "DURABILITYWATCH", helper = "DurabilityWatch" },
     { label = "Tooltips", key = "TOOLTIPS", helper = "Tooltips", hint = "Type: off vendor   Or: on id   Or: on npc" },
     { label = "Window badges", key = "WINDOWBADGES", helper = "WindowBadges", hint = "Type: off reward   Or: on merchant   Or: off trainer" },
-    { label = "Builds", key = "BUILDS", helper = "Builds", hint = "Goal: leveling, pvp, tank, healer, dps   Or: all   Or: a class name like mage" },
+    { label = "Builds", key = "BUILDS", helper = "Builds", hint = "Type a class name, like mage, to see its builds." },
     { label = "Talents", key = "TALENTNUDGE", helper = "TalentNudge" },
     { label = "Trainer", key = "TRAINERNOTES", helper = "TrainerNotes" },
     { label = "Weapon skills", key = "WEAPONSKILLWATCH", helper = "WeaponSkillWatch", arg = "all" },
@@ -219,20 +219,47 @@ local TABS = {
     { label = "Reputation", key = "REPWATCH", helper = "RepWatch", arg = "all" },
     { label = "Level log", key = "LEVELLOG", helper = "LevelLog", arg = "all" },
     -- Not READYCHECK: that is Blizzard's own /readycheck command, which the hub must never wrap.
-    { label = "Ready check", key = "SPELLREADY", helper = "SpellReady", hint = "Type: ignore Frostbolt   Or: unignore Frostbolt   Or: ignored" },
-    { label = "Places", key = "LANDMARKS", helper = "Landmarks", hint = "Type a kind to pin the nearest on your map: repair, vendor, food, inn, flight, mail, bank, trainer, arrows, bullets, bags, reagents" },
+    { label = "Ready check", key = "SPELLREADY", helper = "SpellReady", hint = "Type: ignore Frostbolt   Or: unignore Frostbolt" },
+    { label = "Places", key = "LANDMARKS", helper = "Landmarks", hint = "The buttons pin the nearest on your map. Or type: food, profession, arrows, bullets, bags, reagents" },
     { label = "Deaths", key = "DEATHNOTES", helper = "DeathNotes", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
     -- "Rares" exactly: RareWatch's side panel line opens this page by that name.
-    { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: all   forget all   watch <name or NPC ID>   unwatch <name>" },
+    { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: forget all   watch <name or NPC ID>   unwatch <name>" },
     { label = "Map pins", key = "MAPPINS", helper = "MapPins", hint = "Type: off deaths   Or: on farms   Or: minimap off" },
     { label = "Characters", key = "FOREVERHELPER", helper = "ForeverHelper", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
     { label = "Pop-up history", alerts = true, section = "hub", about = "Every pop-up from this session, newest first." },
     { label = "Errors", key = "ERRORLOG", helper = "ErrorLog", hint = "Type a number for details, or: clear" },
 }
+-- Buttons above a page, so nothing a helper shows needs a typed word (final review): each runs the
+-- helper's own command with that word. A view replaces the page's text; an action (a window toggle or a
+-- map pin) keeps the view you're on and shows its answer, if it gives one, in place of the page.
+-- professions: one more view per profession you have, for its full guide.
+local VIEWS = {
+    ["Profession guide"] = { professions = true, { label = "Overview", arg = "" }, { label = "Craft now", arg = "craft" },
+        { label = "Shopping list", arg = "shopping" } },
+    ["Gold goal"] = { { label = "Goal", arg = "" }, { label = "Money sources", arg = "sources" }, { label = "Auction sales", arg = "sales" } },
+    ["Gold guide"] = { { label = "Best farms", arg = "" }, { label = "All farms", arg = "all" }, { label = "Tips", arg = "tips" } },
+    ["Dungeons"] = { { label = "For your level", arg = "" }, { label = "All dungeons", arg = "all" } },
+    ["Quest mobs"] = { { label = "List window", arg = "list", action = true } },
+    ["Find an item"] = { { label = "Mail expiry", arg = "expiring" } },
+    ["Builds"] = { { label = "Your build", arg = "" }, { label = "All goals", arg = "all" }, { label = "Leveling", arg = "leveling" },
+        { label = "PvP", arg = "pvp" }, { label = "Tank", arg = "tank" }, { label = "Healer", arg = "healer" }, { label = "Damage", arg = "dps" } },
+    ["Weapon skills"] = { { label = "All skills", arg = "all" }, { label = "Equipped", arg = "" } },
+    ["Reputation"] = { { label = "All factions", arg = "all" }, { label = "This session", arg = "" } },
+    ["Level log"] = { { label = "Open window", arg = "window", action = true } },
+    ["Ready check"] = { { label = "Checks", arg = "" }, { label = "Ignored spells", arg = "ignored" } },
+    ["Places"] = { { label = "Nearest repair", arg = "repair", action = true }, { label = "Vendor", arg = "vendor", action = true },
+        { label = "Inn", arg = "inn", action = true }, { label = "Flight", arg = "flight", action = true },
+        { label = "Mailbox", arg = "mail", action = true }, { label = "Bank", arg = "bank", action = true },
+        { label = "Trainer", arg = "trainer", action = true } },
+    ["Rares"] = { { label = "Recent", arg = "" }, { label = "All rares", arg = "all" } },
+    ["Characters"] = { { label = "Own window", arg = "window", action = true } },
+}
+
 local PAGE_BY_KEY, PAGE_BY_LABEL = {}, {}
 local PAGES_BY_HELPER, TABS_BY_SECTION = {}, {}
 for _, tab in ipairs(TABS) do
     PAGE_BY_LABEL[tab.label] = tab
+    tab.views = VIEWS[tab.label]
     if tab.key then
         PAGE_BY_KEY[tab.key] = tab
     end
@@ -262,6 +289,10 @@ local ownTip
 local SelectTab, LayoutSidebar
 local statLines, rows = {}, {}
 local currentTab, renderedTab
+-- The view button chosen on the current page (nil: the page's own first view), and the buttons shown.
+local currentView
+local shownViews, viewButtons = {}, {}
+local VIEW_TOP, VIEW_ROW_HEIGHT = -36, 24
 local originals = {}
 local alerts = {}
 local toasts = {}
@@ -725,6 +756,90 @@ local function ShowManage(show)
     content:SetHeight(textHeight + manageHeight)
 end
 
+--------------------------------------------------------------------------------------------------
+-- View buttons: one row (or two) of buttons above a page, from VIEWS.
+--------------------------------------------------------------------------------------------------
+
+-- The page's views; profession guides are added for the professions you have now.
+local function ViewsFor(tab)
+    local list = {}
+    for _, view in ipairs(tab.views or {}) do
+        list[#list + 1] = view
+    end
+    if tab.views and tab.views.professions and type(ForeverSkillProfessions) == "function" then
+        local ok, professions = pcall(ForeverSkillProfessions)
+        for _, profession in ipairs(ok and type(professions) == "table" and professions or {}) do
+            local name = type(profession) == "table" and Safe(profession.name)
+            if type(name) == "string" and name ~= "" then
+                list[#list + 1] = { label = name, arg = name:lower() }
+            end
+        end
+    end
+    return list
+end
+
+-- What the page shows when no button was clicked: the view that matches the page's own word.
+local function DefaultView(tab)
+    for _, view in ipairs(shownViews) do
+        if not view.action and view.arg == (tab.arg or "") and not tab.search then
+            return view
+        end
+    end
+end
+
+local function LightViews(tab)
+    local active = currentView or DefaultView(tab)
+    for _, button in ipairs(viewButtons) do
+        if button.view ~= nil and button.view == active then
+            button:LockHighlight()
+        else
+            button:UnlockHighlight()
+        end
+    end
+end
+
+local ViewClicked
+
+local function ViewButton(index)
+    local button = viewButtons[index]
+    if not button then
+        button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+        button:SetHeight(20)
+        button:SetScript("OnClick", function(self)
+            if self.view then
+                ViewClicked(self.view)
+            end
+        end)
+        viewButtons[index] = button
+    end
+    return button
+end
+
+-- Lays out the page's buttons from the top of the page area; returns the height they take.
+local function LayoutViews(tab)
+    shownViews = ViewsFor(tab)
+    local x, y = 0, 0
+    for index, view in ipairs(shownViews) do
+        local button = ViewButton(index)
+        local width = math.max(#view.label * 7 + 24, 60)
+        if x > 0 and x + width > PAGE_WIDTH then
+            x, y = 0, y + VIEW_ROW_HEIGHT
+        end
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT + x, VIEW_TOP - y)
+        button:SetWidth(width)
+        button:SetText(view.label)
+        button.view = view
+        button:Show()
+        x = x + width + 4
+    end
+    for index = #shownViews + 1, #viewButtons do
+        viewButtons[index].view = nil
+        viewButtons[index]:Hide()
+    end
+    return #shownViews > 0 and (y + VIEW_ROW_HEIGHT + 4) or 0
+end
+
 local function RenderPage(prefixLines)
     local tab = currentTab
     -- A new pop-up redraws the history page while you may be scrolled down in it; stay put then.
@@ -738,10 +853,10 @@ local function RenderPage(prefixLines)
         text = ManageIntro()
     elseif tab.alerts then
         text = AlertsText()
-    elseif tab.search then
+    elseif tab.search and not currentView then
         text = tab.emptyHint
     else
-        text = table.concat(RunCommand(tab.key, tab.arg), "\n")
+        text = table.concat(RunCommand(tab.key, currentView and currentView.arg or tab.arg), "\n")
     end
     if text == "" then
         text = "|cff999999Nothing to show right now.|r"
@@ -765,19 +880,52 @@ SelectTab = function(tab, prefixLines)
             end
         end
     end
+    currentView = nil
+    local top = VIEW_TOP - LayoutViews(tab)
+    LightViews(tab)
     local hasInput = tab.hint ~= nil
     hintText:SetShown(hasInput)
     inputBox:SetShown(hasInput)
     hintText:SetText(tab.hint or "")
+    hintText:ClearAllPoints()
+    hintText:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT, top)
+    hintText:SetPoint("RIGHT", frame, "RIGHT", -14, 0)
     inputBox:SetText("")
     inputBox:ClearFocus()
+    inputBox:ClearAllPoints()
+    inputBox:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT, top - 16)
+    inputBox:SetPoint("RIGHT", frame, "RIGHT", -14, 0)
     scroll:ClearAllPoints()
-    scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT, hasInput and -84 or -36)
+    scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", PAGE_LEFT, hasInput and (top - 48) or top)
     scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -34, 14)
     -- A hidden window fills in when it opens. At login, other addons may not have started yet.
     if frame:IsShown() then
         RenderPage(prefixLines)
     end
+end
+
+ViewClicked = function(view)
+    local tab = currentTab
+    if not (tab and tab.key) then
+        return
+    end
+    if view.action then
+        -- A window toggle answers nothing, so the page stays; a pin answers with the page and its note.
+        local lines = RunCommand(tab.key, view.arg)
+        if #lines > 0 then
+            renderedTab = tab
+            SetBody(table.concat(lines, "\n"))
+            ShowManage(false)
+        else
+            RenderPage()
+        end
+        rowsDirty = true
+        return
+    end
+    currentView = view
+    renderedTab = nil
+    LightViews(tab)
+    RenderPage()
 end
 
 -- Finds an item link in your bags from part of its name, so no one needs to shift-click into chat.
@@ -824,6 +972,9 @@ local function SubmitInput(text)
     end
     inputBox:SetText("")
     if currentTab.search then
+        -- A search replaces whatever view was showing.
+        currentView = nil
+        LightViews(currentTab)
         local lines = RunCommand(currentTab.key, text)
         -- A blank page would look like the search never ran.
         if #lines == 0 then

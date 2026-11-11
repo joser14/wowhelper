@@ -886,6 +886,14 @@ events:SetScript("OnEvent", function(_, event, unit)
     elseif event == "QUEST_LOG_UPDATE" or event == "UNIT_QUEST_LOG_CHANGED" then
         logDirty = true
     elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+        -- One refused anchor used to turn markers off until a /reload (final review); try again here.
+        if event == "PLAYER_ENTERING_WORLD" and anchorRestricted then
+            anchorRestricted = false
+            windowDirty = true
+            for _, plate in pairs(plates) do
+                plate.dirty = true
+            end
+        end
         CheckInstance()
     end
 end)

@@ -201,7 +201,7 @@ click(switchFor("Landmarks"))
 assert(not ForeverHub_IsOff("Landmarks") and nav("Places").shown, "on again shows the page")
 -- Open jumps to the helper's page.
 click(openAfter(switchFor("Landmarks")))
-assert(has("Type a kind to pin the nearest"), "Open goes to Places")
+assert(has("The buttons pin the nearest"), "Open goes to Places")
 -- The Rares page sits in World.
 assert(nav("Rares") and nav("Rares").shown, "Rares page in the sidebar")
 

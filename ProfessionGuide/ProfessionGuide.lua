@@ -867,8 +867,35 @@ local function CraftableNow(list, reserved)
     end
     local rows = {}
     local recipes = type(ProfessionGuideDB) == "table" and type(ProfessionGuideDB.recipes) == "table" and ProfessionGuideDB.recipes or nil
-    if recipes and next(recipes) then
-        for _, recipe in pairs(recipes) do
+    -- Which of your professions had their window read; the others fall back to their guide's steps
+    -- (final review: one read window used to switch every profession off the guide).
+    local readLine, readName = {}, {}
+    for _, recipe in pairs(recipes or {}) do
+        if type(recipe) == "table" then
+            if recipe.line then
+                readLine[recipe.line] = true
+            elseif recipe.prof then
+                readName[Squash(recipe.prof)] = true
+            end
+        end
+    end
+    -- Only crafting professions: gathering ones have no recipe window to read.
+    local function crafts(guide)
+        for _, step in ipairs(guide and guide.steps or {}) do
+            if step.craft and step.mats and #step.mats > 0 then
+                return true
+            end
+        end
+        return false
+    end
+    local unread = {}
+    for _, profession in ipairs(list) do
+        if crafts(profession.guide) and not ((profession.line and readLine[profession.line]) or readName[Squash(profession.name)]) then
+            unread[#unread + 1] = profession
+        end
+    end
+    do
+        for _, recipe in pairs(recipes or {}) do
             if type(recipe) == "table" and type(recipe.mats) == "table" and #recipe.mats > 0 and stillKnown(recipe) then
                 local can
                 for _, mat in ipairs(recipe.mats) do
@@ -892,9 +919,10 @@ local function CraftableNow(list, reserved)
                 end
             end
         end
-    else
-        -- No profession window read yet: the guide's own steps, from the current one on.
-        for _, profession in ipairs(list) do
+    end
+    do
+        -- No window read yet for these: the guide's own steps, from the current one on.
+        for _, profession in ipairs(unread) do
             local guide = profession.guide
             local current = guide and select(2, CurrentStep(guide, profession.rank))
             for index = current or 1, current and #guide.steps or 0 do
@@ -918,7 +946,7 @@ local function CraftableNow(list, reserved)
         end
         return tostring(a.name) < tostring(b.name)
     end)
-    return rows, recipes and next(recipes) ~= nil
+    return rows, unread
 end
 
 local function ShowCraftable()
@@ -928,7 +956,8 @@ local function ShowCraftable()
         return
     end
     local reserved = Reserved(list)
-    local rows, fromWindow = CraftableNow(list, reserved)
+    local rows, unread = CraftableNow(list, reserved)
+
     Print("|cffffd100What you can craft now|r |cff999999(from your bags)|r")
     if #rows == 0 then
         Print("  Nothing: no recipe has all its materials in your bags.")
@@ -942,8 +971,13 @@ local function ShowCraftable()
     if #rows > 25 then
         Print(string.format("  ...and %d more.", #rows - 25))
     end
-    if not fromWindow then
-        Print("  |cff999999Only guide recipes are listed. Open a profession window once to list every recipe you know.|r")
+    if #unread > 0 then
+        local names = {}
+        for _, profession in ipairs(unread) do
+            names[#names + 1] = profession.name
+        end
+        Print("  |cff999999Only guide recipes are listed for " .. table.concat(names, ", ")
+            .. ". Open a profession window once to list every recipe you know.|r")
     end
     -- Materials kept for later steps, and what you hold beyond everything the guide still needs.
     local keep, spare = {}, {}
@@ -1013,9 +1047,20 @@ local scanner = CreateFrame and CreateFrame("Frame")
 if scanner then
     pcall(scanner.RegisterEvent, scanner, "TRADE_SKILL_SHOW")
     pcall(scanner.RegisterEvent, scanner, "TRADE_SKILL_LIST_UPDATE")
-    scanner:SetScript("OnEvent", function()
+    -- An event inside the wait is read once the wait is over (final review): the list often fills in
+    -- just after TRADE_SKILL_SHOW, and a second profession window can open within the wait.
+    local scanPending = false
+    local OnScanEvent
+    OnScanEvent = function()
         local now = GetTime and Safe(GetTime()) or nil
         if type(now) == "number" and lastScan and now - lastScan < SCAN_SECONDS then
+            if not scanPending and C_Timer and C_Timer.After then
+                scanPending = true
+                C_Timer.After(SCAN_SECONDS - (now - lastScan), function()
+                    scanPending = false
+                    OnScanEvent()
+                end)
+            end
             return
         end
         lastScan = type(now) == "number" and now or nil
@@ -1023,7 +1068,8 @@ if scanner then
         if not ok and geterrorhandler then
             geterrorhandler()(err)
         end
-    end)
+    end
+    scanner:SetScript("OnEvent", OnScanEvent)
 end
 
 ForeverHubStatus = ForeverHubStatus or {}

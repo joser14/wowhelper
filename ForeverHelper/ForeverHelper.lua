@@ -174,7 +174,11 @@ end
 local function SaveCharacter()
     char.money = Safe(GetMoney()) or char.money
     char.level = Safe(UnitLevel("player")) or char.level
-    char.rested = Safe(GetXPExhaustion()) or 0
+    -- nil means no rested XP; a hidden (secret) value keeps the last one read (final review).
+    local rested = GetXPExhaustion()
+    if not (issecretvalue and issecretvalue(rested)) then
+        char.rested = rested or 0
+    end
 end
 
 local function RefreshStats()

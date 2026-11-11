@@ -262,7 +262,9 @@ local function OnGreeting()
                 isComplete = QuestLogCall("IsComplete", questID)
             end
             local key = "turnin:" .. tostring(questID or title or ("#" .. index))
-            if isComplete == true and not RecentlyTried(key) then
+            -- Repeatable quests are yours to hand in, as in the gossip window (final review).
+            local repeats = QuestLogCall("IsRepeatableQuest", questID) == true
+            if isComplete == true and not repeats and not RecentlyTried(key) then
                 MarkTried(key)
                 if Act(SelectActiveQuest, index) then
                     return
