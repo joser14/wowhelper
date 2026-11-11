@@ -129,21 +129,23 @@ function ObjectiveTrackerFrame:GetAlpha() return self.alpha end
     end
     assert(before("Alpha", "Bravo"), "nearest first: " .. texts())
 
-    -- Taint: Blizzard's tracker is only made clear, never hidden, shown or updated.
-    assert(ObjectiveTrackerFrame.alpha == 0, "tracker clear")
-    -- No hook on Blizzard's tracker any more: when the game makes it visible again, the next tick clears it.
+    -- By default Blizzard's tracker is left alone (no write to Blizzard's frame).
+    assert(QuestTrackerDB.keepBlizzard and ObjectiveTrackerFrame.alpha ~= 0, "Blizzard's tracker left visible by default")
+    ObjectiveTrackerFrame.alpha = 1; tick()
+    assert(ObjectiveTrackerFrame.alpha == 1, "the poll doesn't touch it by default")
+    -- No hook on Blizzard's tracker: once the player opts in, the next tick clears it again if the game shows it.
     assert(not (ObjectiveTrackerFrame.hooks and ObjectiveTrackerFrame.hooks.OnShow), "no OnShow hook on Blizzard's tracker")
+    local headerButton
+    for _, f in ipairs(frames) do if f.scripts.OnDragStart then headerButton = f end end
+    headerButton.scripts.OnClick(headerButton)
+    assert(ObjectiveTrackerFrame.alpha == 0 and not QuestTrackerDB.keepBlizzard, "right-click makes it clear")
     ObjectiveTrackerFrame.alpha = 1; tick()
     assert(ObjectiveTrackerFrame.alpha == 0, "cleared again by the poll")
     combat = true; fire("PLAYER_REGEN_DISABLED"); ObjectiveTrackerFrame.alpha = 1; tick()
     combat = false; fire("PLAYER_REGEN_ENABLED"); tick()
     assert(ObjectiveTrackerFrame.alpha == 0, "clear after combat")
-    local headerButton
-    for _, f in ipairs(frames) do if f.scripts.OnDragStart then headerButton = f end end
     headerButton.scripts.OnClick(headerButton)
-    assert(ObjectiveTrackerFrame.alpha == 1 and QuestTrackerDB.keepBlizzard, "right-click brings it back with alpha")
-    headerButton.scripts.OnClick(headerButton)
-    assert(ObjectiveTrackerFrame.alpha == 0 and not QuestTrackerDB.keepBlizzard, "and clears it again")
+    assert(ObjectiveTrackerFrame.alpha == 1 and QuestTrackerDB.keepBlizzard, "and right-click brings it back")
     assert(#trackerCalls == 0, "never Hide/Show/Update on Blizzard's tracker: " .. table.concat(trackerCalls, ","))
 
     -- 1. The item button sits above its row.

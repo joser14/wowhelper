@@ -1796,6 +1796,12 @@ end
 local function Start()
     QuestTrackerDB = QuestTrackerDB or {}
     db = QuestTrackerDB
+    -- Blizzard's tracker stays visible unless the player right-clicks the header to make it clear, so by default
+    -- nothing is written to Blizzard's frame. Older saves defaulted to clear; move them over once.
+    if not db.blizzardShownDefault then
+        db.keepBlizzard = true
+        db.blizzardShownDefault = true
+    end
     db.zones = db.zones or {}
     db.accepted = db.accepted or {}
     -- Quests dropped while the addon was off never sent QUEST_REMOVED; forget their NEW stamps.

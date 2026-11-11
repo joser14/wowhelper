@@ -246,6 +246,7 @@ local trackerAlpha, alphaWrites = 1, 0
 ObjectiveTrackerFrame.GetAlpha = function() return trackerAlpha end
 ObjectiveTrackerFrame.SetAlpha = function(_, a) alphaWrites = alphaWrites + 1; trackerAlpha = a end
 issecretvalue = function(v) return v == SECRET_ALPHA end
+QuestTrackerDB.keepBlizzard = false -- the player chose to make Blizzard's tracker clear (default is visible)
 combat = true
 tick()
 assert(trackerAlpha == 0 and alphaWrites == 1, "tracker made clear")
