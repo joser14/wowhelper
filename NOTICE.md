@@ -210,6 +210,11 @@ these sources:
   behaviour described in Leatrix Maps (no licence), and its minimap edge arrow follows TomTom's.
 - `RareWatch\RareWatch.lua` (watch list): matching by NPC ID with a name fallback that learns the NPC ID follows
   MobSpot by Archydude (https://github.com/Archydude/MobSpot, MIT License); written in our own code.
+- Ideas only, no code or data: Tooltips' Waylaid Crate lines follow the tooltip format noted in Alts Forever by
+  KadmaiDev (MIT License); Tooltips' item-source ranking follows DungeonJournal's (no licence); the "no coin when
+  a choice can't be scored" rule in ItemAdvisor and WindowBadges follows Pawn (CC BY-NC-ND); ItemFinder's
+  keyring, equipped-bag and mail counts follow features of Baganator/Syndicator (all rights reserved), done
+  without their SendMail hooks.
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.

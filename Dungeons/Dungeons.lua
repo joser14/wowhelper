@@ -1306,7 +1306,10 @@ pcall(events.RegisterEvent, events, "UNIT_DIED")
 pcall(events.RegisterEvent, events, "PARTY_KILL")
 pcall(events.RegisterEvent, events, "PLAYER_TARGET_CHANGED")
 pcall(events.RegisterEvent, events, "PLAYER_ENTERING_WORLD")
--- Upgrade checks: an item the client loaded, new gear, a new level.(events.RegisterEvent, events, "ITEM_DATA_LOAD_RESULT")(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")(events.RegisterEvent, events, "PLAYER_LEVEL_UP")
+-- Upgrade checks: an item the client loaded, new gear, a new level.
+pcall(events.RegisterEvent, events, "ITEM_DATA_LOAD_RESULT")
+pcall(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")
+pcall(events.RegisterEvent, events, "PLAYER_LEVEL_UP")
 events:SetScript("OnEvent", function(_, event, ...)
     if event == "UNIT_DIED" then
         KillByGUID((...))
