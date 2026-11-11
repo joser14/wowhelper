@@ -2139,6 +2139,16 @@ end
 local bagShown = setmetatable({}, { __mode = "k" })
 local sinceWatch = 0
 
+-- A bag window that just opened gets a repaint. Walks the same frames as BagFrames() without building a
+-- list, since this runs four times a second for the whole session (perf audit: no garbage per tick).
+local function WatchBagFrame(bagFrame)
+    local shown = bagFrame:IsShown()
+    if shown and not bagShown[bagFrame] then
+        ScheduleRepaint()
+    end
+    bagShown[bagFrame] = shown
+end
+
 local function WatchFrames(_, elapsed)
     sinceWatch = sinceWatch + elapsed
     if sinceWatch < WATCH_INTERVAL then
@@ -2156,12 +2166,14 @@ local function WatchFrames(_, elapsed)
             mark:Hide()
         end
     end
-    for _, bagFrame in ipairs(BagFrames()) do
-        local shown = bagFrame:IsShown()
-        if shown and not bagShown[bagFrame] then
-            ScheduleRepaint()
+    local container = ContainerFrameContainer and ContainerFrameContainer.ContainerFrames
+    if type(container) == "table" then
+        for _, bagFrame in ipairs(container) do
+            WatchBagFrame(bagFrame)
         end
-        bagShown[bagFrame] = shown
+    end
+    if ContainerFrameCombinedBags then
+        WatchBagFrame(ContainerFrameCombinedBags)
     end
 end
 

@@ -946,9 +946,16 @@ events:RegisterEvent("PLAYER_ENTERING_WORLD")
 events:RegisterEvent("VIGNETTES_UPDATED")
 events:RegisterEvent("VIGNETTE_MINIMAP_UPDATED")
 -- Unit events are optional: if one is refused, the minimap alerts keep working.
-for _, name in ipairs({ "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "UNIT_HEALTH", "ZONE_CHANGED_NEW_AREA",
+for _, name in ipairs({ "NAME_PLATE_UNIT_ADDED", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "ZONE_CHANGED_NEW_AREA",
     "PLAYER_REGEN_ENABLED" }) do
     pcall(events.RegisterEvent, events, name)
+end
+-- Only the target's health is used (a rare's death); registered for every unit it fired for each nameplate,
+-- party member and pet on every hit (perf audit).
+if events.RegisterUnitEvent then
+    pcall(events.RegisterUnitEvent, events, "UNIT_HEALTH", "target")
+else
+    pcall(events.RegisterEvent, events, "UNIT_HEALTH")
 end
 events:SetScript("OnEvent", function(_, event, guid, onMinimap)
     if event == "PLAYER_LOGIN" then

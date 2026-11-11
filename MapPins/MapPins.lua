@@ -866,7 +866,8 @@ local worldUsed = 0
 local worldMapID            -- the map our pins were laid out for
 local worldStale = true     -- records changed: pick the pins again
 local worldRecords          -- the records list the pins were picked from
-local worldGeometry         -- last screen rectangle string; pins move only when it changes
+local worldGeometry         -- true while worldGeo holds the last laid-out screen rectangle; pins move only when it changes
+local worldGeo = {}         -- that rectangle, rounded (canvas and scroll left/top/width/height, overlay scale)
 local overlayStrata, overlayLevel
 
 local function WorldPinClick(self, button)
@@ -989,11 +990,18 @@ local function LayoutWorld(map)
         worldGeometry = nil
         return
     end
-    local geometry = string.format("%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.4f", cl, ct, cw, ch, sl, st, sw, sh, own)
-    if geometry == worldGeometry then
+    -- Runs every frame while the map is open: compared as rounded numbers (the same precision as the old
+    -- "%.2f:...:%.4f" string), so an unchanged map makes no garbage (perf audit).
+    local g = worldGeo
+    local r1, r2, r3, r4 = math.floor(cl * 100 + 0.5), math.floor(ct * 100 + 0.5), math.floor(cw * 100 + 0.5), math.floor(ch * 100 + 0.5)
+    local r5, r6, r7, r8 = math.floor(sl * 100 + 0.5), math.floor(st * 100 + 0.5), math.floor(sw * 100 + 0.5), math.floor(sh * 100 + 0.5)
+    local r9 = math.floor(own * 10000 + 0.5)
+    if worldGeometry and g[1] == r1 and g[2] == r2 and g[3] == r3 and g[4] == r4 and g[5] == r5 and g[6] == r6
+        and g[7] == r7 and g[8] == r8 and g[9] == r9 then
         return
     end
-    worldGeometry = geometry
+    g[1], g[2], g[3], g[4], g[5], g[6], g[7], g[8], g[9] = r1, r2, r3, r4, r5, r6, r7, r8, r9
+    worldGeometry = true
     local right, bottom = sl + sw, st - sh
     for index = 1, worldUsed do
         local pin = worldPins[index]
@@ -1023,6 +1031,7 @@ do
         Info.text:Hide()
     end
     Info.zones = {}   -- cache: map and cursor cell -> label (C_Map.GetMapInfoAtPosition only when it moves)
+    Info.parts = {}   -- the line's pieces, reused by Info.Update
 
     function Info.Zone(mapID, cx, cy)
         local key = mapID .. ":" .. math.floor(cx * 200) .. ":" .. math.floor(cy * 200)
@@ -1069,7 +1078,11 @@ do
             Info.text:Hide()
             return
         end
-        local parts = {}
+        -- One list reused every frame the map is open (perf audit), emptied first.
+        local parts = Info.parts
+        for index = #parts, 1, -1 do
+            parts[index] = nil
+        end
         local gamepad = InputUtil and InputUtil.IsGamepadUIEnabled and Safe(InputUtil.IsGamepadUIEnabled())
         if not gamepad and GetCursorPosition then
             local x, y = GetCursorPosition()
@@ -1185,6 +1198,8 @@ end
 local miniPins, miniUsed = {}, 0
 local axes = {}
 local lastState
+-- Reused ten times a second by UpdateMinimap (perf audit): where you stand, and the parts of its state key.
+local miniScratch = { here = {}, state = {} }
 
 -- Pin number index, or nil when it would have to be made in combat (the pool is made at load).
 local function MiniPin(index)
@@ -1354,7 +1369,9 @@ local function UpdateMinimap(force)
         px, py = position:GetXY()
         px, py = Safe(px), Safe(py)
     end
-    local me = px and py and WorldOf({ mapID = mapID, x = px, y = py })
+    local here = miniScratch.here
+    here.mapID, here.x, here.y, here.world = mapID, px, py, nil
+    local me = px and py and WorldOf(here)
     local axis = me and Axes(mapID)
     if not axis then
         -- Instances and unknown places: no position, no pins.
@@ -1372,7 +1389,10 @@ local function UpdateMinimap(force)
     local radius = MapPins_MinimapRadius()
     local halfW, halfH = (Minimap:GetWidth() or 0) / 2, (Minimap:GetHeight() or 0) / 2
     local target, targetKey = Edge.Target()
-    local state = table.concat({ me.continent, math.floor(me.x * 2), math.floor(me.y * 2), radius, halfW, facing and math.floor(facing * 100) or "-", targetKey or "-" }, ":")
+    local parts = miniScratch.state
+    parts[1], parts[2], parts[3], parts[4] = me.continent, math.floor(me.x * 2), math.floor(me.y * 2), radius
+    parts[5], parts[6], parts[7] = halfW, facing and math.floor(facing * 100) or "-", targetKey or "-"
+    local state = table.concat(parts, ":", 1, 7)
     if state == lastState and not force then
         return
     end
