@@ -2085,10 +2085,16 @@ local function ReadWindow(event)
             Add(info.questID, info.title)
         end
     elseif event == "QUEST_GREETING" then
-        for index = 1, GetNumAvailableQuests and Safe(GetNumAvailableQuests()) or 0 do
+        -- A count the game hides is unknown, not zero: then the window judges nothing (final review).
+        local available = GetNumAvailableQuests and Safe(GetNumAvailableQuests())
+        local active = GetNumActiveQuests and Safe(GetNumActiveQuests())
+        if (GetNumAvailableQuests and type(available) ~= "number") or (GetNumActiveQuests and type(active) ~= "number") then
+            return offered, false
+        end
+        for index = 1, available or 0 do
             Add(GetAvailableQuestInfo and select(5, GetAvailableQuestInfo(index)), GetAvailableTitle and GetAvailableTitle(index))
         end
-        for index = 1, GetNumActiveQuests and Safe(GetNumActiveQuests()) or 0 do
+        for index = 1, active or 0 do
             Add(GetActiveQuestID and GetActiveQuestID(index), GetActiveTitle and GetActiveTitle(index))
         end
     end
@@ -4014,8 +4020,12 @@ function X.SkipQuest(route, title, part)
             keys[#keys + 1] = key
         end
     end
-    skipHistory[#skipHistory + 1] = { keys = keys }
-    return followUps
+    -- Nothing newly skipped (all skipped already): no empty undo entry, or the next right-click would undo
+    -- nothing (final review).
+    if #keys > 0 then
+        skipHistory[#skipHistory + 1] = { keys = keys }
+    end
+    return followUps, #keys
 end
 
 function X.AnswerLost(goBack)
@@ -4030,9 +4040,9 @@ function X.AnswerLost(goBack)
             focusKey = RouteKey(route, index)
         end
     elseif route then
-        local more = X.SkipQuest(route, lost.q, lost.part)
-        skipNotice = { text = string.format("Skipped %s%s. Right-click here to undo.", lost.q,
-            more > 0 and string.format(" and %d follow-up(s)", more) or ""), until_ = GetTime() + SKIP_NOTICE_SECONDS }
+        local more, newly = X.SkipQuest(route, lost.q, lost.part)
+        skipNotice = newly > 0 and { text = string.format("Skipped %s%s. Right-click here to undo.", lost.q,
+            more > 0 and string.format(" and %d follow-up(s)", more) or ""), until_ = GetTime() + SKIP_NOTICE_SECONDS } or nil
     end
     dirty = true
 end
@@ -4209,9 +4219,9 @@ function X.AnswerGroup(answer)
     charData.groupAnswers = charData.groupAnswers or {}
     charData.groupAnswers[ask.key] = answer
     if answer == "skip" then
-        local more = X.SkipQuest(ask.route, ask.q, ask.part)
-        skipNotice = { text = string.format("Skipped %s%s. Right-click here to undo.", ask.q,
-            more > 0 and string.format(" and %d follow-up(s)", more) or ""), until_ = GetTime() + SKIP_NOTICE_SECONDS }
+        local more, newly = X.SkipQuest(ask.route, ask.q, ask.part)
+        skipNotice = newly > 0 and { text = string.format("Skipped %s%s. Right-click here to undo.", ask.q,
+            more > 0 and string.format(" and %d follow-up(s)", more) or ""), until_ = GetTime() + SKIP_NOTICE_SECONDS } or nil
     end
     X.groupAsk = nil
     dirty = true
@@ -5785,8 +5795,11 @@ function X.ApplyTravel(list)
         hearth and hearth.name or "-" }, ":")
     local region = T.Region(mapID, here.x, here.y)
     local moved = S.here and P.TravelYards(here, S.here)
+    -- A boat leg with a known departure ("leaves in 0:58") is worked out on every rebuild, so it counts down
+    -- (final review: it kept the same time until the 30 s refresh).
     if X.travelReplan or S.key ~= key or S.map ~= mapID or S.region ~= region or now - S.at >= V.staleSeconds
-        or (now - S.at >= V.replanSeconds and (not moved or moved >= V.replanYards)) then
+        or (now - S.at >= V.replanSeconds and (not moved or moved >= V.replanYards))
+        or (S.shown and S.shown.anchored and now > S.at) then
         X.travelReplan = false
         S.key, S.map, S.region, S.at, S.here = key, mapID, region, now, here
         S.plan = P.TravelPlan({ from = here, to = goal, level = level, speed = V.Speed(),
