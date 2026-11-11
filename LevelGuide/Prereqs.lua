@@ -31,7 +31,7 @@ return {
     ["Orendil's Cure"] = { all = { 1010 }, level = 20 },
     ["Raene's Cleansing"] = { level = 18 },
     ["Culling the Threat"] = { level = 18 },
-    ["An Aggressive Defense"] = { all = { 991 }, level = 18 },          -- source names "Raene's Cleansing" without a part; 991 is part 1
+    ["An Aggressive Defense"] = { all = { 1023 }, level = 18 },         -- QuestDB 1025: after Raene's Cleansing part 2 (1023), not part 1
     ["Elune's Tear"] = { all = { 1020 }, level = 20 },
     ["The Ruins of Stardust"] = { all = { 1033 }, level = 20 },
     ["Fallen Sky Lake"] = { all = { 1034 }, level = 20 },
@@ -116,7 +116,7 @@ return {
     ["Not Dead Yet"] = { level = 4 },
     ["The Enchanted Glade"] = { level = 6 },
     ["Darkness in the Glade"] = { level = 6 },
-    ["The Bounty of Teldrassil"] = { all = { 6344 }, level = 10 }, -- 6344 "Nessa Shadowsong", from Mydrannul in Darnassus
+    ["The Bounty of Teldrassil"] = { level = 10 }, -- 6344 "Nessa Shadowsong" (Mydrannul, Darnassus) only leads here: a breadcrumb in QuestDB, not needed
     ["Flight to Auberdine"] = { all = { 6341 }, level = 10 },
 
     -- Darkshore
@@ -273,8 +273,8 @@ return {
     ["The Valor Family"] = { level = 18 },
     ["Look to the Stars"] = { level = 20 },
     ["Eight-Legged Menaces"] = { level = 17 },
-    ["Jitters' Growling Gut"] = { all = { 163 }, level = 17 },           -- Raven Hill
-    ["Supplies from Darkshire"] = { all = { 165 }, level = 20 },         -- The Hermit
+    ["Jitters' Growling Gut"] = { level = 17 },                         -- Raven Hill (163) only leads here: a breadcrumb in QuestDB
+    ["Supplies from Darkshire"] = { level = 20 },                       -- The Hermit (165) only leads here: a breadcrumb in QuestDB
     ["Sven's Revenge"] = { level = 20 },
     ["Wolves at Our Heels"] = { level = 19 },
     ["Sven's Camp"] = { all = { 95 }, level = 20 },                      -- Sven's Revenge
@@ -467,7 +467,7 @@ return {
     ["In Defense of the King's Lands"] = { level = 10 },
     ["The Trogg Threat"] = { level = 10 },
     ["Filthy Paws"] = { level = 9 },
-    ["Stormpike's Order"] = { all = { 1339 }, level = 9 },
+    ["Stormpike's Order"] = { level = 9 },                    -- Mountaineer Stormpike's Task (1339) is its breadcrumb (QuestDB), not a prerequisite
     ["Silver of the Waves"] = { level = 13 },
     ["Ironband's Excavation"] = { level = 13 },
     ["Gathering Idols"] = { all = { 436 }, level = 13 },
@@ -711,7 +711,9 @@ return {
     ["Search More Hovels"] = { all = { 284 }, level = 20 },
     ["Return the Statuette"] = { all = { 285 }, level = 20 },
     ["Report to Captain Stoutfist"] = { level = 23 },
-    ["War Banners"] = { all = { 473 }, level = 23 },
+    -- Report to Captain Stoutfist (473) only leads to War Banners (a breadcrumb in QuestDB) and itself needs
+    -- The Algaz Gauntlet, which no route takes: requiring it hid War Banners for good.
+    ["War Banners"] = { level = 23 },
     ["From the Ashes"] = { level = 23 },
     ["This Land Was Their Land"] = { level = 22 },
     ["Ormer's Revenge"] = { level = 22 },

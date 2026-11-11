@@ -152,7 +152,6 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     -- Side steps and priest stops (sources in the Night Elf side-step notes above TELDRASSIL).
     New(Class(CASTERS, Later(Buy(159, 15, "Refreshing Spring Water", "vendor", "Dellylah (food and drink, Aldrassil)", 59.6, 40.7, 1, "Mana between fights; buy it now and save a trip back.")))),
     New(Trainer(4, "PRIEST", { 589, 2052 }, "Shanda (in Aldrassil)", 59.2, 40.4, "She teaches up to level 6; Laurna in Dolanaar after that.")),
-    New(Class("PRIEST", A("In Favor of Elune", "Shanda (in Aldrassil)", 59.2, 40.4, 5))),
     D("The Balance of Nature", "Kill 7 Mangy Nightsabers and 7 Thistle Boars north of Aldrassil", 61.0, 35.6, 2, 2),
     T("A Good Friend", "Iverron (by the cave to the north)", 54.6, 33.0, 3),
     A("A Friend in Need", "Iverron", 54.6, 33.0, 3),
@@ -177,6 +176,8 @@ local TELDRASSIL = { zone = "Teldrassil", min = 1, max = 12, steps = {
     A("Fang of Githyiss", "Fang of Githyiss (drops from Githyiss the Vile at the back of the cave)", 56.5, 26.5, 5),
     T("Webwood Egg", "Gilshalan Windwalker", 57.9, 41.7, 5),
     T("Fang of Githyiss", "Gilshalan Windwalker", 57.9, 41.7, 5),
+    -- Priests: Shanda offers it from level 5 (QuestDB minimum), so it waits for this visit to Aldrassil.
+    New(Class("PRIEST", A("In Favor of Elune", "Shanda (in Aldrassil)", 59.2, 40.4, 5))),
     A("Tenaron's Summons", "Gilshalan Windwalker", 57.9, 41.7, 5),
     T("Tenaron's Summons", "Tenaron Stormgrip (top of Aldrassil)", 59.1, 39.4, 5),
     A("Crown of the Earth", "Tenaron Stormgrip", 59.1, 39.4, 5, 1),
@@ -1088,11 +1089,24 @@ local REDRIDGE_TRIP_STEPS = {
     New(On("Stormwind City", FP("Stormwind", "Dungar Longdrink (U)", 66.7, 61.8, 19))),
     New(On("Elwynn Forest", Travel("East along the Elwynn road to Redridge (Three Corners; U)", "Redridge Mountains", 90.5, 71.5, 19, "Pick up the Lakeshire flight path when you get there."))),
 }
-for _, step in ipairs(REDRIDGE.steps) do
+do
     -- Redridge's own quests up to 19, and its hand-ins at 20; not the hearth bind, the 20+ pick-ups or the gnoll
-    -- quest that needs the Goldshire errand first.
-    if step.t ~= "home" and step.q ~= "A Baying of Gnolls" and (step.lvl <= 19 or (step.lvl == 20 and step.t == "turnin")) then
-        REDRIDGE_TRIP_STEPS[#REDRIDGE_TRIP_STEPS + 1] = step
+    -- quest that needs the Goldshire errand first. A quest is taken only when the trip also hands it in: Solomon's
+    -- Law, An Unwelcome Guest and The Everstill Bridge are finished at 21-25, after the trip, and would otherwise
+    -- ride along in the log for the rest of the game (the hearth takes you back to Darkshore at 20).
+    local function Wanted(step)
+        return step.t ~= "home" and step.q ~= "A Baying of Gnolls" and (step.lvl <= 19 or (step.lvl == 20 and step.t == "turnin"))
+    end
+    local handedIn = {}
+    for _, step in ipairs(REDRIDGE.steps) do
+        if step.t == "turnin" and Wanted(step) then
+            handedIn[step.q] = true
+        end
+    end
+    for _, step in ipairs(REDRIDGE.steps) do
+        if Wanted(step) and (not step.q or handedIn[step.q]) then
+            REDRIDGE_TRIP_STEPS[#REDRIDGE_TRIP_STEPS + 1] = step
+        end
     end
 end
 for _, step in ipairs({
@@ -1118,8 +1132,10 @@ local REDRIDGE_TRIP = { zone = "Redridge Mountains", key = "Redridge (Night Elf)
 -- Part numbers: "The Tower of Althalaxx" 3-6 = 967, 970, 973, 1140 (1-2 are in Darkshore); "Raene's Cleansing" 1-11 = 991, 1023, 1024, 1026, 1027, 1028, 1055, 1029, 1030, 1045, 1046.
 local ASHENVALE = { zone = "Ashenvale", min = 20, max = 30, steps = {
     -- Maestra's Post (arriving from Darkshore)
-    G("Maestra's Post", 26.2, 38.7, 20, "Arrive from Darkshore with Kerlonian and Balthule's letter"),
+    G("Maestra's Post", 26.2, 38.7, 20, "Arrive from Darkshore with Kerlonian, Aynasha's report and Balthule's letter"),
     T("The Sleeper Has Awakened", "Liladris Moonriver", 27.3, 35.6, 20),
+    -- The Darkshore escort Sentinel Aynasha sends you here (QuestDB 5713: Sentinel Onaeya, Maestra's Post).
+    New(T("One Shot. One Kill.", "Sentinel Onaeya", 26.6, 36.7, 20)),
     T("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 20, 3),
     A("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 20, 4),
     A("Bathran's Hair", "Orendil Broadleaf", 26.4, 38.6, 20),
@@ -1130,8 +1146,7 @@ local ASHENVALE = { zone = "Ashenvale", min = 20, max = 30, steps = {
     T("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 21, 4),
     A("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 21, 5),
 
-    -- Astranaar
-    G("Astranaar flight path", 34.4, 48.0, 21, "Grab the flight path"),
+    -- Astranaar (the flight path step is added below, in the additions block)
     T("Trek to Ashenvale", "Raene Wolfrunner", 36.6, 49.6, 21),
     A("Raene's Cleansing", "Raene Wolfrunner", 36.6, 49.6, 21, 1),
     A("Culling the Threat", "Raene Wolfrunner", 36.6, 49.6, 21),
@@ -1144,37 +1159,45 @@ local ASHENVALE = { zone = "Ashenvale", min = 20, max = 30, steps = {
     T("Elune's Tear", "Pelturas Whitemoon", 37.4, 51.8, 22),
     A("The Ruins of Stardust", "Pelturas Whitemoon", 37.4, 51.8, 22),
     D("The Ruins of Stardust", "Collect 5 Handfuls of Stardust in the Ruins of Stardust", 33.3, 67.7, 22),
-    D("The Tower of Althalaxx", "Kill Ilkrud Magthrull at the Fire Scar Shrine for his tome", 25.3, 60.7, 23, 5),
+    D("The Tower of Althalaxx", "Kill Ilkrud Magthrull at the Fire Scar Shrine for his tome", 25.3, 60.7, 22, 5),
+    -- The Darkshore escort Therylune ends at the Shrine of Aessina, just north of the Fire Scar
+    -- (QuestDB 945: Therysil).
+    New(T("Therylune's Escape", "Therysil, Shrine of Aessina", 22.6, 51.9, 22)),
 
-    -- Lake Falathim and the Zoram Strand
-    T("Raene's Cleansing", "Teronis' Corpse", 20.3, 42.3, 23, 1),
-    A("Raene's Cleansing", "Teronis' Corpse", 20.3, 42.3, 23, 2),
-    D("Raene's Cleansing", "Kill murlocs at Lake Falathim for the Glowing Gem", 20.6, 42.2, 23, 2),
-    A("The Ancient Statuette", "Talen", 14.8, 31.3, 23),
-    D("The Zoram Strand", "Kill Wrathtail naga along the Zoram Strand for 20 Wrathtail Heads", 14.0, 26.0, 23),
-    D("The Ancient Statuette", "Find the Ancient Statuette on the strand", 14.2, 20.6, 23),
-    T("The Ancient Statuette", "Talen", 14.8, 31.3, 24),
-    A("Ruuzel", "Talen", 14.8, 31.3, 24),
-    D("Ruuzel", "Kill Ruuzel on the isle at the northern edge of the Zoram Strand for the Ring of Zoram", 7.0, 13.5, 24),
-    T("Ruuzel", "Talen", 14.8, 31.3, 24),
+    -- Lake Falathim and the Zoram Strand (levels: quest XP alone brings a Night Elf from Darkshore here at
+    -- about 21; every pick-up below is open from 18-20, QuestDB minimum levels)
+    T("Raene's Cleansing", "Teronis' Corpse", 20.3, 42.3, 22, 1),
+    A("Raene's Cleansing", "Teronis' Corpse", 20.3, 42.3, 22, 2),
+    D("Raene's Cleansing", "Kill murlocs at Lake Falathim for the Glowing Gem", 20.6, 42.2, 22, 2),
+    A("The Ancient Statuette", "Talen", 14.8, 31.3, 22),
+    D("The Zoram Strand", "Kill Wrathtail naga along the Zoram Strand for 20 Wrathtail Heads", 14.0, 26.0, 22),
+    D("The Ancient Statuette", "Find the Ancient Statuette on the strand", 14.2, 20.6, 22),
+    T("The Ancient Statuette", "Talen", 14.8, 31.3, 22),
+    A("Ruuzel", "Talen", 14.8, 31.3, 22),
+    D("Ruuzel", "Kill Ruuzel on the isle at the northern edge of the Zoram Strand for the Ring of Zoram", 7.0, 13.5, 23),
+    T("Ruuzel", "Talen", 14.8, 31.3, 23),
 
     -- Back to Maestra's Post
-    T("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 24, 5),
-    A("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 24, 6),
-    A("Supplies to Auberdine", "Feero Ironhand (ESCORT)", 26.2, 38.9, 24),
-    D("Supplies to Auberdine", "Escort Feero Ironhand along the road through three ambushes", 28.5, 30.0, 24),
-    T("Supplies to Auberdine", "Delgren the Purifier", 26.2, 38.7, 24),
+    T("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 23, 5),
+    A("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 23, 6),
+    A("Supplies to Auberdine", "Feero Ironhand (ESCORT)", 26.2, 38.9, 23),
+    D("Supplies to Auberdine", "Escort Feero Ironhand along the road through three ambushes", 28.5, 30.0, 23),
+    T("Supplies to Auberdine", "Delgren the Purifier", 26.2, 38.7, 23),
 
     -- Astranaar turn-ins and Thistlefur
-    T("Raene's Cleansing", "Raene Wolfrunner", 36.6, 49.6, 24, 2),
-    A("Raene's Cleansing", "Raene Wolfrunner", 36.6, 49.6, 24, 3),
-    A("An Aggressive Defense", "Raene Wolfrunner", 36.6, 49.6, 24),
-    T("The Zoram Strand", "Shindrell Swiftfire", 34.7, 48.8, 24),
-    A("Kayneth Stillwind", "Shindrell Swiftfire", 34.7, 48.8, 24),
-    T("The Ruins of Stardust", "Pelturas Whitemoon", 37.4, 51.8, 24),
-    A("Fallen Sky Lake", "Pelturas Whitemoon", 37.4, 51.8, 24),
-    D("Culling the Threat", "Kill Dal Bloodclaw in Thistlefur Village for his skull", 38.5, 34.5, 25),
-    T("Culling the Threat", "Raene Wolfrunner", 36.6, 49.6, 25),
+    T("Raene's Cleansing", "Raene Wolfrunner", 36.6, 49.6, 23, 2),
+    A("Raene's Cleansing", "Raene Wolfrunner", 36.6, 49.6, 23, 3),
+    A("An Aggressive Defense", "Raene Wolfrunner", 36.6, 49.6, 23),
+    T("The Zoram Strand", "Shindrell Swiftfire", 34.7, 48.8, 23),
+    T("The Ruins of Stardust", "Pelturas Whitemoon", 37.4, 51.8, 23),
+    A("Fallen Sky Lake", "Pelturas Whitemoon", 37.4, 51.8, 23),
+    D("Culling the Threat", "Kill Dal Bloodclaw in Thistlefur Village for his skull", 38.5, 34.5, 23),
+    T("Culling the Threat", "Raene Wolfrunner", 36.6, 49.6, 23),
+    -- Night Elves leave here for Stonetalon, Wetlands and Duskwood and come back at about 27 for the rest
+    -- (ASHENVALE_FIRST / ASHENVALE_LATER below): everything after this needs level 24-26.
+
+    -- Back in Astranaar later: Kayneth Stillwind (QuestDB minimum level 24)
+    A("Kayneth Stillwind", "Shindrell Swiftfire, Astranaar", 34.7, 48.8, 24),
 
     -- Shrine of Aessina pick-ups
     A("The Howling Vale", "Sentinel Melyria Frostshadow", 22.2, 53.0, 25),
@@ -1253,6 +1276,10 @@ local ASHENVALE = { zone = "Ashenvale", min = 20, max = 30, steps = {
     T("The Branch of Cenarius", "Illiyana", 21.7, 53.3, 30),
     T("The Tower of Althalaxx", "Delgren the Purifier", 26.2, 38.7, 30, 6),
 } }
+-- The Night Elf chain's two passes through these steps (filled in the additions block below, once the side
+-- steps are in): the first visit before Stonetalon, the second after Wetlands and Duskwood.
+local ASHENVALE_FIRST = { zone = "Ashenvale", min = 20, max = 25, steps = {} }
+local ASHENVALE_LATER = { zone = "Ashenvale", name = "Ashenvale, second visit", min = 25, max = 30, steps = {} }
 
 -- Sources: https://wowhandbook.com/zones/eastern-kingdoms/wetlands/ https://urgametips.com/wow-forever/zones/wetlands/ https://games.gg/world-of-warcraft/guides/wow-forever-wetlands-leveling-guide/ https://wowforever.wiki.fextralife.com/Wetlands
 -- Wetlands (Alliance) for WoW: Forever.
@@ -1310,8 +1337,8 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     A("Return the Statuette", "Karl Boran", 8.3, 58.6, 23, 2),
     T("Return the Statuette", "Captain Stoutfist (Menethil Keep)", 9.9, 57.5, 23, 2),
     T("Apprentice's Duties", "James Halloran", 8.6, 55.7, 23),
-    A("Report to Captain Stoutfist", "Valstag Ironjaw", 10.1, 56.9, 23),
-    T("Report to Captain Stoutfist", "Captain Stoutfist", 9.9, 57.5, 23),
+    -- Report to Captain Stoutfist (473) is left out: Valstag only offers it after The Algaz Gauntlet (455,
+    -- QuestDB), which no route takes. War Banners doesn't need it (it is only a lead-in).
     A("War Banners", "Captain Stoutfist", 9.9, 57.5, 23),
     A("From the Ashes", "Captain Stoutfist", 9.9, 57.5, 23),
     A("This Land Was Their Land", "Captain Stoutfist", 9.9, 57.5, 23),
@@ -1336,11 +1363,13 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     A("Tramping Paws", "Rethiel the Greenwarden", 56.4, 40.4, 25),
     A("Old Habits", "Tattered Spellbook (ground item south of the Green Belt, Dragonmaw area)", 53.5, 54.5, 25),
     D("Tramping Paws", "Kill 15 Mosshide Gnolls and 10 Mosshide Mongrels in Mosshide Fen south-east of the Greenwarden", 58.5, 56.0, 25),
-    T("Tramping Paws", "Rethiel the Greenwarden", 56.4, 40.4, 26),
-    A("Fire Taboo", "Rethiel the Greenwarden", 56.4, 40.4, 26),
-    D("Fire Taboo", "Loot 9 Crude Flint from Mosshide gnolls (Mystics, Brutes, Trappers) in Mosshide Fen", 57.5, 52.0, 26),
-    T("Fire Taboo", "Rethiel the Greenwarden", 56.4, 40.4, 26),
-    A("Blisters on the Land", "Rethiel the Greenwarden", 56.4, 40.4, 26),
+    -- Fire Taboo is a level 23 quest and Blisters on the Land 26 with level 24 creepers (QuestDB): both open
+    -- at 25 here, where quest XP brings a Night Elf on the first Wetlands visit.
+    T("Tramping Paws", "Rethiel the Greenwarden", 56.4, 40.4, 25),
+    A("Fire Taboo", "Rethiel the Greenwarden", 56.4, 40.4, 25),
+    D("Fire Taboo", "Loot 9 Crude Flint from Mosshide gnolls (Mystics, Brutes, Trappers) in Mosshide Fen", 57.5, 52.0, 25),
+    T("Fire Taboo", "Rethiel the Greenwarden", 56.4, 40.4, 25),
+    A("Blisters on the Land", "Rethiel the Greenwarden", 56.4, 40.4, 25),
     D("Blisters on the Land", "Kill 8 Fen Creepers around the Green Belt pools", 54.0, 41.4, 26),
     D("Crocs of the Sky", "Kill Crimson Whelps east along the Green Belt for 10 Pristine Crimson Scales", 62.0, 42.0, 26),
     T("Blisters on the Land", "Rethiel the Greenwarden", 56.4, 40.4, 27),
@@ -1399,6 +1428,14 @@ local WETLANDS = { zone = "Wetlands", min = 20, max = 30, steps = {
     A("Fiora Longears", "Red Jack Flint (needs level 30; hand it in at Theramore: the boat leaves from these docks)", 10.0, 58.0, 30),
     G("Menethil Harbor docks", 7.0, 57.0, 30, "Cleansing the Eye -> Archbishop Benedictus (Stormwind 50.3,45.5); A Friend of the Family -> Bolvar (Stormwind 80.0,38.5), then part 2 to Lord Grayson Shadowbreaker (48.5,50.1); Fiora Longears -> boat to Theramore (66.5,45.1). Next zone: Duskwood / Hillsbrad"),
 } }
+-- The Night Elf chain's two passes through these steps (filled in the additions block below): Menethil, the
+-- north coast, the dig site and the Green Belt at 22-26, then the Lost Fleet, Sarltooth, the catapults, Dun
+-- Modr and Raptor Ridge at 28-30, on the way from Ashenvale to Hillsbrad (the Menethil - Southshore boat).
+local WETLANDS_FIRST = { zone = "Wetlands", min = 20, max = 26, steps = {} }
+-- Its own key: both halves have a "Hearth to Menethil Harbor" stop, and saved keys must not repeat in a chain.
+local WETLANDS_LATER = { zone = "Wetlands", key = "Wetlands (second visit)", name = "Wetlands, second visit", min = 27, max = 30, steps = {} }
+-- Duskwood for the Night Elf chain: the zone's route, filled in the additions block below.
+local DUSKWOOD_NE = { steps = {} }
 
 -- Sources: https://wowhandbook.com/zones/eastern-kingdoms/duskwood/ https://urgametips.com/wow-forever/zones/duskwood/ https://urgametips.com/wow-forever/zones/duskwood/map/ https://urgametips.com/wow-forever/quest-guides/the-totem-of-infliction-fangs-fingers-spider-venom/ https://urgametips.com/wow-forever/quest-guides/deliveries-to-sven-supplies/ https://urgametips.com/wow-forever/quest-guides/bride-of-the-embalmer-eliza-grave/ https://urgametips.com/wow-forever/quest-guides/the-weathered-grave-sirra-darkshire/ https://games.gg/world-of-warcraft/guides/wow-forever-duskwood-guide/ https://wowforever.wiki.fextralife.com/Duskwood
 -- Duskwood (Alliance) for WoW: Forever.
@@ -3220,42 +3257,49 @@ local SILITHUS = { zone = "Silithus", min = 55, max = 60, steps = {
 -- check it in game. Zone coordinates are percent of that zone's map.
 -- ===================================================================================================
 
--- Stonetalon Mountains (Night Elf side trip, 24-27), research 2.1. Pridewings needs The Zoram Strand.
-local STONETALON = { zone = "Stonetalon Mountains", min = 24, max = 27, steps = {
+-- Stonetalon Mountains (side trip from Astranaar, 22-27), research 2.1, reordered 2026-11-11 so the trip runs
+-- one way: the Talondeep Path tunnel from southern Ashenvale comes out by Windshear Crag, so Windshear's quests
+-- (QuestDB levels 21-22) come first, then the Sun Rock road north (wyverns, the supply courier), Stonetalon
+-- Peak and the Charred Vale, and the flight back to Astranaar. Pridewings needs The Zoram Strand turned in
+-- (QuestDB 1134). On Guard in Stonetalon part 1 is Sentinel Thenysil's in Astranaar (QuestDB 1070).
+-- Left out: Reclaiming the Charred Vale part 2 (1059): it ends with Falfindel Waywarder at Thalanaar, which no
+-- route visits before the 40s, so it would only sit in the log.
+local STONETALON = { zone = "Stonetalon Mountains", min = 22, max = 27, steps = {
     -- Astranaar pick-ups (Ashenvale map)
-    New(On("Ashenvale", A("Journey to Stonetalon Peak", "Faldreas Goeth'Shael, Astranaar", 35.8, 49.1, 24))),
-    New(On("Ashenvale", A("Pridewings of Stonetalon", "Shindrell Swiftfire, Astranaar", 34.7, 48.8, 24))),
-    -- Stonetalon Peak (the node name "Stonetalon Peak" is assumed, U)
-    New(FP("Stonetalon Peak", "Teloren", 36.4, 7.2, 24)),
-    New(Later(Home("Stonetalon Peak", "Innkeeper Faralia", 35.8, 5.7, 24, "Optional: only if you stay a few levels."))),
-    New(T("Journey to Stonetalon Peak", "Keeper Albagorm", 37.1, 8.1, 24)),
-    New(A("Reclaiming the Charred Vale", "Keeper Albagorm", 37.1, 8.1, 24, 1)),
-    -- The Sun Rock road: Pridewing wyverns, and Forever's supply run
-    New(A("Stonetalon Supply Run", "Night Elf Courier (hands you the supply bag; Forever)", 48.6, 39.8, 24)),
-    New(D("Pridewings of Stonetalon", "12 Pridewing Venom Sacs from the Pridewing wyverns", 52.9, 43.2, 25)),
-    New(D("Stonetalon Supply Run", "6 Stonetalon Supplies from the same wyverns", 52.9, 43.2, 25)),
+    New(On("Ashenvale", A("Journey to Stonetalon Peak", "Faldreas Goeth'Shael, Astranaar", 35.8, 49.1, 22))),
+    New(On("Ashenvale", A("Pridewings of Stonetalon", "Shindrell Swiftfire, Astranaar", 34.7, 48.8, 22))),
+    New(On("Ashenvale", A("On Guard in Stonetalon", "Sentinel Thenysil, Astranaar", 34.9, 49.8, 22, 1))),
+    New(On("Ashenvale", Travel("Talondeep Path: the tunnel into Stonetalon, south of Astranaar (approx)", "Stonetalon Mountains", 42.4, 71.4, 22, "It comes out on the Stonetalon side near Windshear Crag."))),
     -- Windshear Crag
-    New(T("On Guard in Stonetalon", "Kaela Shadowspear (if you carry part 1 from Ashenvale)", 59.9, 66.8, 25, 1)),
-    New(A("On Guard in Stonetalon", "Kaela Shadowspear", 59.9, 66.8, 25, 2)),
-    New(T("On Guard in Stonetalon", "Gaxim Rustfizzle", 59.5, 67.2, 25, 2)),
-    New(A("A Gnome's Respite", "Gaxim Rustfizzle", 59.5, 67.2, 25)),
-    New(A("Super Reaper 6000", "Ziz Fizziks", 59.0, 62.6, 25)),
-    New(A("Gerenzo's Orders", "Piznik (mining at the Windshear Mine mouth)", 71.9, 60.0, 25, 1)),
-    New(D("A Gnome's Respite", "10 Venture Co. Loggers and 10 Deforesters", 66.4, 52.3, 25)),
-    New(D("Super Reaper 6000", "The blueprints from Venture Co. Operators", 68.5, 51.9, 25)),
-    New(D("Gerenzo's Orders", "Guard Piznik until his ore is mined", 71.9, 60.0, 26, 1)),
-    New(T("Gerenzo's Orders", "Piznik", 71.9, 60.0, 26, 1)),
-    New(A("Gerenzo's Orders", "Piznik", 71.9, 60.0, 26, 2)),
-    New(T("Gerenzo's Orders", "Ziz Fizziks", 59.0, 62.6, 26, 2)),
-    New(T("Super Reaper 6000", "Ziz Fizziks (its follow-up goes to Ratchet: leave it)", 59.0, 62.6, 26)),
-    New(T("A Gnome's Respite", "Gaxim Rustfizzle", 59.5, 67.2, 26)),
+    New(T("On Guard in Stonetalon", "Kaela Shadowspear", 59.9, 66.8, 22, 1)),
+    New(A("On Guard in Stonetalon", "Kaela Shadowspear", 59.9, 66.8, 22, 2)),
+    New(T("On Guard in Stonetalon", "Gaxim Rustfizzle", 59.5, 67.2, 22, 2)),
+    New(A("A Gnome's Respite", "Gaxim Rustfizzle", 59.5, 67.2, 22)),
+    New(A("Super Reaper 6000", "Ziz Fizziks", 59.0, 62.6, 22)),
+    New(A("Gerenzo's Orders", "Piznik (mining at the Windshear Mine mouth)", 71.9, 60.0, 22, 1)),
+    New(D("A Gnome's Respite", "10 Venture Co. Loggers and 10 Deforesters", 66.4, 52.3, 22)),
+    New(D("Super Reaper 6000", "The blueprints from Venture Co. Operators", 68.5, 51.9, 22)),
+    New(D("Gerenzo's Orders", "Guard Piznik until his ore is mined", 71.9, 60.0, 23, 1)),
+    New(T("Gerenzo's Orders", "Piznik", 71.9, 60.0, 23, 1)),
+    New(A("Gerenzo's Orders", "Piznik", 71.9, 60.0, 23, 2)),
+    New(T("Gerenzo's Orders", "Ziz Fizziks", 59.0, 62.6, 23, 2)),
+    New(T("Super Reaper 6000", "Ziz Fizziks (its follow-up goes to Ratchet: leave it)", 59.0, 62.6, 23)),
+    New(T("A Gnome's Respite", "Gaxim Rustfizzle", 59.5, 67.2, 23)),
+    -- The Sun Rock road north: Pridewing wyverns, and Forever's supply run
+    New(A("Stonetalon Supply Run", "Night Elf Courier (hands you the supply bag; Forever)", 48.6, 39.8, 23)),
+    New(D("Pridewings of Stonetalon", "12 Pridewing Venom Sacs from the Pridewing wyverns", 52.9, 43.2, 23)),
+    New(D("Stonetalon Supply Run", "6 Stonetalon Supplies from the same wyverns", 52.9, 43.2, 23)),
+    -- Stonetalon Peak (the node name "Stonetalon Peak" is assumed, U)
+    New(FP("Stonetalon Peak", "Teloren", 36.4, 7.2, 23)),
+    New(Later(Home("Stonetalon Peak", "Innkeeper Faralia", 35.8, 5.7, 23, "Optional: only if you stay a few levels."))),
+    New(T("Journey to Stonetalon Peak", "Keeper Albagorm", 37.1, 8.1, 23)),
+    New(A("Reclaiming the Charred Vale", "Keeper Albagorm", 37.1, 8.1, 23, 1)),
+    New(T("Stonetalon Supply Run", "Innkeeper Faralia", 35.8, 5.7, 23)),
     -- The Charred Vale
-    New(D("Reclaiming the Charred Vale", "7 each of Bloodfury Harpies (32.8, 60.8), Ambushers (30.8, 61.6), Slayers (30.2, 69.6) and Roguefeathers (34.7, 68.9)", 32.8, 60.8, 26, 1)),
-    New(T("Reclaiming the Charred Vale", "Keeper Albagorm", 37.1, 8.1, 27, 1)),
-    New(A("Reclaiming the Charred Vale", "Keeper Albagorm (it ends with Falfindel at Thalanaar, Feralas: keep it for the 40s)", 37.1, 8.1, 27, 2)),
-    New(T("Stonetalon Supply Run", "Innkeeper Faralia", 35.8, 5.7, 27)),
-    New(Travel("Fly to Astranaar (Teloren)", "Ashenvale", 36.4, 7.2, 27)),
-    New(On("Ashenvale", T("Pridewings of Stonetalon", "Shindrell Swiftfire, Astranaar", 34.7, 48.8, 27))),
+    New(D("Reclaiming the Charred Vale", "6 each of Bloodfury Harpies (32.8, 60.8), Ambushers (30.8, 61.6), Slayers (30.2, 69.6) and Roguefeathers (34.7, 68.9)", 32.8, 60.8, 24, 1)),
+    New(T("Reclaiming the Charred Vale", "Keeper Albagorm", 37.1, 8.1, 24, 1)),
+    New(Travel("Fly to Astranaar (Teloren)", "Ashenvale", 36.4, 7.2, 24)),
+    New(On("Ashenvale", T("Pridewings of Stonetalon", "Shindrell Swiftfire, Astranaar", 34.7, 48.8, 24))),
 } }
 
 -- Westfall (Human 10-18), research 2.3: Sentinel Hill and the farms. The Defias chain goes on to Stormwind
@@ -3535,10 +3579,14 @@ do
 
     -- Ashenvale: the Astranaar flight path, training, bag space, the Excavation Site breadcrumb and the
     -- Night Elf Moonbeam Wand chain (Velinde Starsong follows The Howling Vale; its giver is U).
-    After(ASHENVALE, 1, {
-        New(FP("Astranaar", "Daelyshia", 34.4, 48.0, 20)),
+    -- Astranaar side steps where the route first reaches Astranaar (after Maestra's Post), not at Maestra's Post.
+    After(ASHENVALE, function(step) return step.t == "accept" and step.q == "The Tower of Althalaxx" and step.part == 5 end, {
+        New(FP("Astranaar", "Daelyshia", 34.4, 48.0, 21)),
         DN(22, nil), DN(24, { 8129, 1245 }, "Mana Burn and Power Word: Fortitude rank 3."),
         New(Later(Bags(52, "Yldan, Darnassus (bags), or the auction house", 65.3, 53.0, 22, "Four 9-10 slot bags."))),
+    })
+    -- Seeking Caitlin needs level 24 (QuestDB 95737): taken with Kayneth Stillwind on the later Astranaar visit.
+    After(ASHENVALE, Is("accept", "Kayneth Stillwind"), {
         New(A("Seeking Caitlin", "Llana, Astranaar (optional: leads to the Excavation Site: Wetlands dungeon, 26-33)", 35.0, 48.5, 24)),
     })
     After(ASHENVALE, Is("turnin", "The Howling Vale"), {
@@ -3573,6 +3621,9 @@ do
         New(Later(Keep(4433, "Waterlogged Envelope", "Sully Balloo's Letter", 28, "It starts a quest."))),
     })
     After(HILLSBRAD, Last(HILLSBRAD), {
+        -- Emissary Jacques' An Alarming Request (taken in Southshore at 30) is handed in to the same Image
+        -- (QuestDB 92432); Prereqs.lua has Friend of the Kirin Tor wait for it.
+        New(On("Silverpine Forest", T("An Alarming Request", "Image of Archmage Modera (Lordamere Lake shore)", 68.5, 45.3, 30))),
         New(On("Silverpine Forest", A("Friend of the Kirin Tor", "Image of Archmage Modera (Lordamere Lake shore)", 68.5, 45.3, 30))),
         New(On("Alterac Mountains", T("Friend of the Kirin Tor", "Archmage Celindra (City of Dalaran)", 14.2, 60.0, 30))),
         New(A("Crushridge Bounty", "Marshal Redpath, Southshore", 49.5, 58.7, 31)),
@@ -3636,6 +3687,104 @@ do
         New(Class(CASTERS, Later(Buy(8766, 20, "Morning Glory Dew", "vendor", "Everlook's innkeeper (spot U)", 61.3, 38.9, 55, "The level 55 water.")))),
     })
     After(SILITHUS, 1, { New(FP("Cenarion Hold", "Cloud Skydancer", 50.6, 34.5, 55)), DN(58, nil), DN(60, { 10938 }, "Power Word: Fortitude rank 6.") })
+
+    -- Night Elves reach Ashenvale from Darkshore at about 20-21 (quest XP alone, tests\test_lg_route_audit.lua),
+    -- but from Kayneth Stillwind on, Ashenvale's pick-ups need 24-26 (QuestDB minimum levels). So their chain
+    -- takes Ashenvale in two passes of the same steps: the west half and Astranaar up to Culling the Threat
+    -- (ASHENVALE_FIRST, 20-25), then Stonetalon, Wetlands and Duskwood, then the east half and the Astranaar
+    -- wrap-up (ASHENVALE_LATER, 25-30). Both are the zone's own steps (the second pass as copies, see
+    -- Copies below; same saved keys), so other races' single Ashenvale route is unchanged. Two pick-ups stay out of the Night Elf passes: the
+    -- Moonbeam Wand chain goes on through Ratchet and Booty Bay, which the route doesn't visit before 30, and
+    -- Seeking Caitlin would be taken after Wetlands, where it is handed in.
+    local cut
+    for index, step in ipairs(ASHENVALE.steps) do
+        if step.t == "accept" and step.q == "Kayneth Stillwind" then
+            cut = index
+            break
+        end
+    end
+    assert(cut, "Ashenvale: no Kayneth Stillwind pick-up to split at")
+    ASHENVALE_FIRST.steps, ASHENVALE_LATER.steps = {}, {}
+    for index, step in ipairs(ASHENVALE.steps) do
+        if index < cut then
+            ASHENVALE_FIRST.steps[#ASHENVALE_FIRST.steps + 1] = step
+        elseif step.q ~= "Velinde Starsong" and step.q ~= "Seeking Caitlin" then
+            ASHENVALE_LATER.steps[#ASHENVALE_LATER.steps + 1] = step
+        end
+    end
+    -- Priest training on the second pass, in Darnassus (fly Astranaar - Rut'theran).
+    table.insert(ASHENVALE_LATER.steps, 2, DN(26, nil))
+    table.insert(ASHENVALE_LATER.steps, 3, DN(28, nil))
+
+    -- Wetlands in two passes for Night Elves, the same way: the zone's 28-30 work (from the Lost Fleet on) waits
+    -- for the trip from Ashenvale to Hillsbrad. Pick-ups for that work move with it: the Menethil ones open the
+    -- second visit, Ormer's last part and Trying Times are taken where their work is.
+    local wcut
+    for index, step in ipairs(WETLANDS.steps) do
+        if step.t == "do" and step.q == "The Cursed Crew" then
+            wcut = index
+            break
+        end
+    end
+    assert(wcut, "Wetlands: no Lost Fleet step to split at")
+    local MOVED = { ["The Cursed Crew"] = 1, ["Crimson Crate Delivery"] = 1, ["Nek'rosh's Gambit"] = 1, ["Fall of Dun Modr"] = 1,
+        ["Ormer's Revenge"] = 3, ["Trying Times"] = 1 }
+    local held = {}
+    WETLANDS_FIRST.steps, WETLANDS_LATER.steps = {}, {}
+    for index = 1, wcut - 1 do
+        local step = WETLANDS.steps[index]
+        if step.t == "accept" and MOVED[step.q] == (tonumber(step.part) or 1) then
+            held[step.q] = step
+        else
+            WETLANDS_FIRST.steps[#WETLANDS_FIRST.steps + 1] = step
+        end
+    end
+    for _, title in ipairs({ "The Cursed Crew", "Crimson Crate Delivery", "Nek'rosh's Gambit", "Fall of Dun Modr" }) do
+        assert(held[title], "Wetlands: no pick-up for " .. title)
+        WETLANDS_LATER.steps[#WETLANDS_LATER.steps + 1] = held[title]
+        held[title] = nil
+    end
+    for index = wcut, #WETLANDS.steps do
+        local step = WETLANDS.steps[index]
+        if step.t == "do" and held[step.q] then
+            WETLANDS_LATER.steps[#WETLANDS_LATER.steps + 1] = held[step.q]
+            held[step.q] = nil
+        end
+        WETLANDS_LATER.steps[#WETLANDS_LATER.steps + 1] = step
+    end
+    assert(next(held) == nil, "Wetlands: a moved pick-up has no step to go before")
+
+    -- These zones' steps carry the level the zone's own route expects (Duskwood and Wetlands from 20), but a
+    -- Night Elf comes to them later: Wetlands at about 23, Duskwood at 25, the second passes at 27-29. The
+    -- guide passes a step 4 levels below you (LevelGuide.lua K.OUTLEVELED), hand-ins of quests you hold
+    -- included, so on these legs the steps are copies (same saved keys) that stay up a few levels longer.
+    -- Duskwood's Moonbeam Wand hand-in stays out, like its pick-up in Ashenvale.
+    local function Copies(route, outlevel, skip)
+        local list = {}
+        for _, step in ipairs(route.steps) do
+            if not (skip and skip[step.q]) then
+                local copy = {}
+                for k, v in pairs(step) do
+                    copy[k] = v
+                end
+                if not step.side then
+                    copy.outlevel = math.max(step.outlevel or 4, outlevel)
+                end
+                list[#list + 1] = copy
+            end
+        end
+        route.steps = list
+    end
+    for k, v in pairs(DUSKWOOD) do
+        if k ~= "steps" then
+            DUSKWOOD_NE[k] = v
+        end
+    end
+    DUSKWOOD_NE.steps = DUSKWOOD.steps
+    Copies(DUSKWOOD_NE, 8, { ["The Carevin Family"] = true })
+    Copies(WETLANDS_FIRST, 6)
+    Copies(ASHENVALE_LATER, 6)
+    Copies(WETLANDS_LATER, 8)
 end
 
 -- Zones with no written stop list get a basic route generated from QuestDB.lua (QuestLookup.lua
@@ -3707,8 +3856,10 @@ LevelGuideRoutes = {
         -- 1.1, 1.2 and 4.2. Generated routes (Elwynn, Coldridge, Riverglades) come from QuestDB.lua.
         -- Night Elf 11-21 is a plan of legs (Routes.lua Leg fields leg/key/name/zones): Darkshore, the Loch
         -- Modan trip, Darkshore, the Redridge trip, Darkshore; the guide follows them in order.
-        NightElf = { TELDRASSIL, DARKSHORE, LOCH_MODAN_TRIP, DARKSHORE_NORTH, REDRIDGE_TRIP, DARKSHORE_SOUTH, ASHENVALE, STONETALON, WETLANDS, DUSKWOOD,
-            HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS, FERALAS, TANARIS, HINTERLANDS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
+        -- Then Ashenvale's first pass, Stonetalon (through the Talondeep Path), Wetlands and Duskwood, and
+        -- Ashenvale's second pass at 25+ (Routes.lua ASHENVALE_FIRST / ASHENVALE_LATER).
+        NightElf = { TELDRASSIL, DARKSHORE, LOCH_MODAN_TRIP, DARKSHORE_NORTH, REDRIDGE_TRIP, DARKSHORE_SOUTH, ASHENVALE_FIRST, STONETALON, WETLANDS_FIRST,
+            DUSKWOOD_NE, ASHENVALE_LATER, WETLANDS_LATER, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS, FERALAS, TANARIS, HINTERLANDS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
         Gnome = { COLDRIDGE_GEN, DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS,
             FERALAS, HINTERLANDS, TANARIS, SEARING, AZSHARA, BLASTED, UNGORO, FELWOOD, BURNING_STEPPES, WESTERN_PLAGUELANDS, EASTERN_PLAGUELANDS, WINTERSPRING, SILITHUS },
         Dwarf = { COLDRIDGE_GEN, DUN_MOROGH, LOCH_MODAN, REDRIDGE, WETLANDS, DUSKWOOD, ASHENVALE, HILLSBRAD, ARATHI, DESOLACE, STRANGLETHORN, NEEDLES, DUSTWALLOW, SWAMP, RIVERGLADES_GEN, BADLANDS,
