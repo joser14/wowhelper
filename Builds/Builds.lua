@@ -1132,7 +1132,7 @@ local function ShowMain(prefix)
     Print(string.format("%s%s|r, goal: %s%s", GOLD, className, GOAL_LABELS[goal] or goal, chosen and "" or GRAY .. " (default for your level)|r"))
     Print(string.format("%s%s|r  %s(%s, from %s, checked %s%s)|r", GOLD, build.name or "Build", GRAY, Confidence(build), Domain(build.source),
         build.checked or "?", OrderNote(build)))
-    Print(GRAY .. "Forever is new (launched November 2026) and Blizzard announced class tuning for 2026-11-10, so these builds may change.|r")
+    Print(GRAY .. "Forever is new (launched November 2026). These builds were rechecked after Blizzard's 2026-11-10 class tuning, but guides may still change.|r")
     if build.summary then
         Print(build.summary)
     end

@@ -182,8 +182,9 @@ Data sources include:
   checked.
 - **Gold farms:** Wowhead Classic item and NPC pages, and Forever gold guides.
 
-Forever launched in November 2026 and is still changing. Blizzard announced class tuning for 10 November 2026, so
-builds and some data may need refreshing after patches.
+Forever launched in November 2026 and is still changing. The builds were rechecked on 11 November 2026 after
+Blizzard's 10 November class tuning (see research\builds_tuning_2026-11-10.md); builds and some data may need refreshing
+after later patches.
 
 ## License
 
