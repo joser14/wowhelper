@@ -166,6 +166,8 @@ end
 -- gain is remembered for a moment (lastGain) in case its reward comes just after.
 -- A reward waits up to 2 s for its gain; a gain only counts as the reward's when it came within 0.5 s before.
 local QUEST_MATCH_SECONDS, GAIN_MATCH_SECONDS = 2, 0.5
+-- Kill counting and the day log (further down) look at every XP gain and every turn-in.
+local NoteGain, DropRecentKills
 local pendingQuest -- { xp, at }
 local lastGain -- { at, oldLevel, oldXP, newLevel, newXP, quest = XP already given to a reward }
 
@@ -205,6 +207,11 @@ local function TrackXP()
         end
         gain.at, gain.quest = GetTime(), 0
         lastGain = gain
+        local total = gain.oldXP + gain.newXP
+        if total > 0 and NoteGain then
+            NoteGain(gain.newLevel or gain.oldLevel, total,
+                pendingQuest ~= nil and GetTime() - pendingQuest.at <= QUEST_MATCH_SECONDS)
+        end
         if pendingQuest then
             if GetTime() - pendingQuest.at <= QUEST_MATCH_SECONDS then
                 SplitQuest(pendingQuest.xp, gain)
@@ -221,6 +228,10 @@ end
 local function QuestTurnedIn(reward)
     if type(reward) ~= "number" or reward <= 0 then
         return
+    end
+    -- An XP gain just before this was the reward, not a kill.
+    if DropRecentKills then
+        DropRecentKills(GAIN_MATCH_SECONDS)
     end
     if pendingQuest then
         -- An older reward no gain came for (XP hidden): it stays with the level you're at.
@@ -488,6 +499,13 @@ local function ShowLog(showAll)
     if kills then
         Print(kills)
     end
+    if LevelLog_ETAText then
+        local eta = LevelLog_ETAText(currentLevel + 1)
+        if eta then
+            Print(eta)
+        end
+        Print("|cff999999Your journey by day, lifetime stats and where your time goes are in the LevelLog window.|r")
+    end
 end
 
 -- ---- The way to 60 (research\re_round4.md R9) ------------------------------------------------------------
@@ -543,6 +561,887 @@ function LevelLog_ToSixty()
     return done / total, total - done, total
 end
 
+-- ---- Journey, stats, time split and level ETA (research\re_round5.md #8, #9, #10) --------------------------
+-- Ideas from Questie's Journey, AutoBiographer and LevelETA (MIT); the code is our own. Everything is per
+-- character in LevelLogDB and capped: the journey keeps the newest JOURNEY_CAP entries (older ones fold into
+-- counts per month), the day log the newest DAYS_CAP play days, the zone times the ZONES_CAP biggest zones.
+local JOURNEY_CAP, DAYS_CAP, ZONES_CAP, SEEN_CAP = 1000, 60, 120, 300
+-- No movement, XP, money, combat or quest event for this long: away from the keyboard (UnitIsAFK is secret
+-- while chat is locked down, so this rule is used instead).
+local AFK_SECONDS = 180
+-- Talking to quest givers (or an objective moved) this recently counts as questing.
+local QUEST_ACTIVE_SECONDS = 20
+-- An XP gain in combat, or this soon after it, is a kill once no turn-in claimed it within KILL_WAIT.
+local KILL_COMBAT_GRACE, KILL_WAIT = 3, 1.5
+-- A longer gap between ticks (loading screen, a stall) only counts this much.
+local TICK_MAX = 2
+-- Pace: finished levels with at least this much active time, the newest PACE_LEVELS of them.
+local PACE_MIN_SECONDS, PACE_LEVELS, PACE_DECAY = 300, 12, 0.85
+-- Play per day: the median of the last PLAY_DAYS play days of at least PLAY_DAY_MIN seconds.
+local PLAY_DAYS, PLAY_DAY_MIN = 7, 300
+local JOURNEY_SHOWN = 300
+
+local ACTIVITIES = { "fight", "quest", "travel", "flight", "town", "dead", "afk", "other" }
+local ACTIVITY_LABEL = {
+    fight = "Fighting", quest = "Questing (quest NPCs, objectives)", travel = "Travelling on foot or mount",
+    flight = "Flying (taxi)", town = "In town or an inn", dead = "Dead or running back",
+    afk = "Away (nothing for 3 min)", other = "Standing (eating, looting, waiting)",
+}
+
+local DateFn = date or (os and os.date)
+local inCombat, combatEndedAt = false, nil
+local lastActive, lastQuestAt, lastTick, wasOnTaxi = 0, nil, nil, false
+local currentZone, lastMoney
+local pendingKills = {}
+local window
+
+local function Now()
+    local t = GetServerTime and Safe(GetServerTime())
+    if type(t) ~= "number" and time then
+        t = time()
+    end
+    return type(t) == "number" and t or 0
+end
+
+local function DayKey(t)
+    return DateFn and DateFn("%Y-%m-%d", t) or "today"
+end
+
+local function Bump(t, key, amount)
+    t[key] = (tonumber(t[key]) or 0) + (amount or 1)
+end
+
+local function Table(parent, key)
+    local t = type(parent[key]) == "table" and parent[key] or {}
+    parent[key] = t
+    return t
+end
+
+local function Stats()
+    local stats = Table(levels, "stats")
+    Table(stats, "activity")
+    Table(stats, "zones")
+    if not stats.since then
+        stats.since = Now()
+    end
+    return stats
+end
+
+-- How many keys a table has (the capped maps are small).
+local function CountKeys(t)
+    local n = 0
+    for _ in pairs(t) do
+        n = n + 1
+    end
+    return n
+end
+
+-- Today's line in the day log; the oldest play days go once there are more than DAYS_CAP.
+local function Day()
+    local days = Table(levels, "days")
+    local key = DayKey(Now())
+    if type(days[key]) ~= "table" then
+        days[key] = {}
+        local keys = {}
+        for k in pairs(days) do
+            keys[#keys + 1] = k
+        end
+        if #keys > DAYS_CAP then
+            table.sort(keys)
+            for i = 1, #keys - DAYS_CAP do
+                days[keys[i]] = nil
+            end
+        end
+    end
+    return days[key]
+end
+
+local function RefreshWindowSoon()
+    if window and window:IsShown() then
+        window.dirty = true
+    end
+end
+
+-- A journey entry: t (server time), k (kind), l (your level), plus the kind's own fields.
+local function AddEvent(kind, fields)
+    local list = Table(levels, "journey")
+    local entry = { t = Now(), k = kind, l = currentLevel }
+    for key, value in pairs(fields or {}) do
+        entry[key] = value
+    end
+    list[#list + 1] = entry
+    if #list > JOURNEY_CAP then
+        local folded = Table(levels, "journeyOld")
+        while #list > JOURNEY_CAP do
+            local old = table.remove(list, 1)
+            local month = (DateFn and type(old.t) == "number" and old.t > 0) and DateFn("%Y-%m", old.t) or "older"
+            Bump(Table(folded, month), tostring(old.k or "other"))
+        end
+    end
+    RefreshWindowSoon()
+    return entry
+end
+
+local function ReadZone()
+    local zone = (GetRealZoneText and Safe(GetRealZoneText())) or (GetZoneText and Safe(GetZoneText()))
+    if type(zone) ~= "string" or zone == "" then
+        return nil
+    end
+    local dungeon = false
+    if IsInInstance then
+        local ok, inside, kind = pcall(IsInInstance)
+        if ok then
+            inside, kind = Safe(inside), Safe(kind)
+            dungeon = inside == true and (kind == "party" or kind == "raid")
+        end
+    end
+    return zone, dungeon
+end
+
+-- First visits. The zone you're in when the journal starts is only remembered, since you may have been
+-- there long before.
+local function UpdateZone()
+    local zone, dungeon = ReadZone()
+    if not zone then
+        return
+    end
+    currentZone = zone
+    local seen = Table(levels, "seen")
+    local zones, dungeons = Table(seen, "zones"), Table(seen, "dungeons")
+    local bucket = dungeon and dungeons or zones
+    if bucket[zone] then
+        return
+    end
+    if CountKeys(zones) + CountKeys(dungeons) >= SEEN_CAP then
+        return
+    end
+    local starting = not levels.journeyStart
+    bucket[zone] = Now()
+    if starting then
+        return
+    end
+    if dungeon then
+        AddEvent("dungeon", { z = zone, first = CountKeys(dungeons) == 1 or nil })
+    else
+        AddEvent("zone", { z = zone })
+    end
+end
+
+local function StartJourney()
+    if levels.journeyStart then
+        return
+    end
+    levels.journeyStart = Now()
+    levels.journeyStartLevel = currentLevel
+    local zone = ReadZone()
+    AddEvent("start", { z = zone })
+end
+
+-- A second's time in a zone; with more than ZONES_CAP zones the smallest goes.
+local function AddZoneTime(stats, zone, seconds)
+    local zones = stats.zones
+    if zones[zone] == nil and CountKeys(zones) >= ZONES_CAP then
+        local smallest, least
+        for name, value in pairs(zones) do
+            if not least or (tonumber(value) or 0) < least then
+                smallest, least = name, tonumber(value) or 0
+            end
+        end
+        if smallest then
+            zones[smallest] = nil
+        end
+    end
+    Bump(zones, zone, seconds)
+end
+
+local function InFight()
+    if inCombat then
+        return true
+    end
+    return UnitAffectingCombat and Safe(UnitAffectingCombat("player")) == true or false
+end
+
+local function MarkActive()
+    lastActive = GetTime()
+end
+
+-- Every XP gain: the day's XP, and a kill when it came in or just after combat and wasn't a quest's.
+NoteGain = function(level, amount, fromQuest)
+    if not levels then
+        return
+    end
+    MarkActive()
+    Bump(Day(), "x", amount)
+    if fromQuest then
+        return
+    end
+    local now = GetTime()
+    if InFight() or (combatEndedAt and now - combatEndedAt <= KILL_COMBAT_GRACE) then
+        pendingKills[#pendingKills + 1] = { at = now, level = level or currentLevel }
+        if #pendingKills > 50 then
+            table.remove(pendingKills, 1)
+        end
+    end
+end
+
+DropRecentKills = function(seconds)
+    local now = GetTime()
+    for i = #pendingKills, 1, -1 do
+        if now - pendingKills[i].at <= seconds then
+            table.remove(pendingKills, i)
+        end
+    end
+end
+
+-- Kills nobody claimed for KILL_WAIT seconds are counted.
+local function ResolveKills()
+    if not levels then
+        return
+    end
+    local now = GetTime()
+    while pendingKills[1] and now - pendingKills[1].at >= KILL_WAIT do
+        local kill = table.remove(pendingKills, 1)
+        Bump(Entry(kill.level), "kills")
+        Bump(Stats(), "kills")
+        Bump(Day(), "k")
+    end
+end
+
+local function TrackMoney()
+    local money = GetMoney and Safe(GetMoney())
+    if type(money) ~= "number" then
+        -- Unreadable now: the next reading counts what changed in between.
+        return
+    end
+    if lastMoney then
+        local delta = money - lastMoney
+        if delta ~= 0 then
+            MarkActive()
+            local field = delta > 0 and "moneyIn" or "moneyOut"
+            Bump(Stats(), field, math.abs(delta))
+            Bump(Entry(currentLevel), field, math.abs(delta))
+        end
+    end
+    lastMoney = money
+end
+
+-- What you're doing this second (the first that applies).
+local function ActivityNow(now)
+    if UnitIsDeadOrGhost and Safe(UnitIsDeadOrGhost("player")) == true then
+        return "dead"
+    end
+    if UnitOnTaxi and Safe(UnitOnTaxi("player")) == true then
+        return "flight"
+    end
+    if InFight() then
+        lastActive = now
+        return "fight"
+    end
+    local moving = IsPlayerMoving and Safe(IsPlayerMoving()) == true
+    if moving then
+        lastActive = now
+    end
+    if now - lastActive >= AFK_SECONDS then
+        return "afk"
+    end
+    if lastQuestAt and now - lastQuestAt <= QUEST_ACTIVE_SECONDS then
+        return "quest"
+    end
+    if IsResting and Safe(IsResting()) == true then
+        return "town"
+    end
+    if moving then
+        return "travel"
+    end
+    return "other"
+end
+
+local RefreshWindow
+
+-- Once a second: time by activity (this level and lifetime), time per zone, the day's play time, flights.
+local function Tick()
+    if not levels then
+        return
+    end
+    ResolveKills()
+    local now = GetTime()
+    local delta = lastTick and now - lastTick or 0
+    lastTick = now
+    local taxi = UnitOnTaxi and Safe(UnitOnTaxi("player")) == true or false
+    if taxi and not wasOnTaxi then
+        Bump(Stats(), "flights")
+        Bump(Entry(currentLevel), "flights")
+    end
+    wasOnTaxi = taxi
+    if delta > 0 then
+        delta = math.min(delta, TICK_MAX)
+        local state = ActivityNow(now)
+        Bump(Table(Entry(currentLevel), "activity"), state, delta)
+        local stats = Stats()
+        Bump(stats.activity, state, delta)
+        if currentZone then
+            AddZoneTime(stats, currentZone, delta)
+        end
+        if state ~= "afk" then
+            Bump(Day(), "s", delta)
+        end
+    end
+    if window and window:IsShown() and (window.dirty or (window.view == "time" and now - (window.drawnAt or 0) >= 5)) then
+        RefreshWindow()
+    end
+end
+
+-- Seconds you played a level, without the time away.
+local function ActiveSeconds(entry)
+    local seconds = tonumber(entry.seconds) or 0
+    local afk = type(entry.activity) == "table" and tonumber(entry.activity.afk) or 0
+    return math.max(seconds - afk, 0)
+end
+
+-- XP per hour of play, weighted towards your recent levels (LevelETA's way): the newest PACE_LEVELS finished
+-- levels, each 0.85 times the weight of the one after it, levels over twice the median left out; the level
+-- you're on blends in up to 40 % once you've played it two hours. Returns XP/h and the levels used, or nil.
+function LevelLog_Pace()
+    if not levels then
+        return nil
+    end
+    BankTime()
+    local samples = {}
+    for level = currentLevel - 1, 1, -1 do
+        local entry = levels[level]
+        if type(entry) == "table" then
+            local seconds = ActiveSeconds(entry)
+            -- The XP counted for the level when there is some (a level only partly logged), else its bar.
+            local xp = (tonumber(entry.xp) or 0) > 0 and tonumber(entry.xp) or CurveXP(level)
+            if seconds >= PACE_MIN_SECONDS and xp > 0 then
+                samples[#samples + 1] = xp * 3600 / seconds
+            end
+        end
+        if #samples >= PACE_LEVELS then
+            break
+        end
+    end
+    local rate, used
+    if #samples > 0 then
+        local median = Median(samples)
+        local sum, weights, weight = 0, 0, 1
+        used = 0
+        for _, perHour in ipairs(samples) do
+            if perHour <= 2 * median then
+                sum, weights, used = sum + perHour * weight, weights + weight, used + 1
+                weight = weight * PACE_DECAY
+            end
+        end
+        rate = weights > 0 and sum / weights or nil
+    end
+    local current = type(levels[currentLevel]) == "table" and levels[currentLevel]
+    if current then
+        local seconds, xp = ActiveSeconds(current), tonumber(current.xp) or 0
+        if seconds >= 120 and xp > 0 then
+            local perHour = xp * 3600 / seconds
+            if rate then
+                local blend = math.min(0.4, seconds / 60 / 120)
+                rate = rate * (1 - blend) + perHour * blend
+            elseif seconds >= 600 then
+                rate, used = perHour, 0
+            end
+        end
+    end
+    if not rate or rate <= 0 then
+        return nil
+    end
+    return rate, used or 0
+end
+
+-- Hours you play on a day: the median of your last PLAY_DAYS play days (today only while there are fewer
+-- than two others). Returns hours and how many days, or nil.
+function LevelLog_HoursPerDay()
+    if not levels or type(levels.days) ~= "table" then
+        return nil
+    end
+    local today = DayKey(Now())
+    local keys = {}
+    for key, day in pairs(levels.days) do
+        if key ~= today and type(day) == "table" and (tonumber(day.s) or 0) >= PLAY_DAY_MIN then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys, function(a, b) return a > b end)
+    local hours = {}
+    for i = 1, math.min(#keys, PLAY_DAYS) do
+        hours[#hours + 1] = levels.days[keys[i]].s / 3600
+    end
+    local todayEntry = levels.days[today]
+    if #hours < 2 and type(todayEntry) == "table" and (tonumber(todayEntry.s) or 0) >= PLAY_DAY_MIN then
+        hours[#hours + 1] = todayEntry.s / 3600
+    end
+    if #hours == 0 then
+        return nil
+    end
+    return Median(hours), #hours
+end
+
+-- XP still to earn to reach a level, or nil.
+local function XPTo(target)
+    local xp, max, level = ReadXP()
+    level = level or currentLevel
+    if type(xp) ~= "number" or type(max) ~= "number" or type(level) ~= "number" or target <= level or target > MAX_LEVEL then
+        return nil
+    end
+    local need = max - xp
+    for l = level + 1, target - 1 do
+        need = need + CurveXP(l)
+    end
+    return need
+end
+
+-- When you'd reach a level: hours of play, and the date at your usual play per day. nil when unknown.
+function LevelLog_ETA(target)
+    local need = XPTo(target)
+    local rate = LevelLog_Pace()
+    if not (need and rate) then
+        return nil
+    end
+    local result = { target = target, hours = need / rate, rate = rate }
+    local perDay = LevelLog_HoursPerDay()
+    if perDay and perDay > 0 then
+        result.perDay = perDay
+        result.at = Now() + result.hours / perDay * 86400
+    end
+    return result
+end
+
+-- "Level 20 about Sat 15 Nov (about 9h 0m of play at 1.6 h a day)".
+function LevelLog_ETAText(target)
+    local eta = LevelLog_ETA(target)
+    if not eta then
+        return nil
+    end
+    local played = FormatDuration(eta.hours * 3600)
+    if eta.at and DateFn then
+        return string.format("Level %d about %s (about %s of play at %.1f h a day)", target,
+            DateFn("%a %d %b", eta.at), played, eta.perDay)
+    end
+    return string.format("Level %d in about %s of play", target, played)
+end
+
+-- ---- The window's pages -------------------------------------------------------------------------------------
+local GOLD, GREY, GREEN, RED = "|cffffd100", "|cff999999", "|cff33ff33", "|cffff6666"
+
+local function Money(copper)
+    copper = math.floor(tonumber(copper) or 0)
+    local gold, silver, rest = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+    if gold > 0 then
+        return string.format("%dg %ds", gold, silver)
+    elseif silver > 0 then
+        return string.format("%ds %dc", silver, rest)
+    end
+    return string.format("%dc", rest)
+end
+
+local function Clock(t)
+    return DateFn and DateFn("%H:%M", t) or ""
+end
+
+local function EventText(entry)
+    local kind = entry.k
+    if kind == "level" then
+        local took = tonumber(entry.s)
+        return string.format("%sReached level %s|r%s", GOLD, tostring(entry.n or "?"),
+            took and took > 0 and string.format(" (level %d took %s)", (tonumber(entry.n) or 1) - 1, FormatDuration(took)) or "")
+    elseif kind == "zone" then
+        return "First visit: " .. tostring(entry.z or "?")
+    elseif kind == "dungeon" then
+        local first = ""
+        if entry.first then
+            first = (tonumber(levels.journeyStartLevel) or 1) <= 10 and (GREEN .. " - your first dungeon|r") or (GREEN .. " - first dungeon in this log|r")
+        end
+        return "Entered dungeon: " .. tostring(entry.z or "?") .. first
+    elseif kind == "death" then
+        return RED .. "Died|r" .. (entry.z and (" in " .. entry.z) or "")
+    elseif kind == "start" then
+        return GREY .. "Journal started" .. (entry.z and (" in " .. entry.z) or "") .. string.format(" at level %d|r", tonumber(entry.l) or 1)
+    end
+    return tostring(kind)
+end
+
+local function DaySummary(key)
+    local day = type(levels.days) == "table" and levels.days[key]
+    if type(day) ~= "table" then
+        return ""
+    end
+    local parts = {}
+    if (tonumber(day.s) or 0) > 0 then
+        parts[#parts + 1] = FormatDuration(day.s) .. " played"
+    end
+    if (tonumber(day.k) or 0) > 0 then
+        parts[#parts + 1] = day.k .. " kills"
+    end
+    if (tonumber(day.q) or 0) > 0 then
+        parts[#parts + 1] = day.q .. " quests"
+    end
+    if (tonumber(day.x) or 0) > 0 then
+        parts[#parts + 1] = day.x .. " XP"
+    end
+    return #parts > 0 and (GREY .. "  " .. table.concat(parts, ", ") .. "|r") or ""
+end
+
+-- The journey, newest first, by day (with the day's totals) or by level.
+function LevelLog_JourneyLines(byLevel)
+    if not levels then
+        return {}
+    end
+    local lines = {}
+    local list = type(levels.journey) == "table" and levels.journey or {}
+    local lastGroup
+    local shown = 0
+    for i = #list, 1, -1 do
+        local entry = list[i]
+        if type(entry) == "table" then
+            local group, header
+            if byLevel then
+                group = tonumber(entry.l) or 0
+                header = string.format("%sLevel %d|r", GOLD, group)
+            else
+                group = (DateFn and type(entry.t) == "number" and entry.t > 0) and DateFn("%Y-%m-%d", entry.t) or "?"
+                header = GOLD .. ((DateFn and type(entry.t) == "number" and entry.t > 0) and DateFn("%a %d %b %Y", entry.t) or "Undated") .. "|r" .. DaySummary(group)
+            end
+            if group ~= lastGroup then
+                if lastGroup ~= nil then
+                    lines[#lines + 1] = " "
+                end
+                lines[#lines + 1] = header
+                lastGroup = group
+            end
+            local when = byLevel and ((DateFn and type(entry.t) == "number" and entry.t > 0) and DateFn("%d %b %H:%M", entry.t) or "") or Clock(entry.t)
+            lines[#lines + 1] = string.format("  %s%s|r  %s", GREY, when, EventText(entry))
+            shown = shown + 1
+            if shown >= JOURNEY_SHOWN then
+                lines[#lines + 1] = string.format("%s... and %d older entries.|r", GREY, i - 1)
+                break
+            end
+        end
+    end
+    if type(levels.journeyOld) == "table" and next(levels.journeyOld) then
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = GOLD .. "Older (counted only)|r"
+        local months = {}
+        for month in pairs(levels.journeyOld) do
+            months[#months + 1] = month
+        end
+        table.sort(months, function(a, b) return a > b end)
+        for _, month in ipairs(months) do
+            local counts = levels.journeyOld[month]
+            local parts = {}
+            for _, kind in ipairs({ "level", "zone", "dungeon", "death" }) do
+                if type(counts) == "table" and (tonumber(counts[kind]) or 0) > 0 then
+                    parts[#parts + 1] = counts[kind] .. " " .. (kind == "level" and "levels" or kind == "zone" and "new zones" or kind == "dungeon" and "dungeons" or "deaths")
+                end
+            end
+            lines[#lines + 1] = string.format("  %s: %s", month, #parts > 0 and table.concat(parts, ", ") or "-")
+        end
+    end
+    if #lines == 0 then
+        lines[1] = GREY .. "Nothing yet. Levels, new zones, dungeons and deaths appear here from now on.|r"
+    end
+    return lines
+end
+
+local function Percent(part, total)
+    if total <= 0 then
+        return 0
+    end
+    return math.floor(part * 100 / total + 0.5)
+end
+
+-- Lifetime counters and one line per level.
+function LevelLog_StatsLines()
+    if not levels then
+        return {}
+    end
+    BankTime()
+    ResolveKills()
+    local stats = Stats()
+    local lines = {}
+    local seconds, deaths, quests = 0, 0, 0
+    for level = 1, currentLevel do
+        local entry = levels[level]
+        if type(entry) == "table" then
+            seconds = seconds + (tonumber(entry.seconds) or 0)
+            deaths = deaths + (tonumber(entry.deaths) or 0)
+            quests = quests + (tonumber(entry.quests) or 0)
+        end
+    end
+    local seen = type(levels.seen) == "table" and levels.seen or {}
+    local since = tonumber(stats.since)
+    lines[#lines + 1] = GOLD .. "Lifetime|r" .. ((since and since > 0 and DateFn) and (GREY .. "  (kills, quests, gold and flights counted since " .. DateFn("%d %b %Y", since) .. ")|r") or "")
+    lines[#lines + 1] = string.format("  Time logged: %s   Deaths: %d", FormatDuration(seconds), deaths)
+    lines[#lines + 1] = string.format("  Kills that gave XP: %d   Quests turned in: %d", tonumber(stats.kills) or 0, tonumber(stats.quests) or quests)
+    lines[#lines + 1] = string.format("  Gold in: %s   Gold out: %s", Money(stats.moneyIn), Money(stats.moneyOut))
+    lines[#lines + 1] = string.format("  Flights: %d (%s in the air)", tonumber(stats.flights) or 0, FormatDuration(tonumber(stats.activity.flight) or 0))
+    lines[#lines + 1] = string.format("  Zones visited: %d   Dungeons visited: %d",
+        type(seen.zones) == "table" and CountKeys(seen.zones) or 0, type(seen.dungeons) == "table" and CountKeys(seen.dungeons) or 0)
+    -- Where you spent the most time.
+    local zones = {}
+    for name, value in pairs(stats.zones) do
+        zones[#zones + 1] = { name = name, seconds = tonumber(value) or 0 }
+    end
+    table.sort(zones, function(a, b) return a.seconds > b.seconds end)
+    if #zones > 0 then
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = GOLD .. "Most time in|r"
+        for i = 1, math.min(8, #zones) do
+            lines[#lines + 1] = string.format("  %s: %s", zones[i].name, FormatDuration(zones[i].seconds))
+        end
+    end
+    lines[#lines + 1] = " "
+    lines[#lines + 1] = GOLD .. "Per level|r"
+    for level = currentLevel, 1, -1 do
+        local entry = levels[level]
+        if type(entry) == "table" and (tonumber(entry.seconds) or 0) > 0 then
+            local parts = { FormatDuration(tonumber(entry.seconds) or 0), (tonumber(entry.deaths) or 0) .. " deaths" }
+            if entry.kills then
+                parts[#parts + 1] = entry.kills .. " kills"
+            end
+            if entry.quests then
+                parts[#parts + 1] = entry.quests .. " quests"
+            end
+            if entry.flights then
+                parts[#parts + 1] = entry.flights .. " flights"
+            end
+            local pace = PaceText(LevelXP(level, entry), ActiveSeconds(entry))
+            if pace then
+                parts[#parts + 1] = pace
+            end
+            lines[#lines + 1] = string.format("  Level %d: %s", level, table.concat(parts, ", "))
+        end
+    end
+    return lines
+end
+
+local function ActivityLines(activity, title)
+    local lines = { GOLD .. title .. "|r" }
+    local total = 0
+    for _, key in ipairs(ACTIVITIES) do
+        total = total + (tonumber(activity[key]) or 0)
+    end
+    if total < 1 then
+        lines[#lines + 1] = GREY .. "  Nothing counted yet.|r"
+        return lines
+    end
+    local order = {}
+    for _, key in ipairs(ACTIVITIES) do
+        if (tonumber(activity[key]) or 0) >= 1 then
+            order[#order + 1] = key
+        end
+    end
+    table.sort(order, function(a, b) return (tonumber(activity[a]) or 0) > (tonumber(activity[b]) or 0) end)
+    for _, key in ipairs(order) do
+        local seconds = tonumber(activity[key]) or 0
+        lines[#lines + 1] = string.format("  %s: %s (%d%%)", ACTIVITY_LABEL[key], FormatDuration(seconds), Percent(seconds, total))
+    end
+    return lines
+end
+
+-- Where your time goes (this level and since the split was first counted), your pace and the dates.
+function LevelLog_TimeLines()
+    if not levels then
+        return {}
+    end
+    BankTime()
+    local lines = {}
+    local entry = Entry(currentLevel)
+    for _, line in ipairs(ActivityLines(Table(entry, "activity"), string.format("Level %d so far", currentLevel))) do
+        lines[#lines + 1] = line
+    end
+    lines[#lines + 1] = " "
+    for _, line in ipairs(ActivityLines(Stats().activity, "All levels since it was first counted")) do
+        lines[#lines + 1] = line
+    end
+    lines[#lines + 1] = " "
+    lines[#lines + 1] = GOLD .. "When you'll level|r"
+    local rate, used = LevelLog_Pace()
+    if not rate then
+        lines[#lines + 1] = GREY .. "  Not enough play counted yet: a finished level, or 10 minutes on this one.|r"
+        return lines
+    end
+    lines[#lines + 1] = string.format("  Pace: %s of play (%s; time away left out)", PaceText(rate, 3600) or "?",
+        used > 0 and string.format("your last %d level(s), recent ones count more", used) or "this level so far")
+    local perDay, days = LevelLog_HoursPerDay()
+    if perDay then
+        lines[#lines + 1] = string.format("  You play about %.1f h a day (middle of your last %d play day(s)).", perDay, days)
+    else
+        lines[#lines + 1] = GREY .. "  Dates appear after a day of play.|r"
+    end
+    local targets, seen = {}, {}
+    for _, target in ipairs({ currentLevel + 1, math.min(MAX_LEVEL, (math.floor(currentLevel / 5) + 1) * 5), MAX_LEVEL }) do
+        if target > currentLevel and target <= MAX_LEVEL and not seen[target] then
+            seen[target] = true
+            targets[#targets + 1] = target
+        end
+    end
+    for _, target in ipairs(targets) do
+        local text = LevelLog_ETAText(target)
+        if text then
+            lines[#lines + 1] = "  " .. text
+        end
+    end
+    return lines
+end
+
+-- ---- The window ----------------------------------------------------------------------------------------------
+local WINDOW_WIDTH, WINDOW_HEIGHT = 480, 440
+local VIEWS = {
+    { key = "journey", label = "Journey" },
+    { key = "stats", label = "Stats" },
+    { key = "time", label = "Time and ETA" },
+}
+
+-- Kept in this character's record, so LevelLogDB stays one record per character.
+local function Settings()
+    local settings = Table(levels, "window")
+    if type(settings.openWithPage) ~= "boolean" then
+        settings.openWithPage = true
+    end
+    return settings
+end
+
+RefreshWindow = function()
+    if not (window and levels) then
+        return
+    end
+    window.dirty = false
+    window.drawnAt = GetTime()
+    local lines
+    if window.view == "stats" then
+        lines = LevelLog_StatsLines()
+    elseif window.view == "time" then
+        lines = LevelLog_TimeLines()
+    else
+        lines = LevelLog_JourneyLines(window.byLevel)
+    end
+    window.text:SetText(table.concat(lines, "\n"))
+    window.content:SetHeight(math.max((Safe(window.text:GetStringHeight()) or 0) + 8, 10))
+    for _, tab in ipairs(window.tabs) do
+        if tab.key == window.view then
+            tab:LockHighlight()
+        else
+            tab:UnlockHighlight()
+        end
+    end
+    window.order:SetShown(window.view == "journey")
+    window.order:SetText(window.byLevel and "By day" or "By level")
+    window.auto:SetChecked(Settings().openWithPage)
+end
+
+local function BuildWindow()
+    window = CreateFrame("Frame", "LevelLogWindow", UIParent, "BackdropTemplate")
+    window:SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
+    window:SetFrameStrata("HIGH")
+    window:SetClampedToScreen(true)
+    window:SetMovable(true)
+    window:EnableMouse(true)
+    window:RegisterForDrag("LeftButton")
+    window:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 14,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    window:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+    window:SetScript("OnDragStart", window.StartMoving)
+    window:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, relativePoint, x, y = self:GetPoint()
+        if point then
+            Settings().position = { point, relativePoint, x, y }
+        end
+    end)
+    local position = Settings().position
+    if type(position) == "table" and position[1] then
+        window:SetPoint(position[1], UIParent, position[2], position[3], position[4])
+    else
+        window:SetPoint("CENTER", UIParent, "CENTER", 260, 40)
+    end
+    window.view = "journey"
+
+    local title = window:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", window, "TOPLEFT", 12, -10)
+    title:SetText("Level log")
+    local close = CreateFrame("Button", nil, window, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", window, "TOPRIGHT", -2, -2)
+
+    window.tabs = {}
+    local x = 10
+    for _, view in ipairs(VIEWS) do
+        local tab = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
+        tab:SetSize(view.key == "time" and 104 or 80, 22)
+        tab:SetPoint("TOPLEFT", window, "TOPLEFT", x, -30)
+        tab:SetText(view.label)
+        tab.key = view.key
+        tab:SetScript("OnClick", function()
+            window.view = view.key
+            RefreshWindow()
+        end)
+        window.tabs[#window.tabs + 1] = tab
+        x = x + (view.key == "time" and 108 or 84)
+    end
+    window.order = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
+    window.order:SetSize(80, 22)
+    window.order:SetPoint("TOPRIGHT", window, "TOPRIGHT", -12, -30)
+    window.order:SetScript("OnClick", function()
+        window.byLevel = not window.byLevel
+        RefreshWindow()
+    end)
+
+    local scroll = CreateFrame("ScrollFrame", nil, window, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", window, "TOPLEFT", 12, -60)
+    scroll:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -32, 36)
+    window.content = CreateFrame("Frame", nil, scroll)
+    window.content:SetSize(WINDOW_WIDTH - 50, 10)
+    scroll:SetScrollChild(window.content)
+    window.text = window.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    window.text:SetPoint("TOPLEFT", window.content, "TOPLEFT", 0, 0)
+    window.text:SetWidth(WINDOW_WIDTH - 54)
+    window.text:SetJustifyH("LEFT")
+    window.text:SetJustifyV("TOP")
+    window.text:SetSpacing(2)
+
+    window.auto = CreateFrame("CheckButton", nil, window, "UICheckButtonTemplate")
+    window.auto:SetSize(22, 22)
+    window.auto:SetPoint("BOTTOMLEFT", window, "BOTTOMLEFT", 10, 8)
+    window.auto:SetScript("OnClick", function(self)
+        Settings().openWithPage = self:GetChecked() and true or false
+    end)
+    local autoLabel = window:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    autoLabel:SetPoint("LEFT", window.auto, "RIGHT", 2, 0)
+    autoLabel:SetText("Open this window with the hub's Level log page")
+
+    window:SetScript("OnShow", RefreshWindow)
+    -- Not added to UISpecialFrames (a Blizzard table): the close button and "window" close it.
+    window:Hide()
+end
+
+-- Opens (or with toggle, closes) the window. Only out of the way of loading: needs saved data and UIParent.
+function LevelLog_OpenWindow(toggle)
+    if not (levels and UIParent and CreateFrame) then
+        return
+    end
+    if not window then
+        BuildWindow()
+    end
+    if window:IsShown() then
+        if toggle then
+            window:Hide()
+        else
+            RefreshWindow()
+        end
+        return
+    end
+    window:Show()
+    RefreshWindow()
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_LOGOUT")
@@ -550,6 +1449,12 @@ events:RegisterEvent("PLAYER_LEVEL_UP")
 events:RegisterEvent("PLAYER_DEAD")
 events:RegisterEvent("PLAYER_XP_UPDATE")
 events:RegisterEvent("QUEST_TURNED_IN")
+-- Journey, stats and time split (round 5 #8-#10).
+for _, name in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
+    "PLAYER_MONEY", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "QUEST_GREETING", "QUEST_ACCEPTED" }) do
+    events:RegisterEvent(name)
+end
+local QUEST_WINDOW_EVENTS = { QUEST_DETAIL = true, QUEST_PROGRESS = true, QUEST_COMPLETE = true, QUEST_GREETING = true, QUEST_ACCEPTED = true }
 events:SetScript("OnEvent", function(_, event, arg1, arg2)
     if event == "PLAYER_LOGIN" then
         LevelLogDB = LevelLogDB or {}
@@ -560,22 +1465,61 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         lastMark = GetTime()
         lastXP, lastMax, lastLevel = ReadXP()
         LearnCurve()
+        -- The zone you log in to is remembered first, so it isn't a "first visit" when the journal starts.
+        lastActive, lastTick = GetTime(), GetTime()
+        UpdateZone()
+        StartJourney()
+        Stats()
+        lastMoney = GetMoney and Safe(GetMoney()) or nil
+        if C_Timer and C_Timer.NewTicker then
+            C_Timer.NewTicker(1, function()
+                local ok, err = pcall(Tick)
+                if not ok and geterrorhandler then
+                    geterrorhandler()(err)
+                end
+            end)
+        end
     elseif not levels then
         -- Saved data isn't set up until PLAYER_LOGIN.
         return
     elseif event == "PLAYER_LEVEL_UP" then
         BankTime()
-        Print(string.format("Level %d took %s.", currentLevel, FormatDuration(levels[currentLevel].seconds)))
+        local took = tonumber(Entry(currentLevel).seconds) or 0
+        Print(string.format("Level %d took %s.", currentLevel, FormatDuration(took)))
         currentLevel = Safe(arg1) or currentLevel + 1
+        AddEvent("level", { n = currentLevel, s = math.floor(took), z = currentZone })
+        MarkActive()
     elseif event == "PLAYER_XP_UPDATE" then
         TrackXP()
         LearnCurve()
+        ResolveKills()
     elseif event == "QUEST_TURNED_IN" then
         -- Split across a level-up like the bar (see QuestTurnedIn).
         QuestTurnedIn(Safe(arg2))
+        Bump(Entry(currentLevel), "quests")
+        Bump(Stats(), "quests")
+        Bump(Day(), "q")
+        lastQuestAt = GetTime()
+        MarkActive()
+        RefreshWindowSoon()
     elseif event == "PLAYER_DEAD" then
         local entry = Entry(currentLevel)
         entry.deaths = entry.deaths + 1
+        Bump(Day(), "d")
+        AddEvent("death", { z = currentZone })
+    elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+        UpdateZone()
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        inCombat = true
+        MarkActive()
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        inCombat, combatEndedAt = false, GetTime()
+        MarkActive()
+    elseif event == "PLAYER_MONEY" then
+        TrackMoney()
+    elseif QUEST_WINDOW_EVENTS[event] then
+        lastQuestAt = GetTime()
+        MarkActive()
     elseif event == "PLAYER_LOGOUT" then
         BankTime()
         -- A reward no XP update came for stays with the level you're at.
@@ -602,10 +1546,25 @@ ForeverHubStatus.LevelLog = function()
 end
 
 SLASH_LEVELLOG1 = "/levellog"
+-- With the hub, its "Level log" page runs this with "all": the page text, and this helper's own window
+-- beside it (unless switched off in the window). Without the hub, /levellog opens the window. "window"
+-- opens or closes the window either way.
 SlashCmdList.LEVELLOG = function(message)
     -- Saved data isn't ready until login, and the hub can open this page before then.
     if not levels then
         return
     end
-    ShowLog(message:lower():match("^%s*all") ~= nil)
+    local arg = (message or ""):lower():match("^%s*(.-)%s*$")
+    if arg == "window" then
+        LevelLog_OpenWindow(true)
+        return
+    end
+    if not ForeverHub_Receive then
+        LevelLog_OpenWindow(false)
+        return
+    end
+    ShowLog(arg:match("^all") ~= nil)
+    if Settings().openWithPage then
+        LevelLog_OpenWindow(false)
+    end
 end

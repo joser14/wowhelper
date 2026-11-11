@@ -1422,6 +1422,284 @@ local function ToggleBlizzardTracker()
     end
 end
 
+-- ---- Quest sounds (research\re_round5.md #6; the idea is Questie's, the code our own) -------------------
+-- A short sound when a quest objective moves on, when one is finished, and when the whole quest is done.
+-- Each has its own switch and sound on the "Snd" pop-up in this panel's header. Progress is off by default;
+-- the other two are on, on the sound-effects channel. The game's own sound kits only (PlaySound, in pcall).
+-- Nothing plays at login, after a loading screen, or for a quest you just picked up: only a change from the
+-- last reading of a quest that was already in your log counts.
+local SOUND_EVENTS = {
+    { key = "progress", label = "Progress", about = "A kill or item counted towards an objective." },
+    { key = "objective", label = "Objective done", about = "One objective finished." },
+    { key = "complete", label = "Quest complete", about = "Everything done: ready to turn in." },
+}
+-- name: the SOUNDKIT constant, read when it's there; id: the same kit's number for when it isn't.
+local SOUND_CHOICES = {
+    { name = "Soft tick", kit = "IG_MAINMENU_OPTION_CHECKBOX_ON", id = 856 },
+    { name = "Quest tick", kit = "IG_QUEST_LIST_SELECT", id = 877 },
+    { name = "Map ping", kit = "MAP_PING", id = 3175 },
+    { name = "Whisper", kit = "TELL_MESSAGE", id = 3081 },
+    { name = "Quest done", kit = "IG_QUEST_LIST_COMPLETE", id = 878 },
+    { name = "Ready check", kit = "READY_CHECK", id = 8960 },
+}
+local SOUND_DEFAULTS = {
+    progress = { on = false, choice = 1 },
+    objective = { on = true, choice = 2 },
+    complete = { on = true, choice = 5 },
+}
+-- Wait this long after a quest log update, so one kill that moves two quests plays one sound.
+local SOUND_DELAY, SOUND_QUIET_SECONDS = 0.5, 5
+local soundSnap, soundPending, soundQuietUntil = nil, false, 0
+local soundPanel
+
+local function SoundSettings()
+    db.sounds = type(db.sounds) == "table" and db.sounds or {}
+    for key, default in pairs(SOUND_DEFAULTS) do
+        local entry = type(db.sounds[key]) == "table" and db.sounds[key] or {}
+        if type(entry.on) ~= "boolean" then
+            entry.on = default.on
+        end
+        if not SOUND_CHOICES[tonumber(entry.choice) or 0] then
+            entry.choice = default.choice
+        end
+        db.sounds[key] = entry
+    end
+    return db.sounds
+end
+
+local function AnySoundOn()
+    for _, entry in pairs(SoundSettings()) do
+        if entry.on then
+            return true
+        end
+    end
+    return false
+end
+
+local function SoundKitID(choice)
+    local sound = SOUND_CHOICES[choice] or SOUND_CHOICES[1]
+    local id = type(SOUNDKIT) == "table" and Safe(SOUNDKIT[sound.kit])
+    return type(id) == "number" and id or sound.id
+end
+
+-- True when the game took the sound.
+local function PlayChoice(choice)
+    if type(PlaySound) ~= "function" then
+        return false
+    end
+    local ok, willPlay = pcall(PlaySound, SoundKitID(choice), "SFX")
+    return ok and willPlay ~= false
+end
+
+-- One reading of a quest: complete (nil when unreadable) and each readable objective's count and state.
+local function SoundReading(questID)
+    local reading = { objectives = {} }
+    local complete = Safe(C_QuestLog.IsComplete(questID))
+    if type(complete) == "boolean" then
+        reading.complete = complete
+    end
+    for index, objective in ipairs(C_QuestLog.GetQuestObjectives(questID) or {}) do
+        local have, need, finished = Safe(objective.numFulfilled), Safe(objective.numRequired), Safe(objective.finished)
+        if type(have) == "number" and type(finished) == "boolean" then
+            -- The 1/1-but-unfinished rule (ReadObjectives): that row is still 0/1.
+            if finished == false and have == 1 and need == 1 then
+                have = 0
+            end
+            reading.objectives[index] = { have = have, finished = finished }
+        end
+    end
+    return reading
+end
+
+-- Compares the log with the last reading. Returns "complete", "objective", "progress" or nil (the biggest
+-- change wins), and keeps the new reading. The first reading only remembers.
+function QuestTracker_SoundScan()
+    local now = {}
+    local entries = Safe((C_QuestLog.GetNumQuestLogEntries())) or 0
+    for index = 1, entries do
+        local info = C_QuestLog.GetInfo(index)
+        local questID = info and not Safe(info.isHeader) and not Safe(info.isTask) and Safe(info.questID)
+        if type(questID) == "number" then
+            now[questID] = SoundReading(questID)
+        end
+    end
+    local found = {}
+    if soundSnap then
+        for questID, reading in pairs(now) do
+            local old = soundSnap[questID]
+            if old then
+                if reading.complete == true and old.complete == false then
+                    found.complete = true
+                end
+                for index, objective in pairs(reading.objectives) do
+                    local was = old.objectives[index]
+                    if was then
+                        if objective.finished and not was.finished then
+                            found.objective = true
+                        elseif not objective.finished and objective.have > was.have then
+                            found.progress = true
+                        end
+                    end
+                end
+                -- What can't be read now keeps its last value, so it isn't news when it comes back.
+                if reading.complete == nil then
+                    reading.complete = old.complete
+                end
+                for index, objective in pairs(old.objectives) do
+                    if reading.objectives[index] == nil then
+                        reading.objectives[index] = objective
+                    end
+                end
+            end
+        end
+    end
+    soundSnap = now
+    if GetTime and GetTime() < soundQuietUntil then
+        return nil
+    end
+    -- Quest complete covers the objective that finished it; a switched-off sound lets the next one play.
+    local settings = SoundSettings()
+    for _, key in ipairs({ "complete", "objective", "progress" }) do
+        if found[key] and settings[key].on then
+            PlayChoice(settings[key].choice)
+            return key
+        end
+    end
+    return nil
+end
+
+local function RunSoundScan()
+    soundPending = false
+    if not AnySoundOn() then
+        -- Switched off: start again from a fresh reading when one is turned on.
+        soundSnap = nil
+        return
+    end
+    Attempt(QuestTracker_SoundScan)
+end
+
+local function QueueSoundScan()
+    if soundPending then
+        return
+    end
+    soundPending = true
+    if C_Timer and C_Timer.After then
+        C_Timer.After(SOUND_DELAY, RunSoundScan)
+    else
+        RunSoundScan()
+    end
+end
+
+-- After login or a loading screen, quest data can arrive in pieces: stay quiet for a few seconds.
+local function QuietSounds()
+    soundQuietUntil = (GetTime and GetTime() or 0) + SOUND_QUIET_SECONDS
+end
+
+local function SoundRowText(row)
+    local entry = SoundSettings()[row.key]
+    row.toggle:SetText(entry.on and (COLOR_READY .. "On|r") or (COLOR_DIM .. "Off|r"))
+    local choice = SOUND_CHOICES[entry.choice] or SOUND_CHOICES[1]
+    row.choice:SetText((entry.on and "" or COLOR_DIM) .. choice.name .. (entry.on and "" or "|r"))
+end
+
+local function BuildSoundPanel()
+    soundPanel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    soundPanel:SetSize(WIDTH, 22 + #SOUND_EVENTS * 22)
+    soundPanel:SetFrameStrata("DIALOG")
+    soundPanel:SetClampedToScreen(true)
+    soundPanel:EnableMouse(true)
+    soundPanel:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 14,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    soundPanel:SetBackdropColor(0.04, 0.04, 0.07, 0.95)
+    soundPanel:SetBackdropBorderColor(0.5, 0.5, 0.55, 0.9)
+    local title = soundPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    title:SetPoint("TOPLEFT", soundPanel, "TOPLEFT", 8, -7)
+    title:SetText("Quest sounds  " .. COLOR_DIM .. "(click a sound to change it)|r")
+    soundPanel.rows = {}
+    for index, event in ipairs(SOUND_EVENTS) do
+        local y = -6 - index * 22
+        local row = { key = event.key }
+        row.label = soundPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.label:SetPoint("TOPLEFT", soundPanel, "TOPLEFT", 8, y - 4)
+        row.label:SetText(event.label)
+        local function Tooltip(owner, line)
+            owner:SetScript("OnEnter", function(self)
+                Tip():SetOwner(self, "ANCHOR_RIGHT")
+                Tip():SetText(event.label)
+                Tip():AddLine(event.about, 1, 1, 1, true)
+                Tip():AddLine(line, 0.6, 0.6, 0.6, true)
+                Tip():Show()
+            end)
+            owner:SetScript("OnLeave", function()
+                Tip():Hide()
+            end)
+        end
+        row.toggle = CreateFrame("Button", nil, soundPanel)
+        row.toggle:SetSize(34, 18)
+        row.toggle:SetPoint("TOPLEFT", soundPanel, "TOPLEFT", 112, y)
+        row.toggle:SetNormalFontObject(GameFontHighlightSmall)
+        row.toggle:SetScript("OnClick", function()
+            local entry = SoundSettings()[row.key]
+            entry.on = not entry.on
+            SoundRowText(row)
+        end)
+        Tooltip(row.toggle, "Click to switch it on or off.")
+        row.choice = CreateFrame("Button", nil, soundPanel)
+        row.choice:SetSize(86, 18)
+        row.choice:SetPoint("TOPLEFT", soundPanel, "TOPLEFT", 150, y)
+        row.choice:SetNormalFontObject(GameFontHighlightSmall)
+        row.choice:SetScript("OnClick", function()
+            local entry = SoundSettings()[row.key]
+            entry.choice = entry.choice % #SOUND_CHOICES + 1
+            SoundRowText(row)
+            PlayChoice(entry.choice)
+        end)
+        Tooltip(row.choice, "Click for the next sound; it plays once so you can hear it.")
+        row.play = CreateFrame("Button", nil, soundPanel)
+        row.play:SetSize(40, 18)
+        row.play:SetPoint("TOPLEFT", soundPanel, "TOPLEFT", 240, y)
+        row.play:SetNormalFontObject(GameFontNormalSmall)
+        row.play:SetText("Play")
+        row.play:SetScript("OnClick", function()
+            PlayChoice(SoundSettings()[row.key].choice)
+        end)
+        Tooltip(row.play, "Plays this sound once.")
+        SoundRowText(row)
+        soundPanel.rows[index] = row
+    end
+    soundPanel:Hide()
+end
+
+-- Opens under the header. It copies the panel's spot instead of anchoring to it (the panel holds secure
+-- item buttons), so out of combat only.
+local function ToggleSoundPanel()
+    if InCombat() then
+        return
+    end
+    if not soundPanel then
+        BuildSoundPanel()
+    end
+    if soundPanel:IsShown() then
+        soundPanel:Hide()
+        return
+    end
+    for _, row in ipairs(soundPanel.rows) do
+        SoundRowText(row)
+    end
+    local right, top = Safe(panel:GetRight()), Safe(panel:GetTop())
+    soundPanel:ClearAllPoints()
+    if type(right) == "number" and type(top) == "number" then
+        soundPanel:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", right, top - HEADER_HEIGHT)
+    else
+        soundPanel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
+    soundPanel:Show()
+end
+
 local function BuildPanel()
     panel = CreateFrame("Frame", "QuestTrackerPanel", UIParent, "BackdropTemplate")
     panel:SetWidth(WIDTH)
@@ -1455,7 +1733,7 @@ local function BuildPanel()
 
     local header = CreateFrame("Button", nil, panel)
     header:SetPoint("TOPLEFT", panel, "TOPLEFT", 4, -3)
-    header:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -26, -3)
+    header:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -56, -3)
     header:SetHeight(HEADER_HEIGHT - 4)
     header:RegisterForDrag("LeftButton")
     header:RegisterForClicks("RightButtonUp")
@@ -1494,6 +1772,25 @@ local function BuildPanel()
             dirty, forceLayout = true, true
         end
     end)
+
+    -- Quest sounds: their switches open from here.
+    local soundButton = CreateFrame("Button", nil, panel)
+    soundButton:SetSize(30, 18)
+    soundButton:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -26, -4)
+    soundButton:SetNormalFontObject(GameFontNormalSmall)
+    soundButton:SetHighlightFontObject(GameFontHighlightSmall)
+    soundButton:SetText("Snd")
+    soundButton:SetScript("OnClick", ToggleSoundPanel)
+    soundButton:SetScript("OnEnter", function(self)
+        Tip():SetOwner(self, "ANCHOR_LEFT")
+        Tip():SetText("Quest sounds")
+        Tip():AddLine("Click to choose which quest sounds play: progress, objective done, quest complete.", 1, 1, 1, true)
+        Tip():Show()
+    end)
+    soundButton:SetScript("OnLeave", function()
+        Tip():Hide()
+    end)
+    panel.soundButton = soundButton
 end
 
 local function Start()
@@ -1510,6 +1807,8 @@ local function Start()
             end
         end
     end
+    SoundSettings()
+    QuietSounds()
     BuildPanel()
     -- A /reload in combat can't place secure buttons yet; the layout waits for combat to end.
     if InCombat() then
@@ -1524,7 +1823,7 @@ end
 
 local events = CreateFrame("Frame")
 for _, name in ipairs({ "PLAYER_LOGIN", "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN",
-    "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "SUPER_TRACKING_CHANGED", "QUEST_DATA_LOAD_RESULT", "PLAYER_EQUIPMENT_CHANGED", "GET_ITEM_INFO_RECEIVED" }) do
+    "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "SUPER_TRACKING_CHANGED", "QUEST_DATA_LOAD_RESULT", "PLAYER_EQUIPMENT_CHANGED", "GET_ITEM_INFO_RECEIVED", "PLAYER_ENTERING_WORLD" }) do
     events:RegisterEvent(name)
 end
 events:SetScript("OnEvent", function(_, event, questID)
@@ -1534,6 +1833,13 @@ events:SetScript("OnEvent", function(_, event, questID)
     end
     if not db then
         return
+    end
+    if event == "PLAYER_ENTERING_WORLD" then
+        -- Quest sounds only: after a loading screen the log is read again, quietly.
+        QuietSounds()
+        return
+    elseif event == "QUEST_LOG_UPDATE" then
+        QueueSoundScan()
     end
     questID = Safe(questID)
     if event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_LEVEL_UP" then
