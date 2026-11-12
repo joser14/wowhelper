@@ -36,9 +36,9 @@ $Bundles = [ordered]@{
     'ForeverBags'      = @{ Title = 'Forever Bags'; Notes = 'Item advice, bag space, item search, prices, food and supplies, repairs.'
                             Modules = @('ItemAdvisor', 'BagCheck', 'ItemFinder', 'PriceMemory', 'FoodCheck', 'SupplyWatch', 'DurabilityWatch', 'Tooltips', 'WindowBadges') }
     'ForeverCharacter' = @{ Title = 'Forever Character'; Notes = 'Talents, trainer, weapon skills, rested XP, level log, reputation, spell ranks and buffs.'
-                            Modules = @('TalentNudge', 'Builds', 'TrainerNotes', 'WeaponSkillWatch', 'RestGuard', 'LevelLog', 'RepWatch', 'ReadyCheck') }
+                            Modules = @('TalentNudge', 'Builds', 'TrainerNotes', 'WeaponSkillWatch', 'RestGuard', 'LevelLog', 'RepWatch', 'ReadyCheck', 'Legacy', 'SpellMath') }
     'ForeverWorld'     = @{ Title = 'Forever World'; Notes = 'Remembered places and flight times, death spots, drowning warnings, rare alerts, quest givers on the map and /way.'
-                            Modules = @('Landmarks', 'DeathNotes', 'RareWatch', 'MapPins') }
+                            Modules = @('Landmarks', 'DeathNotes', 'RareWatch', 'MapPins', 'AggroWatch', 'Events', 'Nodes') }
 }
 
 function Read-Toc($module) {

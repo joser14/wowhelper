@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: Events
+## Notes: Holidays and the Darkmoon Faire: where, when and what to bring. Only gives information.
+## Version: 0.0.1
+
+Events.lua

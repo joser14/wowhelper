@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: Legacy
+## Notes: Unfinished Legacy challenges and the points they pay. Only gives information.
+## Version: 0.0.1
+
+Legacy.lua

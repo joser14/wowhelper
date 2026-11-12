@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: Nodes
+## Notes: Herb, ore and fishing spots you have gathered, on your own map overlay. Only gives information.
+## Version: 0.0.1
+
+Nodes.lua

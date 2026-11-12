@@ -1,0 +1,7 @@
+## Interface: 16001
+## OptionalDeps: ForeverHub
+## Title: AggroWatch
+## Notes: Warns out of combat when you are about to walk into a hostile mob's aggro range. Only gives information.
+## Version: 0.0.1
+
+AggroWatch.lua
