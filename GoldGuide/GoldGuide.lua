@@ -639,6 +639,148 @@ local function Pin(farm)
     return (ForeverWaypoint_Set(mapID, farm.x, farm.y, farm.name or farm.zone))
 end
 
+----- Darkmoon Faire money (research\re_round6.md #20). The turn-in list and the Faire's dates come from the
+----- Events helper (Forever World); prices from PriceMemory. Read only: nothing is bought, sold or posted.
+
+local CRAFT_LINES = { [164] = "Blacksmithing", [165] = "Leatherworking", [202] = "Engineering" }
+
+-- Your crafting professions that make Faire turn-ins: { [name] = skill }.
+local function CraftSkills()
+    local have = {}
+    if GetProfessions and GetProfessionInfo then
+        local slots = { GetProfessions() }
+        for position = 1, MAX_PROFESSION_SLOTS do
+            local index = Safe(slots[position])
+            if index then
+                local name, _, rank, _, _, _, skillLine = GetProfessionInfo(index)
+                name, rank, skillLine = Safe(name), Safe(rank), Safe(skillLine)
+                local craft = CRAFT_LINES[skillLine]
+                if not craft then
+                    for _, known in pairs(CRAFT_LINES) do
+                        if known == name then
+                            craft = known
+                        end
+                    end
+                end
+                if craft then
+                    have[craft] = type(rank) == "number" and rank or true
+                end
+            end
+        end
+    else
+        for _, entry in ipairs(ForeverSkillProfessions()) do
+            if CRAFT_LINES[entry.skillLine] then
+                have[CRAFT_LINES[entry.skillLine]] = entry.rank
+            end
+        end
+    end
+    return have
+end
+
+local function BagCount(itemID)
+    if not (C_Item and C_Item.GetItemCount) then
+        return 0
+    end
+    local ok, count = pcall(C_Item.GetItemCount, itemID)
+    count = ok and Safe(count)
+    return type(count) == "number" and count or 0
+end
+
+local function DarkmoonTurnIns()
+    if type(Events_TurnIns) ~= "function" then
+        return nil
+    end
+    local ok, list = pcall(Events_TurnIns)
+    return ok and type(list) == "table" and list or nil
+end
+
+local function DarkmoonFaire()
+    if type(Events_Faire) ~= "function" then
+        return nil
+    end
+    local ok, faire = pcall(Events_Faire)
+    return ok and type(faire) == "table" and faire or nil
+end
+
+-- One line per turn-in item you hold or have an auction price for, most money first.
+local function DarkmoonItems(list)
+    local rows = {}
+    for _, entry in ipairs(list) do
+        local held = BagCount(entry.item)
+        local auction = AuctionPrice(entry.item)
+        if held > 0 or auction then
+            local name, sellPrice = ItemInfo(entry.item)
+            rows[#rows + 1] = { entry = entry, held = held, auction = auction, name = name or entry.name, sellPrice = sellPrice,
+                worth = auction and auction.price * AH_CUT * math.max(held, 1) or 0 }
+        end
+    end
+    table.sort(rows, function(a, b)
+        if a.worth ~= b.worth then
+            return a.worth > b.worth
+        end
+        return a.entry.item < b.entry.item
+    end)
+    return rows
+end
+
+local function ShowDarkmoon()
+    local list = DarkmoonTurnIns()
+    if not list then
+        Print("Darkmoon Faire tips need the Events helper (in the Forever World addon). Turn it on to see them here.")
+        return
+    end
+    local faire = DarkmoonFaire()
+    if faire and faire.active then
+        Print(string.format("|cffeecc55Darkmoon Faire|r is on in %s until %s.", faire.zone or "?", faire.toText or "?"))
+    elseif faire then
+        Print(string.format("|cffeecc55Next Darkmoon Faire|r: %s, %s to %s.", faire.zone or "?", faire.fromText or "?", faire.toText or "?"))
+    else
+        Print("|cffeecc55Darkmoon Faire|r: none known in the next 30 days.")
+    end
+    Print("Players buy turn-in items for prize tickets, so they sell best in the Faire's week. Don't vendor them before it.")
+    local rows = DarkmoonItems(list)
+    Print(" ")
+    Print("|cffeecc55Turn-in items you hold or have a price for|r")
+    if #rows == 0 then
+        Print("|cff999999None yet. Small Furry Paws (cats in Darkshore and the Barrens) are the first, from about level 10.|r")
+    end
+    for _, row in ipairs(rows) do
+        local parts = {}
+        if row.auction then
+            parts[#parts + 1] = string.format("AH %s each (%s%s)", FormatMoney(row.auction.price), FormatAge(Now() - row.auction.seen),
+                row.auction.stale and ", old price" or "")
+        else
+            parts[#parts + 1] = "no auction price yet: search for it at the auction house"
+        end
+        if row.sellPrice then
+            parts[#parts + 1] = "vendor " .. FormatMoney(row.sellPrice)
+        end
+        parts[#parts + 1] = string.format("%d make %d ticket%s", row.entry.count, row.entry.tickets, row.entry.tickets == 1 and "" or "s")
+        Print(string.format("  %s x%d: %s", row.name, row.held, table.concat(parts, ", ")))
+    end
+    if type(PriceMemoryDB) ~= "table" then
+        Print("|cff999999Auction prices show up here once PriceMemory has seen your own auction house searches.|r")
+    end
+    local crafts = CraftSkills()
+    local any = false
+    for _, entry in ipairs(list) do
+        local skill = crafts[entry.group]
+        if skill and (skill == true or skill + 25 >= entry.skill) then
+            if not any then
+                Print(" ")
+                Print("|cffeecc55Your professions make turn-ins|r")
+                any = true
+            end
+            local price = AuctionText(entry.item)
+            Print(string.format("  %s (%s, about skill %d): %d make %d ticket%s%s", entry.name, entry.group, entry.skill, entry.count,
+                entry.tickets, entry.tickets == 1 and "" or "s", price and (", " .. price) or ""))
+        end
+    end
+    if any then
+        Print("|cff999999Craft them before the Faire week and sell them then, or hand them in for tickets yourself.|r")
+    end
+end
+
 ----- Page sections
 
 local function ShowTips(level)
@@ -720,6 +862,11 @@ local function ShowBest()
         Print("|cff999999Type a farm's number to pin it on your map.|r")
     end
     ShowTips(level)
+    local faire = DarkmoonFaire()
+    if faire and faire.active then
+        Print(string.format("|cffffd100Darkmoon Faire:|r on in %s until %s. Turn-in items sell best this week; type darkmoon for yours.",
+            faire.zone or "?", faire.toText or "?"))
+    end
     ShowBags()
     Print("|cff999999Saving for riding? See the Gold goal page.|r")
 end
@@ -772,9 +919,11 @@ local function ShowPage(arg)
         ShowAll()
     elseif want == "tips" then
         ShowAllTips()
+    elseif want == "darkmoon" then
+        ShowDarkmoon()
     else
         if want ~= "" then
-            Print("Type a farm's number to pin it, or: all, or: tips.")
+            Print("Type a farm's number to pin it, or: all, or: tips, or: darkmoon.")
         end
         ShowBest()
     end
