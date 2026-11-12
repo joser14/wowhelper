@@ -108,6 +108,10 @@ local LINES = {
       about = "Which profession guide steps use the item as a material." },
     { name = "drop", label = "Dungeon drop", default = true,
       about = "Which dungeon boss drops the item, or which dungeon quest gives it (from the Dungeons guide)." },
+    { name = "wish", label = "Wish list", default = true,
+      about = "When the item is on your Dungeons wish list: which boss drops it, in which dungeon." },
+    { name = "yourdrops", label = "Your drops", default = true,
+      about = "How often the item dropped from corpses you looted yourself, once you've looted at least 10 of that creature. Only counts what you open; never loots anything." },
     { name = "questitem", label = "Quest item", default = true,
       about = "Which quest in your log still needs the item, with your count, unless the game already says so." },
     { name = "giver", label = "Quest giver", default = true,
@@ -1041,6 +1045,136 @@ local function InInstance()
     return inside == true or inside == 1
 end
 
+-- True when a line starting with prefix is already on the tooltip (another refresh, another helper).
+local function AlreadyHas(texts, prefix)
+    for _, text in ipairs(texts) do
+        if text:sub(1, #prefix) == prefix then
+            return true
+        end
+    end
+    return false
+end
+
+-- Round 5 #7, Tooltips side: "On your wish list: <boss>, <dungeon>" from Dungeons_IsWished (Dungeons owns the list).
+local WISH_PREFIX = "On your wish list"
+local function AddWishLine(tooltip, id, texts)
+    local check = Dungeons_IsWished
+    if type(check) ~= "function" or AlreadyHas(texts, WISH_PREFIX) then
+        return
+    end
+    local ok, wished, dungeon, boss = pcall(check, id)
+    if not ok or Safe(wished) ~= true then
+        return
+    end
+    local parts = {}
+    for _, part in ipairs({ Safe(boss), Safe(dungeon) }) do
+        if type(part) == "string" and part ~= "" then
+            parts[#parts + 1] = part
+        end
+    end
+    tooltip:AddLine(WISH_PREFIX .. (#parts > 0 and (": " .. table.concat(parts, ", ")) or ""), 1, 0.5, 1)
+end
+
+-- Round 5 #5: your own drop rates from corpses you looted (Bestiary Forever's method, GPL-3.0-or-later: each
+-- corpse counted once, each item once per corpse, a rate only from YOUR_MIN corpses on). Saved in
+-- TooltipsDB.looted[npcID] = { n = corpses, at = time, name = creature name, items = { [itemID] = corpses } },
+-- at most MAX_CREATURES creatures and MAX_ITEMS items each. Corpses you never opened aren't counted.
+local YOUR_MIN, MAX_CREATURES, MAX_ITEMS = 10, 300, 25
+local YOUR_PREFIX = "Your drops: "
+local yourIndex, yourIndexDirty = nil, true
+
+local function PercentText(chance)
+    if chance >= 10 then
+        return string.format("%d%%", math.floor(chance + 0.5))
+    end
+    return string.format("%.1f%%", chance)
+end
+
+-- The saved creatures, checked; nil when there are none yet (or create to start the table).
+local function LootStore(create)
+    local db = TooltipsDB
+    if type(db) ~= "table" then
+        return nil
+    end
+    if type(db.looted) ~= "table" then
+        if not create then
+            return nil
+        end
+        db.looted = {}
+    end
+    return db.looted
+end
+
+-- item ID -> { { npc, k, n, name }, ... } for creatures looted YOUR_MIN times or more, best rate first.
+local function YourIndex()
+    if yourIndexDirty or not yourIndex then
+        yourIndexDirty = false
+        yourIndex = {}
+        for npc, creature in pairs(LootStore() or {}) do
+            local n = type(creature) == "table" and creature.n
+            if type(npc) == "number" and type(n) == "number" and n >= YOUR_MIN and type(creature.items) == "table" then
+                for item, k in pairs(creature.items) do
+                    if type(item) == "number" and type(k) == "number" and k > 0 then
+                        local list = yourIndex[item] or {}
+                        list[#list + 1] = { npc = npc, k = math.min(k, n), n = n, name = type(creature.name) == "string" and creature.name or nil }
+                        yourIndex[item] = list
+                    end
+                end
+            end
+        end
+        for _, list in pairs(yourIndex) do
+            table.sort(list, function(a, b)
+                if a.k * b.n ~= b.k * a.n then
+                    return a.k * b.n > b.k * a.n
+                end
+                return a.n > b.n
+            end)
+        end
+    end
+    return yourIndex
+end
+
+local function AddYourDropsLine(tooltip, id, texts)
+    local list = YourIndex()[id]
+    if not list or #list == 0 or AlreadyHas(texts, YOUR_PREFIX) then
+        return
+    end
+    local best = list[1]
+    local text = string.format("%s%s (%d/%d)", YOUR_PREFIX, PercentText(best.k / best.n * 100), best.k, best.n)
+    if best.name then
+        text = text .. " from " .. best.name
+    end
+    if #list > 1 then
+        text = text .. string.format(" |cff999999+%d more|r", #list - 1)
+    end
+    tooltip:AddLine(text, 0.6, 0.8, 1)
+end
+
+-- For QuestMobs and other helpers. With an item: k, n, enough (n >= YOUR_MIN) for that creature and item.
+-- Without one: a copy of { [itemID] = k }, n, enough. nil when nothing is saved or the line is switched off.
+function Tooltips_YourDrops(npc, item)
+    if not IsOn("yourdrops") or (ForeverHub_IsOff and ForeverHub_IsOff("Tooltips") == true) then
+        return nil
+    end
+    local store = LootStore()
+    local creature = store and type(npc) == "number" and store[npc]
+    local n = type(creature) == "table" and creature.n
+    if type(n) ~= "number" or n < 1 or type(creature.items) ~= "table" then
+        return nil
+    end
+    if item == nil then
+        local copy = {}
+        for id, k in pairs(creature.items) do
+            if type(id) == "number" and type(k) == "number" then
+                copy[id] = math.min(k, n)
+            end
+        end
+        return copy, n, n >= YOUR_MIN
+    end
+    local k = creature.items[item]
+    return type(k) == "number" and math.min(k, n) or 0, n, n >= YOUR_MIN
+end
+
 local function ShownTooltip(tooltip)
     return tooltip ~= nil and (tooltip == GameTooltip or tooltip == ItemRefTooltip)
 end
@@ -1059,7 +1193,7 @@ local function ItemBody(tooltip, data)
     end
     local facts = ItemFacts(id)
     local texts, already = {}, {}
-    if IsOn("auction") or IsOn("count") or IsOn("questitem") or IsOn("upgrade") then
+    if IsOn("auction") or IsOn("count") or IsOn("questitem") or IsOn("upgrade") or IsOn("wish") or IsOn("yourdrops") then
         local ok, found = pcall(ExistingTexts, tooltip)
         texts = ok and found or texts
         local fine, flags = pcall(LinesAlreadyThere, texts)
@@ -1084,6 +1218,12 @@ local function ItemBody(tooltip, data)
     end
     if IsOn("drop") then
         pcall(AddDropLine, tooltip, id)
+    end
+    if IsOn("wish") then
+        pcall(AddWishLine, tooltip, id, texts)
+    end
+    if IsOn("yourdrops") then
+        pcall(AddYourDropsLine, tooltip, id, texts)
     end
     if facts and IsOn("questitem") then
         pcall(AddQuestItemLine, tooltip, facts.name, texts)
@@ -1151,6 +1291,160 @@ local function OnUnitTooltip(tooltip, data)
     end
 end
 
+----------------------------------------------------------------------------------------------------
+-- Round 5 #5: counting the corpses you loot. Read only: it reads a loot window you opened (LOOT_OPENED) and
+-- never loots, clicks or closes anything.
+
+local RING_SIZE, MAX_LOOT_SLOTS, CAST_WINDOW = 1000, 60, 0.6
+local seenCorpse, corpseRing, corpseAt = {}, {}, 0   -- this session's last RING_SIZE corpse GUIDs
+local lastCastAt = nil   -- your last finished cast: skinning, pick pocketing and chests open loot after one
+
+local function Clock()
+    local now = GetTime and Safe(GetTime())
+    return type(now) == "number" and now or nil
+end
+
+local function RememberCorpse(guid)
+    corpseAt = corpseAt % RING_SIZE + 1
+    local old = corpseRing[corpseAt]
+    if old then
+        seenCorpse[old] = nil
+    end
+    corpseRing[corpseAt] = guid
+    seenCorpse[guid] = true
+end
+
+-- Smallest first by score; removes entries until at most cap are left (keep is never removed).
+local function Trim(map, cap, score, keep)
+    local keys = {}
+    for key, value in pairs(map) do
+        if key ~= keep then
+            keys[#keys + 1] = { key = key, score = score(value) }
+        end
+    end
+    local extra = #keys + (keep ~= nil and map[keep] ~= nil and 1 or 0) - cap
+    if extra <= 0 then
+        return
+    end
+    table.sort(keys, function(a, b)
+        if a.score[1] ~= b.score[1] then
+            return a.score[1] < b.score[1]
+        end
+        return a.score[2] < b.score[2]
+    end)
+    for index = 1, math.min(extra, #keys) do
+        map[keys[index].key] = nil
+    end
+end
+
+local function CreatureScore(creature)
+    if type(creature) ~= "table" then
+        return { -1, -1 }
+    end
+    return { type(creature.n) == "number" and creature.n or -1, type(creature.at) == "number" and creature.at or 0 }
+end
+
+local function ItemScore(k)
+    return { type(k) == "number" and k or -1, 0 }
+end
+
+-- The unit token for a GUID when it's your target or mouse-over (for its name), else nil.
+local function UnitFor(guid)
+    if type(UnitGUID) ~= "function" then
+        return nil
+    end
+    for _, unit in ipairs({ "target", "mouseover" }) do
+        local ok, found = pcall(UnitGUID, unit)
+        if ok and Safe(found) == guid then
+            return unit
+        end
+    end
+end
+
+local function Pack(...)
+    return { n = select("#", ...), ... }
+end
+
+local function ReadLoot()
+    if SwitchedOff() or not IsOn("yourdrops") then
+        return
+    end
+    if type(GetNumLootItems) ~= "function" or type(GetLootSourceInfo) ~= "function" then
+        return
+    end
+    local now = Clock()
+    if lastCastAt and now and now - lastCastAt < CAST_WINDOW then
+        return   -- skinning, mining, pick pocketing or a chest: not a corpse's own loot
+    end
+    local ok, count = pcall(GetNumLootItems)
+    count = ok and Safe(count)
+    if type(count) ~= "number" or count < 1 then
+        return
+    end
+    local corpses, order = {}, {}
+    for slot = 1, math.min(count, MAX_LOOT_SLOTS) do
+        local itemID
+        if type(GetLootSlotLink) == "function" then
+            local fine, link = pcall(GetLootSlotLink, slot)
+            link = fine and Safe(link)
+            itemID = type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
+        end
+        local sources = Pack(pcall(GetLootSourceInfo, slot))
+        if sources[1] == true then
+            -- guid, quantity, guid, quantity, ... (several corpses when looting an area)
+            for index = 2, sources.n, 2 do
+                local guid = Safe(sources[index])   -- a secret GUID is skipped
+                local npc = NpcID(guid)
+                if npc then
+                    local corpse = corpses[guid]
+                    if corpse == nil then
+                        -- Counted on its first opening only: a corpse opened again (items left, or skinned
+                        -- later) adds nothing.
+                        corpse = not seenCorpse[guid] and { npc = npc, items = {} } or false
+                        corpses[guid] = corpse
+                        order[#order + 1] = guid
+                    end
+                    if corpse and itemID then
+                        corpse.items[itemID] = true
+                    end
+                end
+            end
+        end
+    end
+    if #order == 0 then
+        return
+    end
+    local store = LootStore(true)
+    local stamp = time and Safe(time())
+    for _, guid in ipairs(order) do
+        local corpse = corpses[guid]
+        if corpse then
+            RememberCorpse(guid)
+            local creature = store[corpse.npc]
+            if type(creature) ~= "table" or type(creature.n) ~= "number" or type(creature.items) ~= "table" then
+                creature = { n = 0, items = {} }
+                store[corpse.npc] = creature
+                Trim(store, MAX_CREATURES, CreatureScore, corpse.npc)
+            end
+            creature.n = creature.n + 1
+            creature.at = type(stamp) == "number" and stamp or creature.at
+            local unit = UnitFor(guid)
+            local name = unit and UnitName and Safe(UnitName(unit))
+            if type(name) == "string" and name ~= "" then
+                creature.name = name
+            end
+            for item in pairs(corpse.items) do
+                local isNew = creature.items[item] == nil
+                creature.items[item] = (tonumber(creature.items[item]) or 0) + 1
+                if isNew then
+                    Trim(creature.items, MAX_ITEMS, ItemScore, item)
+                end
+            end
+        end
+    end
+    yourIndexDirty = true
+end
+
 local function Register()
     local processor = TooltipDataProcessor
     local types = Enum and Enum.TooltipDataType
@@ -1172,10 +1466,22 @@ local registered = false
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("QUEST_LOG_UPDATE")
-events:SetScript("OnEvent", function(_, event)
+events:RegisterEvent("LOOT_OPENED")
+if not (events.RegisterUnitEvent and pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")) then
+    pcall(events.RegisterEvent, events, "UNIT_SPELLCAST_SUCCEEDED")
+end
+events:SetScript("OnEvent", function(_, event, unit)
     if event == "QUEST_LOG_UPDATE" then
         -- Only marks the cache old; the next tooltip that needs the log reads it again.
         questLogDirty = true
+        return
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        if Safe(unit) == "player" then
+            lastCastAt = Clock()
+        end
+        return
+    elseif event == "LOOT_OPENED" then
+        pcall(ReadLoot)
         return
     end
     if type(TooltipsDB) ~= "table" then

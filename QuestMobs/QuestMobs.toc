@@ -1,5 +1,5 @@
 ## Interface: 16001
-## OptionalDeps: ForeverHub
+## OptionalDeps: ForeverHub, Tooltips
 ## Title: QuestMobs
 ## Notes: A small quest marker with your progress (like 3/8) next to enemies you still need for a quest in your log, in the open world. Only gives information.
 ## Version: 0.1.0

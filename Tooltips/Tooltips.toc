@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## OptionalDeps: ForeverHub, PriceMemory, ItemFinder, ProfessionGuide, Dungeons, LevelGuide, ItemAdvisor
 ## Title: Tooltips
-## Notes: Adds vendor prices, remembered auction prices, counts on all your characters, profession guide uses, dungeon drops and quest needs to item tooltips, and leveling guide quests to creature tooltips. Only adds information to tooltips.
+## Notes: Adds vendor prices, remembered auction prices, counts on all your characters, profession guide uses, dungeon drops, your wish list, your own drop rates from corpses you looted and quest needs to item tooltips, and leveling guide quests to creature tooltips. Only adds information to tooltips.
 ## Version: 0.1.0
 ## SavedVariables: TooltipsDB
 

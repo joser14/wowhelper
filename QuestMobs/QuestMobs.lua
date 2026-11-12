@@ -254,7 +254,33 @@ local function KillsLeft(chance, have, need)
     return math.ceil(left / (chance / 100) - 1e-9), left
 end
 
--- The drop for one objective row (by its Key) from this NPC: { chance, kills, left } or nil.
+-- Round 5 #5: your own drop rate, counted by Tooltips from corpses you looted (Tooltips_YourDrops). Only once
+-- you've looted enough of that creature (Tooltips decides how many). Without Tooltips: nothing.
+-- With id: k, n. Without: { [itemID] = k }, n.
+local function YourDrops(npc, id)
+    local read = Tooltips_YourDrops
+    if type(read) ~= "function" or not npc then
+        return nil
+    end
+    local ok, a, n, enough = pcall(read, npc, id)
+    if not ok or enough ~= true or type(n) ~= "number" or n < 1 then
+        return nil
+    end
+    if id ~= nil and type(a) ~= "number" then
+        return nil
+    elseif id == nil and type(a) ~= "table" then
+        return nil
+    end
+    return a, n
+end
+
+local function YourText(yours)
+    return string.format("Your drops: %s (%d/%d)", PercentText(yours.k / yours.n * 100), yours.k, yours.n)
+end
+
+-- The drop for one objective row (by its Key) from this NPC: { id, chance, kills, left, yours, own } or nil.
+-- The classic chance first, with your own rate beside it; a mob the table doesn't know (new in Forever)
+-- gets your own rate as its chance (own = true), never a guess.
 local function DropFor(npc, objectiveKey, row)
     if not (objectiveKey and row and not row.finished) then
         return nil
@@ -262,28 +288,32 @@ local function DropFor(npc, objectiveKey, row)
     for _, drop in ipairs(DropsOf(npc) or {}) do
         if ItemKey(drop.id) == objectiveKey then
             local kills, left = KillsLeft(drop.chance, row.have, row.need)
-            return { chance = drop.chance, kills = kills, left = left }
+            local k, n = YourDrops(npc, drop.id)
+            return { id = drop.id, chance = drop.chance, kills = kills, left = left, yours = k and { k = k, n = n } or nil }
+        end
+    end
+    local items, n = YourDrops(npc)
+    if items then
+        for id, k in pairs(items) do
+            if k > 0 and ItemKey(id) == objectiveKey then
+                local chance = k / n * 100
+                local kills, left = KillsLeft(chance, row.have, row.need)
+                return { id = id, chance = chance, kills = kills, left = left, yours = { k = k, n = n }, own = true }
+            end
         end
     end
 end
 
--- Every unfinished objective in your log this NPC drops: { name, chance, kills, left }.
+-- Every unfinished objective in your log this NPC drops: { name, chance, kills, left, yours, own }.
 local function NeededDrops(npc)
     local list = {}
-    local drops = DropsOf(npc)
-    if not drops then
-        return list
-    end
     local names = type(QuestMobsDrops) == "table" and type(QuestMobsDrops.names) == "table" and QuestMobsDrops.names or {}
     for _, quest in pairs(quests) do
         if not quest.complete then
             for okey, row in pairs(quest.objectives) do
                 local drop = DropFor(npc, okey, row)
                 if drop and drop.kills then
-                    local id
-                    for _, d in ipairs(drops) do
-                        if ItemKey(d.id) == okey then id = d.id break end
-                    end
+                    local id = drop.id
                     local name = id and C_Item and C_Item.GetItemNameByID and Safe(C_Item.GetItemNameByID(id))
                     drop.name = type(name) == "string" and name or (id and names[id]) or "?"
                     list[#list + 1] = drop
@@ -305,7 +335,16 @@ local function OnUnitTooltip(tooltip, data)
         return
     end
     for _, drop in ipairs(NeededDrops(npc)) do
-        tooltip:AddLine(string.format("%s %s  (~%d kills for %d more)", drop.name, PercentText(drop.chance), drop.kills, drop.left), 1, 0.82, 0)
+        local text
+        if drop.own then
+            text = string.format("%s %s  (~%d kills for %d more)", drop.name, YourText(drop.yours), drop.kills, drop.left)
+        else
+            text = string.format("%s %s  (~%d kills for %d more)", drop.name, PercentText(drop.chance), drop.kills, drop.left)
+            if drop.yours then
+                text = text .. "  " .. YourText(drop.yours)
+            end
+        end
+        tooltip:AddLine(text, 1, 0.82, 0)
     end
 end
 
@@ -505,6 +544,11 @@ local function ProgressText(result, long)
         return result.progress
     end
     local text = (result.progress and (result.progress .. " ") or "") .. PercentText(drop.chance)
+    if long and drop.own then
+        text = text .. " (your drops)"
+    elseif long and drop.yours then
+        text = text .. string.format(" (you %s)", PercentText(drop.yours.k / drop.yours.n * 100))
+    end
     if long and drop.kills then
         text = text .. ", ~" .. drop.kills .. " kills"
     end
