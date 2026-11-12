@@ -1532,6 +1532,253 @@ function LevelLog_FightLines()
     return LevelLog_FightLinesLocal()
 end
 
+-- ---- The game's own Statistics (round 6 #16) -----------------------------------------------------------------
+-- Ideas from Account Statistics (GPL-3.0) and LifeTimeStats; our own code. The game's statistics counters
+-- (creatures killed, quests completed, deaths, flights, gold looted...) kept from before this addon was
+-- installed, read with the legacy achievement globals GetStatisticsCategoryList, GetCategoryInfo,
+-- GetCategoryNumAchievements, GetAchievementInfo and GetStatistic. None of them is documented in this
+-- client's UI source, so every call is pcalled and a missing one just says so (in-game check). Read out of
+-- combat a few seconds after login, at logout, and when you open the page; kept in this character's record
+-- (non-zero values only, at most MAX_GAME_STATS), so every character's numbers and account totals show.
+local SnapshotGameStats, GameStatLines, GameStatsTick
+do
+    local MAX_GAME_STATS, MAX_PER_CATEGORY, MAX_TEXT = 400, 200, 80
+    -- With this few matches, each character's own value is listed under the line too.
+    local LIST_EACH_CHARACTER = 8
+    local REREAD_SECONDS = 60
+    local STAT_FUNCTIONS = { "GetStatisticsCategoryList", "GetCategoryInfo", "GetCategoryNumAchievements",
+        "GetAchievementInfo", "GetStatistic" }
+
+    local function Call(fn, ...)
+        if type(fn) ~= "function" then
+            return nil
+        end
+        local ok, a, b, c = pcall(fn, ...)
+        if not ok then
+            return nil
+        end
+        return Safe(a), Safe(b), Safe(c)
+    end
+
+    -- The statistics functions this client lacks (names), empty when all are there.
+    local function Missing()
+        local missing = {}
+        for _, name in ipairs(STAT_FUNCTIONS) do
+            if type(_G[name]) ~= "function" then
+                missing[#missing + 1] = name
+            end
+        end
+        return missing
+    end
+
+    local function Text(value)
+        if type(value) == "number" then
+            return tostring(value)
+        end
+        return type(value) == "string" and value or nil
+    end
+
+    -- A statistic's value as a number: plain ("1,234") or money (coin icons, in copper). nil otherwise.
+    local function Parse(value)
+        if type(value) ~= "string" then
+            return nil
+        end
+        if value:find("MoneyFrame", 1, true) then
+            local copper, found = 0, false
+            for amount, coin in value:gmatch("(%d+)%s*|TInterface\\MoneyFrame\\UI%-(%a+)Icon") do
+                found = true
+                local scale = coin == "Gold" and 10000 or (coin == "Silver" and 100 or 1)
+                copper = copper + tonumber(amount) * scale
+            end
+            return found and copper or nil, "money"
+        end
+        local gold, silver, copper = value:match("^(%d+)g (%d+)s (%d+)c$")
+        if gold then
+            return tonumber(gold) * 10000 + tonumber(silver) * 100 + tonumber(copper), "money"
+        end
+        local plain = value:gsub("[,%s]", "")
+        return tonumber(plain), "number"
+    end
+
+    local function MoneyText(copper)
+        copper = math.floor(copper)
+        return string.format("%dg %ds %dc", math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100)
+    end
+
+    -- Reads every statistic into this character's record. false when it couldn't be read now.
+    SnapshotGameStats = function(force)
+        if not levels or #Missing() > 0 or Call(InCombatLockdown) == true then
+            return false
+        end
+        local saved = type(levels.gameStats) == "table" and levels.gameStats
+        local now = tonumber(Call(GetTime)) or 0
+        if not force and saved and saved.readAt and now - saved.readAt < REREAD_SECONDS and now >= saved.readAt then
+            return true
+        end
+        local categories = Call(GetStatisticsCategoryList)
+        if type(categories) ~= "table" then
+            return false
+        end
+        local list = {}
+        for _, category in ipairs(categories) do
+            category = tonumber(Safe(category))
+            if #list >= MAX_GAME_STATS then
+                break
+            end
+            if category then
+                local title, parent = Call(GetCategoryInfo, category)
+                local label = Text(title) or "?"
+                parent = tonumber(parent)
+                if parent and parent > 0 then
+                    local parentTitle = Text((Call(GetCategoryInfo, parent)))
+                    if parentTitle and parentTitle ~= "" and parentTitle ~= label then
+                        label = parentTitle .. ": " .. label
+                    end
+                end
+                local count = math.min(tonumber((Call(GetCategoryNumAchievements, category, true))) or 0, MAX_PER_CATEGORY)
+                for index = 1, count do
+                    local id, name = Call(GetAchievementInfo, category, index)
+                    id, name = tonumber(id), Text(name)
+                    local value = id and name and Text((Call(GetStatistic, id)))
+                    -- Coin icons take a lot of room: kept as "12g 3s 0c" instead.
+                    local copper, kind = Parse(value)
+                    if copper and kind == "money" then
+                        value = MoneyText(copper)
+                    end
+                    if value and value ~= "" and value ~= "--" and value ~= "0" and #list < MAX_GAME_STATS then
+                        list[#list + 1] = { id = id, c = label:sub(1, MAX_TEXT), n = name:sub(1, MAX_TEXT), v = value:sub(1, MAX_TEXT) }
+                    end
+                end
+            end
+        end
+        levels.gameStats = { at = tonumber(Call(time)) or 0, readAt = now, list = list }
+        return true
+    end
+
+    -- Every character with a snapshot: this one first, then by name.
+    local function Characters()
+        local list = {}
+        for key, record in pairs(type(LevelLogDB) == "table" and LevelLogDB or {}) do
+            local stats = type(record) == "table" and record.gameStats
+            if type(stats) == "table" and type(stats.list) == "table" then
+                local name = type(record.charName) == "string" and record.charName ~= "" and record.charName or tostring(key)
+                list[#list + 1] = { name = name, own = record == levels, stats = stats }
+            end
+        end
+        table.sort(list, function(a, b)
+            if a.own ~= b.own then
+                return a.own
+            end
+            return a.name < b.name
+        end)
+        return list
+    end
+
+    local function When(stamp)
+        local ok, text = pcall(DateFn or function() return nil end, "%d %b %H:%M", tonumber(stamp) or 0)
+        return ok and type(text) == "string" and text or "?"
+    end
+
+    -- The first reading, from the 1 s ticker a few seconds after login (not a timer of its own); tried
+    -- again each second while in combat, given up when the client has no statistics functions.
+    local firstReadAt
+    GameStatsTick = function(now, delay)
+        if delay then
+            firstReadAt = now + delay
+            return
+        end
+        if firstReadAt and now >= firstReadAt then
+            if #Missing() > 0 or SnapshotGameStats(true) then
+                firstReadAt = nil
+            end
+        end
+    end
+
+    -- The Statistics page (window tab and the hub's "stats" page). filter: part of a name or category.
+    GameStatLines = function(filter)
+        local lines = { GOLD .. "The game's statistics|r" }
+        local missing = Missing()
+        if #missing > 0 then
+            lines[#lines + 1] = GREY .. "This client doesn't offer the game's Statistics to addons (missing: "
+                .. table.concat(missing, ", ") .. "). Nothing to show; your own stats are on the Stats tab.|r"
+        end
+        SnapshotGameStats(false)
+        local chars = Characters()
+        if #chars == 0 then
+            lines[#lines + 1] = "Not read yet: they're read a few seconds after you log in, out of combat."
+            return lines
+        end
+        -- Every statistic any character has, in the order the game lists them.
+        local order, meta, values = {}, {}, {}
+        for index, entry in ipairs(chars) do
+            for _, stat in ipairs(entry.stats.list) do
+                local id = type(stat) == "table" and tonumber(stat.id)
+                if id and type(stat.v) == "string" then
+                    if not meta[id] then
+                        order[#order + 1] = id
+                        meta[id] = { c = tostring(stat.c or "?"), n = tostring(stat.n or "?") }
+                        values[id] = {}
+                    end
+                    values[id][index] = stat.v
+                end
+            end
+        end
+        filter = type(filter) == "string" and filter:lower():match("^%s*(.-)%s*$") or ""
+        local shown = {}
+        for _, id in ipairs(order) do
+            local m = meta[id]
+            if filter == "" or m.n:lower():find(filter, 1, true) or m.c:lower():find(filter, 1, true) then
+                shown[#shown + 1] = id
+            end
+        end
+        local own = chars[1].own and chars[1] or nil
+        lines[#lines + 1] = GREY .. string.format("%s; %d character%s with a reading.%s|r",
+            own and ("This character read " .. When(own.stats.at)) or "This character not read yet",
+            #chars, #chars == 1 and "" or "s", filter ~= "" and string.format(" Matching \"%s\": %d.", filter, #shown) or "")
+        if #shown == 0 then
+            lines[#lines + 1] = filter ~= "" and "Nothing matches." or "No statistics above zero yet."
+            return lines
+        end
+        local category
+        for _, id in ipairs(shown) do
+            local m = meta[id]
+            if m.c ~= category then
+                category = m.c
+                lines[#lines + 1] = GOLD .. category .. "|r"
+            end
+            local mine = own and values[id][1] or "-"
+            local text = "  " .. m.n .. ": " .. mine
+            -- An account total when more than one character has it and every value reads as one kind.
+            local total, kind, count, ok = 0, nil, 0, true
+            for index in ipairs(chars) do
+                local value = values[id][index]
+                if value then
+                    local number, valueKind = Parse(value)
+                    if not number or (kind and valueKind ~= kind) then
+                        ok = false
+                    else
+                        kind, total, count = valueKind, total + number, count + 1
+                    end
+                end
+            end
+            if ok and count > 1 then
+                text = text .. GREY .. "  (all characters: " .. (kind == "money" and MoneyText(total) or tostring(total)) .. ")|r"
+            end
+            lines[#lines + 1] = text
+            if #shown <= LIST_EACH_CHARACTER and #chars > 1 then
+                for index, entry in ipairs(chars) do
+                    lines[#lines + 1] = GREY .. "      " .. entry.name .. ": " .. (values[id][index] or "-") .. "|r"
+                end
+            end
+        end
+        return lines
+    end
+end
+
+function LevelLog_GameStatLines(filter)
+    return GameStatLines(filter)
+end
+
 -- ---- The window ----------------------------------------------------------------------------------------------
 local WINDOW_WIDTH, WINDOW_HEIGHT = 480, 440
 local VIEWS = {
@@ -1539,6 +1786,7 @@ local VIEWS = {
     { key = "stats", label = "Stats" },
     { key = "time", label = "Time and ETA" },
     { key = "fights", label = "Fights" },
+    { key = "gamestats", label = "Statistics" },
 }
 
 -- Kept in this character's record, so LevelLogDB stays one record per character.
@@ -1570,6 +1818,8 @@ RefreshWindow = function()
         lines = LevelLog_TimeLines()
     elseif window.view == "fights" then
         lines = LevelLog_FightLinesLocal()
+    elseif window.view == "gamestats" then
+        lines = GameStatLines(window.statFilter)
     else
         lines = LevelLog_JourneyLines(window.byLevel)
     end
@@ -1584,6 +1834,13 @@ RefreshWindow = function()
     end
     window.order:SetShown(window.view == "journey")
     window.order:SetText(window.byLevel and "By day" or "By level")
+    -- The Statistics tab has a search box above its text.
+    local searching = window.view == "gamestats"
+    window.search:SetShown(searching)
+    window.searchLabel:SetShown(searching)
+    window.scroll:ClearAllPoints()
+    window.scroll:SetPoint("TOPLEFT", window, "TOPLEFT", 12, searching and -86 or -60)
+    window.scroll:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -32, 36)
     window.auto:SetChecked(Settings().openWithPage)
 end
 
@@ -1641,13 +1898,37 @@ local function BuildWindow()
     end
     window.order = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
     window.order:SetSize(80, 22)
-    window.order:SetPoint("TOPRIGHT", window, "TOPRIGHT", -12, -30)
+    -- Bottom right: the tab row is full with the Statistics tab.
+    window.order:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -12, 8)
     window.order:SetScript("OnClick", function()
         window.byLevel = not window.byLevel
         RefreshWindow()
     end)
 
+    window.searchLabel = window:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    window.searchLabel:SetPoint("TOPLEFT", window, "TOPLEFT", 14, -64)
+    window.searchLabel:SetText("Search:")
+    window.search = CreateFrame("EditBox", nil, window, "InputBoxTemplate")
+    window.search:SetSize(200, 20)
+    window.search:SetPoint("TOPLEFT", window, "TOPLEFT", 66, -59)
+    window.search:SetAutoFocus(false)
+    window.search:SetMaxLetters(40)
+    window.search:SetScript("OnTextChanged", function(self)
+        local text = Safe(self:GetText())
+        window.statFilter = type(text) == "string" and text or ""
+        if window.view == "gamestats" then
+            RefreshWindow()
+        end
+    end)
+    window.search:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+    end)
+    window.search:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+    end)
+
     local scroll = CreateFrame("ScrollFrame", nil, window, "UIPanelScrollFrameTemplate")
+    window.scroll = scroll
     scroll:SetPoint("TOPLEFT", window, "TOPLEFT", 12, -60)
     scroll:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -32, 36)
     window.content = CreateFrame("Frame", nil, scroll)
@@ -1746,9 +2027,15 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         StartJourney()
         Stats()
         lastMoney = GetMoney and Safe(GetMoney()) or nil
+        -- The game's Statistics (round 6 #16): a few seconds after login, once the client has them.
+        GameStatsTick(GetTime(), 5)
         if C_Timer and C_Timer.NewTicker then
             C_Timer.NewTicker(1, function()
                 local ok, err = pcall(Tick)
+                if not ok and geterrorhandler then
+                    geterrorhandler()(err)
+                end
+                ok, err = pcall(GameStatsTick, GetTime())
                 if not ok and geterrorhandler then
                     geterrorhandler()(err)
                 end
@@ -1804,6 +2091,8 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
             AddXP(currentLevel, "questXP", pendingQuest.xp)
             pendingQuest = nil
         end
+        -- The game's Statistics as you leave (as Account Statistics does); a failure keeps the last reading.
+        pcall(SnapshotGameStats, true)
     end
 end)
 
@@ -1834,6 +2123,22 @@ SlashCmdList.LEVELLOG = function(message)
     local arg = (message or ""):lower():match("^%s*(.-)%s*$")
     if arg == "window" then
         LevelLog_OpenWindow(true)
+        return
+    end
+    -- "stats" or "stats <search>": the game's own Statistics on the hub's page (round 6 #16).
+    local statsFilter = arg:match("^stats%s*(.*)$")
+    if statsFilter and ForeverHub_Receive then
+        for _, line in ipairs(GameStatLines(statsFilter)) do
+            Print(line)
+        end
+        return
+    elseif statsFilter then
+        -- Without the hub: the window, on its Statistics tab.
+        LevelLog_OpenWindow(false)
+        if window and window:IsShown() then
+            window.view = "gamestats"
+            RefreshWindow()
+        end
         return
     end
     if not ForeverHub_Receive then

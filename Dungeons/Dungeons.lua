@@ -1794,6 +1794,28 @@ do
         run[field] = (tonumber(run[field]) or 0) + amount
     end
 
+    -- Round 6 #18: who in the group looted which notable item, per run (ideas from RollFrames, GPL-3.0;
+    -- our own code). Read from CHAT_MSG_LOOT only (a plain chat event, not a CallbackEvent; its text can be
+    -- secret, and then the line is skipped). Nothing is rolled, passed or said. At most MAX_GROUP_LOOT lines
+    -- per run, so the 100 saved runs stay small.
+    local MAX_GROUP_LOOT, MAX_NAME = 20, 40
+    function R5.AddGroupLoot(run, who, id, count)
+        who, id = type(who) == "string" and who:sub(1, MAX_NAME) or nil, tonumber(id)
+        if not (run and who and who ~= "" and id) then
+            return
+        end
+        run.group = type(run.group) == "table" and run.group or {}
+        for _, got in ipairs(run.group) do
+            if type(got) == "table" and got.w == who and got.i == id then
+                got.n = (tonumber(got.n) or 1) + (count or 1)
+                return
+            end
+        end
+        if #run.group < MAX_GROUP_LOOT then
+            run.group[#run.group + 1] = { w = who, i = id, n = count or 1 }
+        end
+    end
+
     -- This visit's run was opened as new, but the GUIDs show the copy of your previous run: one run.
     local function MergeInto(previous, run)
         Remove(run)
@@ -1802,6 +1824,11 @@ do
         end
         for _, id in ipairs(type(run.loot) == "table" and run.loot or {}) do
             AddLoot(previous, id)
+        end
+        for _, got in ipairs(type(run.group) == "table" and run.group or {}) do
+            if type(got) == "table" then
+                R5.AddGroupLoot(previous, got.w, got.i, tonumber(got.n) or 1)
+            end
         end
         previous.reentries = (tonumber(previous.reentries) or 0) + 1
         previous.prevLeave, previous.leave = previous.leave, nil
@@ -1951,6 +1978,97 @@ do
         end
     end
 
+    -- The game's loot lines as patterns (its own strings when the client has them, else the English ones).
+    -- Each pattern: { pattern, self? }. "%s receives loot: %s." -> "^(.+) receives loot: (.+)%.$".
+    local lootPatterns
+    local function ToPattern(format)
+        if type(format) ~= "string" or format == "" then
+            return nil
+        end
+        local pattern = format:gsub("%%%d?%$?([sd])", "\1%1"):gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
+        pattern = pattern:gsub("\1s", "(.+)"):gsub("\1d", "(%%d+)")
+        return "^" .. pattern .. "$"
+    end
+    local function LootPatterns()
+        if lootPatterns then
+            return lootPatterns
+        end
+        lootPatterns = {}
+        local sources = {
+            { Safe(LOOT_ITEM_SELF_MULTIPLE), "You receive loot: %sx%d.", true },
+            { Safe(LOOT_ITEM_SELF), "You receive loot: %s.", true },
+            { Safe(LOOT_ITEM_MULTIPLE), "%s receives loot: %sx%d.", false },
+            { Safe(LOOT_ITEM), "%s receives loot: %s.", false },
+        }
+        for _, source in ipairs(sources) do
+            local pattern = ToPattern(type(source[1]) == "string" and source[1] or source[2])
+            if pattern then
+                lootPatterns[#lootPatterns + 1] = { pattern, source[3] }
+            end
+        end
+        return lootPatterns
+    end
+
+    -- Item quality from a link: "|cnIQ3:" on newer clients, the colour code on older ones.
+    local QUALITY_OF_COLOUR = { ["9d9d9d"] = 0, ffffff = 1, ["1eff00"] = 2, ["0070dd"] = 3, a335ee = 4, ff8000 = 5 }
+    local function LinkQuality(link)
+        local quality = tonumber(link:match("|cnIQ(%d+):"))
+        if quality then
+            return quality
+        end
+        local colour = link:match("|c%x%x(%x%x%x%x%x%x)")
+        return colour and QUALITY_OF_COLOUR[colour:lower()] or nil
+    end
+
+    -- "Name receives loot: [item]." inside a dungeon run: who got which notable item.
+    function R5.ChatLoot(text, playerName)
+        local run = Open()
+        text = Safe(text)
+        if not run or type(text) ~= "string" then
+            return
+        end
+        for _, entry in ipairs(LootPatterns()) do
+            local a, b, c = text:match(entry[1])
+            if a then
+                local who, link, count
+                if entry[2] then
+                    who = type(ForeverCharacterName) == "function" and ForeverCharacterName() or nil
+                    who = who or Safe(playerName)
+                    link, count = a, tonumber(b)
+                else
+                    who, link, count = a, b, tonumber(c)
+                end
+                local id = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+                if id and (Notable(id, link) or (LinkQuality(link) or 0) >= 3) then
+                    R5.AddGroupLoot(run, who, id, count or 1)
+                    run.seen = Clock()
+                    Changed()
+                end
+                return
+            end
+        end
+    end
+
+    local function GroupLootText(run)
+        if type(run.group) ~= "table" or #run.group == 0 then
+            return nil
+        end
+        local me = type(ForeverCharacterName) == "function" and ForeverCharacterName() or nil
+        local parts = {}
+        for _, got in ipairs(run.group) do
+            if type(got) == "table" and got.i then
+                local name = (R5.IsWished(got.i) and R5.STAR or "") .. ItemName(got.i)
+                local count = tonumber(got.n) or 1
+                if count > 1 then
+                    name = name .. " x" .. count
+                end
+                local who = tostring(got.w or "?")
+                parts[#parts + 1] = (who == me and GREEN or YELLOW) .. who .. "|r " .. name
+            end
+        end
+        return #parts > 0 and table.concat(parts, ", ") or nil
+    end
+
     local function RunLine(run, now)
         local secs = (tonumber(run.secs) or 0) + (run.inSince and math.max(0, now - run.inSince) or 0)
         local parts = { string.format("%s%s|r %s(%s)|r, %s", GOLD, tostring(run.name or "?"), GRAY, When(run.start), Minutes(secs)) }
@@ -1976,6 +2094,10 @@ do
                 names[#names + 1] = (R5.IsWished(id) and (R5.STAR) or "") .. ItemName(id)
             end
             text = text .. "\n      " .. GRAY .. "Loot:|r " .. table.concat(names, ", ")
+        end
+        local group = GroupLootText(run)
+        if group then
+            text = text .. "\n      " .. GRAY .. "Who looted what:|r " .. group
         end
         local notes = {}
         if (tonumber(run.reentries) or 0) > 0 then
@@ -2557,7 +2679,7 @@ do
 
     local OWN = { ZONE_CHANGED_NEW_AREA = true, CHAT_MSG_COMBAT_XP_GAIN = true, PLAYER_XP_UPDATE = true, PLAYER_MONEY = true,
         PLAYER_DEAD = true, LOOT_OPENED = true, LOOT_CLOSED = true, UPDATE_MOUSEOVER_UNIT = true, NAME_PLATE_UNIT_ADDED = true,
-        LFG_LIST_SEARCH_RESULTS_RECEIVED = true, PLAYER_LOGOUT = true }
+        LFG_LIST_SEARCH_RESULTS_RECEIVED = true, PLAYER_LOGOUT = true, CHAT_MSG_LOOT = true }
     R5.EVENTS = OWN
 
     local function ZoneSoon()
@@ -2608,6 +2730,9 @@ do
             LootClosed()
         elseif event == "LFG_LIST_SEARCH_RESULTS_RECEIVED" then
             R5.ReadSearch()
+        elseif event == "CHAT_MSG_LOOT" then
+            -- text, playerName: read only, and skipped when secret.
+            R5.ChatLoot(...)
         elseif event == "PLAYER_LOGOUT" then
             -- Logout or /reload inside: the visit is stamped, and logging back in within the re-entry
             -- window continues the same run.

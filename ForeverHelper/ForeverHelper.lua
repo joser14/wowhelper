@@ -307,6 +307,221 @@ local function BuildFrame()
     table.insert(UISpecialFrames, "ForeverHelperFrame")
 end
 
+-- Round 6 #15: profession cooldowns per character (idea common to Altoholic and Nova; our own code).
+-- Read out of combat from the game's own cooldown of each spell (C_Spell.GetSpellCooldown, secret when
+-- cooldowns are restricted) or item (C_Container.GetItemCooldown), saved as the clock time it ends. Only
+-- read, never cast or used. A fixed list, so at most four entries per character.
+local COOLDOWNS = {
+    -- Every Classic transmute shares one cooldown: the first one known gives it.
+    { key = "transmute", label = "Transmute", spells = { 17187, 11479, 11480, 17559, 17560, 17561, 17562, 17563, 17564, 17565, 17566 } },
+    { key = "mooncloth", label = "Mooncloth", spells = { 18560 } },
+    { key = "saltshaker", label = "Salt Shaker", item = 15846 },
+    { key = "snowmaster", label = "Snowmaster 9000", item = 17716 },
+}
+-- Shorter than this is the global cooldown or a cast, not a profession cooldown.
+local MIN_COOLDOWN = 60
+local READY_CHECK_SECONDS = 30
+local cooldownReadPending, lastReadyCheck = false, 0
+
+local function CallSafe(fn, ...)
+    if type(fn) ~= "function" then
+        return nil
+    end
+    local ok, a, b, c = pcall(fn, ...)
+    if not ok then
+        return nil
+    end
+    return Safe(a), Safe(b), Safe(c)
+end
+
+local function Clock()
+    return tonumber(CallSafe(time)) or 0
+end
+
+local function SpellKnown(id)
+    local book = type(C_SpellBook) == "table" and C_SpellBook.IsSpellKnown
+    for _, fn in ipairs({ book or false, IsPlayerSpell or false, IsSpellKnown or false }) do
+        if fn and CallSafe(fn, id) == true then
+            return true
+        end
+    end
+    return false
+end
+
+-- start (GetTime clock) and duration, or nil when unreadable or secret.
+local function SpellCooldown(id)
+    local getter = type(C_Spell) == "table" and C_Spell.GetSpellCooldown
+    if getter then
+        local info = CallSafe(getter, id)
+        if type(info) == "table" then
+            return tonumber(Safe(info.startTime)), tonumber(Safe(info.duration))
+        end
+    end
+    local start, duration = CallSafe(GetSpellCooldown, id)
+    return tonumber(start), tonumber(duration)
+end
+
+local function ItemCooldown(id)
+    local getter = type(C_Container) == "table" and C_Container.GetItemCooldown or GetItemCooldown
+    local start, duration = CallSafe(getter, id)
+    return tonumber(start), tonumber(duration)
+end
+
+local function ItemCount(id)
+    local getter = type(C_Item) == "table" and C_Item.GetItemCount or GetItemCount
+    return tonumber(CallSafe(getter, id)) or 0
+end
+
+local function InCombat()
+    return CallSafe(InCombatLockdown) == true
+end
+
+-- Reads this character's profession cooldowns into its record.
+local function ReadCooldowns()
+    cooldownReadPending = false
+    if not char or InCombat() then
+        return
+    end
+    local now, clock = tonumber(CallSafe(GetTime)), Clock()
+    if not now or clock == 0 then
+        return
+    end
+    char.cooldowns = type(char.cooldowns) == "table" and char.cooldowns or {}
+    for _, cd in ipairs(COOLDOWNS) do
+        local have, start, duration = false, nil, nil
+        if cd.spells then
+            for _, id in ipairs(cd.spells) do
+                local s, d = SpellCooldown(id)
+                if SpellKnown(id) or (d and d > MIN_COOLDOWN) then
+                    have = true
+                    if s and d then
+                        start, duration = s, d
+                    end
+                    if d and d > MIN_COOLDOWN then
+                        break
+                    end
+                end
+            end
+        elseif ItemCount(cd.item) > 0 then
+            have = true
+            start, duration = ItemCooldown(cd.item)
+        else
+            -- The item is gone (sold, banked or deleted): its line goes too.
+            char.cooldowns[cd.key] = nil
+        end
+        if have and start and duration then
+            local entry = type(char.cooldowns[cd.key]) == "table" and char.cooldowns[cd.key] or {}
+            local ends = 0
+            if duration > MIN_COOLDOWN and start > 0 then
+                ends = math.floor(clock + (start + duration - now) + 0.5)
+            end
+            if ends > clock then
+                entry.ends, entry.told = ends, nil
+            elseif (tonumber(entry.ends) or 0) > clock then
+                -- Ready earlier than saved (a reset): ready now, and said once.
+                entry.ends = clock
+            else
+                entry.ends = tonumber(entry.ends) or 0
+            end
+            char.cooldowns[cd.key] = entry
+        end
+    end
+end
+
+local function ReadCooldownsSoon()
+    if cooldownReadPending then
+        return
+    end
+    cooldownReadPending = true
+    if C_Timer and C_Timer.After then
+        C_Timer.After(2, ReadCooldowns)
+    else
+        ReadCooldowns()
+    end
+end
+
+local function Left(seconds)
+    seconds = math.max(0, math.floor(seconds))
+    local days, hours, minutes = math.floor(seconds / 86400), math.floor(seconds / 3600) % 24, math.floor(seconds / 60) % 60
+    if days > 0 then
+        return string.format("%dd %dh", days, hours)
+    elseif hours > 0 then
+        return string.format("%dh %dm", hours, minutes)
+    end
+    return string.format("%dm", math.max(minutes, 1))
+end
+
+-- "Mooncloth ready, Transmute in 5h 10m" for a saved character, or nil without any.
+local function CooldownText(data, clock)
+    local saved = type(data) == "table" and type(data.cooldowns) == "table" and data.cooldowns
+    if not saved then
+        return nil
+    end
+    local parts = {}
+    for _, cd in ipairs(COOLDOWNS) do
+        local entry = saved[cd.key]
+        if type(entry) == "table" then
+            local ends = tonumber(entry.ends) or 0
+            if ends <= clock then
+                parts[#parts + 1] = cd.label .. " |cff33ff33ready|r"
+            else
+                parts[#parts + 1] = cd.label .. " in " .. Left(ends - clock)
+            end
+        end
+    end
+    return #parts > 0 and table.concat(parts, ", ") or nil
+end
+
+-- A pop-up once when one of this character's cooldowns is ready (not while the hub has this helper Off).
+local function CheckReady(force)
+    local now = tonumber(CallSafe(GetTime)) or 0
+    if not char or (not force and now - lastReadyCheck < READY_CHECK_SECONDS) then
+        return
+    end
+    lastReadyCheck = now
+    local saved = type(char.cooldowns) == "table" and char.cooldowns
+    if not saved or (type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ForeverHelper") == true) then
+        return
+    end
+    local clock = Clock()
+    for _, cd in ipairs(COOLDOWNS) do
+        local entry = saved[cd.key]
+        if type(entry) == "table" and not entry.told and (tonumber(entry.ends) or 0) > 0 and entry.ends <= clock then
+            entry.told = true
+            Print(cd.label .. " is ready on this character.")
+        end
+    end
+end
+
+local function SortedCharacters()
+    local list = {}
+    for key, data in pairs(db.characters) do
+        if type(data) == "table" then
+            local name = type(data.charName) == "string" and data.charName ~= "" and data.charName or tostring(key)
+            list[#list + 1] = { name = name, data = data }
+        end
+    end
+    table.sort(list, function(a, b) return a.name < b.name end)
+    return list
+end
+
+local function ShowCooldowns()
+    ReadCooldowns()
+    local clock, any = Clock(), false
+    Print("|cffffd100Profession cooldowns|r |cff999999(every character; read out of combat)|r")
+    for _, row in ipairs(SortedCharacters()) do
+        local text = CooldownText(row.data, clock)
+        if text then
+            any = true
+            Print(row.name .. ": " .. text)
+        end
+    end
+    if not any then
+        Print("None seen yet. Transmutes, Mooncloth, the Salt Shaker and the Snowmaster 9000 show here once a"
+            .. " character that has them logs in.")
+    end
+end
+
 local function ShowCharacters()
     local rows, total = {}, 0
     for key, data in pairs(db.characters) do
@@ -316,10 +531,15 @@ local function ShowCharacters()
         total = total + (data.money or 0)
     end
     table.sort(rows, function(a, b) return a.name < b.name end)
+    local clock = Clock()
     for _, row in ipairs(rows) do
         local data = row.data
         Print(string.format("%s: level %d, %s, rested %s",
             row.name, data.level or 0, FormatMoney(data.money or 0), FormatNumber(data.rested or 0)))
+        local cooldowns = CooldownText(data, clock)
+        if cooldowns then
+            Print("   |cff999999Cooldowns:|r " .. cooldowns)
+        end
     end
     Print("Total gold: " .. FormatMoney(total))
     -- The to-dos you add on this page, so they show here too and not only in the window.
@@ -340,6 +560,7 @@ local HELP = {
     "/fh add <task> - add a to-do for this character",
     "/fh remove <number> - remove a to-do",
     "/fh chars - list your characters and total gold",
+    "/fh cooldowns - profession cooldowns on every character",
     "/fh reset - restart the session stats",
 }
 
@@ -395,7 +616,10 @@ local function HandleSlash(message)
         end
     elseif command == "chars" then
         SaveCharacter()
+        ReadCooldowns()
         ShowCharacters()
+    elseif command == "cooldowns" or command == "cd" then
+        ShowCooldowns()
     elseif command == "reset" then
         ResetSession()
         RefreshStats()
@@ -439,10 +663,16 @@ events:SetScript("OnEvent", function(_, event, arg1)
         for _, name in ipairs({ "PLAYER_MONEY", "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "UPDATE_EXHAUSTION" }) do
             events:RegisterEvent(name)
         end
+        -- Profession cooldowns (round 6 #15): read a moment after login and after a cooldown changes.
+        for _, name in ipairs({ "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN", "PLAYER_REGEN_ENABLED" }) do
+            pcall(events.RegisterEvent, events, name)
+        end
+        ReadCooldownsSoon()
         C_Timer.NewTicker(1, function()
             if frame:IsShown() then
                 RefreshStats()
             end
+            CheckReady(false)
         end)
     elseif event == "PLAYER_LOGOUT" then
         -- Not saved here: the game can give wrong values while logging out, and the events above keep this current.
@@ -460,6 +690,10 @@ events:SetScript("OnEvent", function(_, event, arg1)
     elseif event == "PLAYER_MONEY" or event == "UPDATE_EXHAUSTION" then
         SaveCharacter()
         RefreshStats()
+    elseif event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" or event == "PLAYER_REGEN_ENABLED" then
+        if char then
+            ReadCooldownsSoon()
+        end
     end
 end)
 
