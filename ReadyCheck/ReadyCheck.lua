@@ -47,6 +47,20 @@ local BUFFS = {
     -- Warriors: Battle Shout only matters in combat, so nothing to remind about.
 }
 
+-- Buffs you can give the whole group (round 6 #10): who in your party or raid lacks one. Your own class's
+-- buffs count once you know the spell; another class's when someone of that class is in the group
+-- (ownOnly: talents or late spells we can't tell they have). manaOnly: only for members who use mana.
+-- Paladin blessings are left out: who gets which blessing is the paladin's call.
+local GROUP_BUFFS = {
+    { class = "PRIEST", label = "Fortitude", spell = "Power Word: Fortitude", auras = { "Power Word: Fortitude", "Prayer of Fortitude" } },
+    { class = "PRIEST", label = "Divine Spirit", spell = "Divine Spirit", auras = { "Divine Spirit", "Prayer of Spirit" }, manaOnly = true, ownOnly = true },
+    { class = "PRIEST", label = "Shadow Protection", spell = "Shadow Protection", auras = { "Shadow Protection", "Prayer of Shadow Protection" }, ownOnly = true },
+    { class = "DRUID", label = "Mark of the Wild", spell = "Mark of the Wild", auras = { "Mark of the Wild", "Gift of the Wild" } },
+    { class = "MAGE", label = "Arcane Intellect", spell = "Arcane Intellect", auras = { "Arcane Intellect", "Arcane Brilliance" }, manaOnly = true },
+}
+local CLASS_WORDS = { PRIEST = "a priest's", DRUID = "a druid's", MAGE = "a mage's" }
+local MAX_GROUP = 40
+
 -- Class reagents, only for spells you have on your bars (onlyKnown: passive spells that never sit on a bar).
 -- byRank picks the reagent by the rank you use. prefixes match spell families like "Teleport: Darnassus".
 local REAGENTS = {
@@ -87,7 +101,7 @@ local REAGENTS = {
 local db
 local known = {}      -- lower name -> { name, rank } from the spellbook
 local onBars = {}     -- lower name -> { name, rank } highest rank found on the bars
-local cache = { ranks = {}, buffs = {}, buffsChecked = false, reagents = {} }
+local cache = { ranks = {}, buffs = {}, buffsChecked = false, reagents = {}, party = { missing = {}, checked = false } }
 local lastMissing, lastToast = {}, {}
 local pending, deferred = {}, {}
 local inCombat = false
@@ -499,8 +513,10 @@ local function WeaponEnchant(slot)
     return nil
 end
 
--- Your own helpful auras by name with seconds left (math.huge for no end), or nil if unreadable.
-local function ReadAuras()
+-- A unit's helpful auras (yours by default) by name with seconds left (math.huge for no end), or nil if
+-- unreadable: one hidden aura and the whole list counts as unreadable, so nothing is claimed missing.
+local function ReadAuras(unit)
+    unit = unit or "player"
     if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then
         return nil
     end
@@ -508,7 +524,7 @@ local function ReadAuras()
     local auras = {}
     local ok = pcall(function()
         for index = 1, 40 do
-            local aura = C_UnitAuras.GetAuraDataByIndex("player", index, "HELPFUL")
+            local aura = C_UnitAuras.GetAuraDataByIndex(unit, index, "HELPFUL")
             if aura == nil then
                 break
             end
@@ -594,6 +610,138 @@ local function ComputeBuffs()
         end
     end
     cache.buffsChecked = true
+end
+
+local function SwitchedOff()
+    if type(ForeverHub_IsOff) ~= "function" then
+        return false
+    end
+    local ok, off = pcall(ForeverHub_IsOff, SOURCE)
+    return ok and off == true
+end
+
+-- The group's unit tokens: you first, then party1-4, or raid1-40 without you. Empty when solo.
+local function GroupUnits()
+    local count = SafeCall(GetNumGroupMembers)
+    if type(count) ~= "number" or count <= 1 then
+        return {}
+    end
+    local units = { "player" }
+    if SafeCall(IsInRaid) == true then
+        for index = 1, math.min(count, MAX_GROUP) do
+            local unit = "raid" .. index
+            if not SafeCall(UnitIsUnit, unit, "player") then
+                units[#units + 1] = unit
+            end
+        end
+    else
+        for index = 1, math.min(count - 1, 4) do
+            units[#units + 1] = "party" .. index
+        end
+    end
+    return units
+end
+
+-- A member's first name ("you" for yourself); Forever's surname is left off.
+local function MemberName(unit)
+    if unit == "player" then
+        return "you"
+    end
+    local ok, name = pcall(UnitName, unit)
+    name = ok and Safe(name) or nil
+    return type(name) == "string" and name ~= "" and name or unit
+end
+
+-- Fills cache.party: for each buff someone in the group can give, who lacks it. Out of combat only; a
+-- member whose auras are hidden is counted as unreadable, never as missing anything.
+local function ComputeParty()
+    local party = { missing = {}, checked = false, unreadable = 0, size = 0 }
+    cache.party = party
+    if SwitchedOff() then
+        party.why = "off"
+        return
+    end
+    if InCombat() then
+        party.why = "combat"
+        return
+    end
+    local units = GroupUnits()
+    if #units == 0 then
+        party.why = "solo"
+        return
+    end
+    party.size = #units
+    local myClass = PlayerClass()
+    local present, members = {}, {}
+    for _, unit in ipairs(units) do
+        if SafeCall(UnitExists, unit) then
+            local ok, _, class = pcall(UnitClass, unit)
+            class = ok and Safe(class) or nil
+            if class then
+                present[class] = true
+            end
+            -- Not SafeCall: it turns false into nil, and "offline" is a false.
+            local okOnline, online = pcall(UnitIsConnected, unit)
+            online = okOnline and Safe(online)
+            local usable = unit == "player" or (online ~= false and not SafeCall(UnitIsDeadOrGhost, unit))
+            if usable then
+                members[#members + 1] = { unit = unit, name = MemberName(unit), power = SafeCall(UnitPowerType, unit) }
+            end
+        end
+    end
+    -- Auras your own self-buff check already covers aren't asked about you twice.
+    local selfCovered = {}
+    for _, entry in ipairs(BUFFS[myClass or ""] or {}) do
+        for _, aura in ipairs(entry.auras or entry.spells) do
+            selfCovered[aura] = true
+        end
+    end
+    local active = {}
+    for _, buff in ipairs(GROUP_BUFFS) do
+        if buff.class == myClass then
+            if Knows(buff.spell) then
+                active[#active + 1] = { buff = buff }
+            end
+        elseif present[buff.class] and not buff.ownOnly then
+            active[#active + 1] = { buff = buff, by = CLASS_WORDS[buff.class] }
+        end
+    end
+    party.active = #active
+    if #active == 0 then
+        party.why = "none"
+        return
+    end
+    local aurasOf = {}
+    for _, member in ipairs(members) do
+        aurasOf[member.unit] = ReadAuras(member.unit) or false
+        if not aurasOf[member.unit] then
+            party.unreadable = party.unreadable + 1
+        end
+    end
+    for _, item in ipairs(active) do
+        local buff, names = item.buff, {}
+        local mine = buff.class == myClass
+        for _, member in ipairs(members) do
+            local auras = aurasOf[member.unit]
+            local skip = not auras
+                or (member.unit == "player" and mine and selfCovered[buff.auras[1]])
+                -- Power type 0 is mana; an unreadable power type still gets the buff.
+                or (buff.manaOnly and type(member.power) == "number" and member.power ~= 0)
+            if not skip then
+                local has = false
+                for _, aura in ipairs(buff.auras) do
+                    has = has or auras[aura] ~= nil
+                end
+                if not has then
+                    names[#names + 1] = member.name
+                end
+            end
+        end
+        if #names > 0 then
+            party.missing[#party.missing + 1] = { label = buff.label, by = item.by, names = names }
+        end
+    end
+    party.checked = true
 end
 
 local function Resting()
@@ -717,12 +865,16 @@ local RUNNERS = {
             ComputeReagents()
             ComputeBuffs()
             NotifyBuffs()
+            ComputeParty()
         end)
     end,
     buffs = function()
         ComputeBuffs()
         NotifyBuffs()
+        ComputeParty()
     end,
+    -- Someone joined or left: the group's buffs only, no pop-ups.
+    party = ComputeParty,
     reagents = ComputeReagents,
     -- Spell data arrived (or a retry): ranks and reagents again, without buff pop-ups.
     rescan = function()
@@ -776,7 +928,8 @@ local function ShowPage()
     end
     -- In combat this only notes that buffs wait until combat ends.
     ComputeBuffs()
-    local problems = #cache.ranks + #cache.reagents + (cache.buffsChecked and #cache.buffs or 0)
+    ComputeParty()
+    local problems = #cache.ranks + #cache.reagents + (cache.buffsChecked and #cache.buffs or 0) + #cache.party.missing
     if problems == 0 and cache.buffsChecked then
         Print("|cff66ff66Everything looks ready.|r")
     end
@@ -820,6 +973,27 @@ local function ShowPage()
         end
         if Resting() then
             Print("  |cff999999No pop-ups in towns and inns.|r")
+        end
+    end
+
+    local party = cache.party
+    if party.why ~= "solo" and party.why ~= "off" then
+        Print("|cff88bbeeGroup buffs|r")
+        if party.why == "combat" then
+            Print("  Checked again when combat ends.")
+        elseif party.why == "none" then
+            Print("  Nobody in your group can give a buff this checks yet.")
+        elseif #party.missing == 0 then
+            Print(party.unreadable > 0 and "  Everyone else has the group's buffs." or "  Everyone has the group's buffs.")
+        else
+            for _, entry in ipairs(party.missing) do
+                local label = entry.by and string.format("%s (%s buff)", entry.label, entry.by) or entry.label
+                Print(string.format("  Missing %s: %s.", label, JoinNames(entry.names, 6)))
+            end
+            Print("  |cff999999Who to buff is up to you: nothing is cast for you.|r")
+        end
+        if party.unreadable > 0 then
+            Print(string.format("  |cff999999The game isn't showing the buffs of %d member(s) right now.|r", party.unreadable))
         end
     end
 
@@ -891,6 +1065,9 @@ for _, event in ipairs({
     "PLAYER_UPDATE_RESTING", "BAG_UPDATE_DELAYED",
     -- The answer to C_Spell.RequestLoadSpellData, and macro edits (a macro can now cast another spell).
     "SPELL_DATA_LOAD_RESULT", "UPDATE_MACROS",
+    -- Someone joined or left your party or raid: the group's buffs again (their auras are read on the
+    -- 15-second check, not on every UNIT_AURA, which fires for every member's every buff).
+    "GROUP_ROSTER_UPDATE",
 }) do
     -- An event this client doesn't have (LEARNED_SPELL_IN_TAB is gone from newer ones) mustn't stop loading.
     pcall(events.RegisterEvent, events, event)
@@ -937,6 +1114,10 @@ events:SetScript("OnEvent", function(_, event, unit)
         if Safe(unit) == "player" and not InCombat() then
             Schedule("buffs", 1)
         end
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        if not InCombat() then
+            Schedule("party", 2)
+        end
     elseif event == "PLAYER_UPDATE_RESTING" then
         Schedule("buffs", 1)
     elseif event == "BAG_UPDATE_DELAYED" then
@@ -976,6 +1157,15 @@ ForeverHubStatus.SpellReady = function()
             text = text .. string.format(" (+%d)", #cache.buffs - 1)
         end
         rows[#rows + 1] = { text = "|cff88bbeeBuff|r " .. text, page = "Ready check" }
+    end
+    local party = cache.party
+    if party.checked and #party.missing > 0 and not InCombat() then
+        local first = party.missing[1]
+        local text = string.format("Missing %s: %s", first.label, JoinNames(first.names, 3))
+        if #party.missing > 1 then
+            text = text .. string.format(" (+%d)", #party.missing - 1)
+        end
+        rows[#rows + 1] = { text = "|cff88bbeeGroup|r " .. text, page = "Ready check" }
     end
     if #rows < 2 and #cache.reagents > 0 then
         local first = cache.reagents[1]

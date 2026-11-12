@@ -1,7 +1,8 @@
 ## Interface: 16001
-## OptionalDeps: ForeverHub
+## OptionalDeps: ForeverHub, TrainerNotes
 ## Title: SpellMath
-## Notes: Heal and damage per mana and per second for each rank of your spells. Only gives information.
-## Version: 0.0.1
+## Notes: Heal and damage per mana and per second for each rank of your spells. Never casts or changes your bars. Only gives information.
+## Version: 0.1.0
+## SavedVariablesPerCharacter: SpellMathDB
 
 SpellMath.lua
