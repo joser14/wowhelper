@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## OptionalDeps: ForeverHub
 ## Title: ItemFinder
-## Notes: Search for an item across the bags, bank, and gear of all your characters. Only gives information.
+## Notes: Search for an item across the bags, bank, and gear of all your characters, or see any character's bags and bank as icons (/find bags). Only gives information.
 ## Version: 0.2.0
 ## SavedVariables: ItemFinderDB
 

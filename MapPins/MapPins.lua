@@ -211,7 +211,7 @@ local WORLD_SIZE, MINIMAP_SIZE = 16, 12
 -- heights, with x weighted 1.5 because maps are about that much wider than tall. Higher-ranked pins are
 -- placed first and drawn on top; the kept pin's tooltip names what it covers.
 local SPACING, OVERLAP, X_WEIGHT = 0.018, 0.009, 1.5
-local RANK = { guide = 1, turnin = 2, accept = 3, rares = 4, deaths = 5, dungeons = 6, places = 7, farms = 8, camps = 9 }
+local RANK = { guide = 1, turnin = 2, accept = 3, rares = 4, deaths = 5, dungeons = 6, places = 7, farms = 8, camps = 9, explore = 9 }
 -- Minimap fade (after Questie's minimap fade, idea only): full alpha out to FADE_FROM of the view
 -- radius, then down to FADE_MIN at the rim; half alpha for a pin sitting on you.
 local FADE_FROM, FADE_MIN, ON_YOU_YARDS = 0.6, 0.35, 10
@@ -252,6 +252,8 @@ local LAYERS = {
     { key = "dungeons", label = "Dungeons", helper = "Dungeons" },
     -- Off until switched on: where to go for each unfinished objective of the quests in your log.
     { key = "camps", label = "Objective camps", helper = "LevelGuide", defaultOff = true },
+    -- Round 5 #11: the nearest spot of your zone you haven't explored (MapPins' own exploration sampling).
+    { key = "explore", label = "Unexplored spot", helper = "MapPins" },
 }
 local LAYER = {}
 for _, layer in ipairs(LAYERS) do
@@ -278,6 +280,7 @@ local ICONS = {
     farms = { file = "Interface\\Icons\\INV_Misc_Coin_02" },
     dungeons = { atlas = "Dungeon", file = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" },
     camps = { file = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_3", size = 12 },
+    explore = { file = "Interface\\Icons\\INV_Misc_Spyglass_02", size = 14 },
 }
 
 local PLACE_LABEL = {
@@ -636,8 +639,321 @@ local function Camps(list)
     end
 end
 
+---------------------------------------------------------------------------- exploration
+
+-- Round 5 #11 (research\re_round5.md): how much of a zone you have explored, and the nearest spot you haven't.
+-- No overlay table is shipped: each zone is sampled at EXPLORE_GRID x EXPLORE_GRID cell centres, a few cells per
+-- tick and only out of combat. A cell is the zone's land when the continent map says this zone is there
+-- (C_Map.GetMapInfoAtPosition on the parent map, through C_Map.GetMapRectOnMap; sea and other zones drop out);
+-- it is explored when C_MapExplorationInfo.GetExploredAreaIDsAtPosition names an area you have discovered there.
+-- Land is sampled once per zone and session; explored state again on MAP_EXPLORATION_UPDATED.
+-- The nearest unexplored land cell becomes one pin of the "explore" layer: our own pin, never the map canvas.
+-- A target cell you stand in for EXPLORE_DWELL seconds without it revealing anything (land without a named
+-- area) is set aside per character in db.walked, bounded, so the pin moves on.
+local EXPLORE_GRID = 32
+local EXPLORE_BUDGET = 128          -- cells per tick
+local EXPLORE_SWITCH = 0.6          -- a new nearest spot replaces the shown one only when this much closer
+local EXPLORE_DWELL = 3             -- seconds
+local MAX_WALKED, MAX_WALKED_ZONES = 64, 80
+
+local Explore = { zones = {}, queue = {}, dwell = 0 }
+
+function Explore.Call(fn, ...)
+    if type(fn) ~= "function" then
+        return nil
+    end
+    local ok, a = pcall(fn, ...)
+    if ok then
+        return Safe(a)
+    end
+end
+
+-- Map point of a cell's centre.
+function Explore.CellXY(cell)
+    local index = cell - 1
+    return (index % EXPLORE_GRID + 0.5) / EXPLORE_GRID, (math.floor(index / EXPLORE_GRID) + 0.5) / EXPLORE_GRID
+end
+
+-- The zone's sampling state, or nil for maps that aren't zones (continents, instances) or when the API is missing.
+function Explore.Zone(mapID)
+    local zone = Explore.zones[mapID]
+    if zone ~= nil then
+        return zone or nil
+    end
+    if type(mapID) ~= "number" or not (C_MapExplorationInfo and C_MapExplorationInfo.GetExploredAreaIDsAtPosition
+        and C_Map and C_Map.GetMapInfo and C_Map.GetMapRectOnMap and C_Map.GetMapInfoAtPosition) then
+        return nil
+    end
+    Explore.zones[mapID] = false
+    local info = Explore.Call(C_Map.GetMapInfo, mapID)
+    local zoneType = Enum and Enum.UIMapType and Enum.UIMapType.Zone or 3
+    if type(info) ~= "table" or Safe(info.mapType) ~= zoneType then
+        return nil
+    end
+    local parent = Safe(info.parentMapID)
+    if type(parent) ~= "number" or parent <= 0 then
+        return nil
+    end
+    local ok, minX, maxX, minY, maxY = pcall(C_Map.GetMapRectOnMap, mapID, parent)
+    minX, maxX, minY, maxY = Safe(minX), Safe(maxX), Safe(minY), Safe(maxY)
+    if not ok or type(minX) ~= "number" or type(maxX) ~= "number" or type(minY) ~= "number" or type(maxY) ~= "number"
+        or maxX <= minX or maxY <= minY then
+        return nil
+    end
+    zone = { id = mapID, parent = parent, minX = minX, w = maxX - minX, minY = minY, h = maxY - minY,
+        land = {}, open = {}, areas = {}, landCount = 0, openCount = 0, areaCount = 0, cursor = 1 }
+    Explore.zones[mapID] = zone
+    return zone
+end
+
+-- Sample the zone (again): its explored state changed, or it was never sampled.
+function Explore.Request(mapID)
+    local zone = Explore.Zone(mapID)
+    if not zone then
+        return
+    end
+    zone.restart = true
+    for _, queued in ipairs(Explore.queue) do
+        if queued == zone then
+            return
+        end
+    end
+    zone.busy = true
+    Explore.queue[#Explore.queue + 1] = zone
+end
+
+-- This character's set-aside cells of a zone (made only when asked to).
+function Explore.Walked(mapID, make)
+    local walked = db and type(db.walked) == "table" and db.walked or nil
+    if not walked then
+        return nil
+    end
+    local cells = walked[mapID]
+    if type(cells) ~= "table" and make then
+        local zones = 0
+        for _ in pairs(walked) do
+            zones = zones + 1
+        end
+        if zones >= MAX_WALKED_ZONES then
+            return nil
+        end
+        cells = { n = 0 }
+        walked[mapID] = cells
+    end
+    return type(cells) == "table" and cells or nil
+end
+
+function Explore.Label(zone)
+    if zone.landCount <= 0 then
+        return nil
+    end
+    local share = math.floor((zone.landCount - zone.openCount) / zone.landCount * 100 + 0.5)
+    return string.format("Explored about %d%%%s", share,
+        zone.areaCount > 0 and string.format(" (%d area%s)", zone.areaCount, zone.areaCount == 1 and "" or "s") or "")
+end
+
+-- Up to EXPLORE_BUDGET cells of the first queued zone. Called from the driver, out of combat.
+function Explore.Step()
+    local zone = Explore.queue[1]
+    if not zone then
+        return
+    end
+    if zone.restart then
+        zone.restart, zone.cursor, zone.openCount, zone.areaCount = false, 1, 0, 0
+        for id in pairs(zone.areas) do
+            zone.areas[id] = nil
+        end
+    end
+    local vector = Explore.vector
+    if not vector then
+        vector = CreateVector2D and CreateVector2D(0, 0) or { x = 0, y = 0 }
+        Explore.vector = vector
+    end
+    local walked = Explore.Walked(zone.id, false)
+    local total = EXPLORE_GRID * EXPLORE_GRID
+    local last = math.min(total, zone.cursor + EXPLORE_BUDGET - 1)
+    for cell = zone.cursor, last do
+        local x, y = Explore.CellXY(cell)
+        local land = zone.land[cell]
+        if land == nil then
+            local details = Explore.Call(C_Map.GetMapInfoAtPosition, zone.parent, zone.minX + x * zone.w, zone.minY + y * zone.h)
+            land = type(details) == "table" and Safe(details.mapID) == zone.id or false
+            zone.land[cell] = land
+            if land then
+                zone.landCount = zone.landCount + 1
+            end
+        end
+        local open = false
+        if land then
+            vector.x, vector.y = x, y
+            local ids = Explore.Call(C_MapExplorationInfo.GetExploredAreaIDsAtPosition, zone.id, vector)
+            local found = false
+            if type(ids) == "table" then
+                for _, id in ipairs(ids) do
+                    id = Safe(id)
+                    if type(id) == "number" then
+                        found = true
+                        if not zone.areas[id] then
+                            zone.areas[id] = true
+                            zone.areaCount = zone.areaCount + 1
+                        end
+                    end
+                end
+            end
+            if not found and not (walked and walked[cell]) then
+                open = true
+                zone.openCount = zone.openCount + 1
+            end
+        end
+        zone.open[cell] = open
+    end
+    zone.cursor = last + 1
+    if zone.cursor > total then
+        table.remove(Explore.queue, 1)
+        zone.busy, zone.done = false, true
+        zone.label = Explore.Label(zone)
+        Explore.Retarget(0)
+    end
+end
+
+-- Map distance (x weighted like the declutter rule), squared.
+function Explore.Distance(ax, ay, bx, by)
+    local dx, dy = (ax - bx) * X_WEIGHT, ay - by
+    return dx * dx + dy * dy
+end
+
+-- Picks the nearest unexplored cell of your zone, keeping the shown one unless a new one is much closer.
+-- Called once a second (and after a zone is sampled), out of combat; makes no tables unless the target changes.
+function Explore.Retarget(elapsed)
+    local mapID = PlayerMap()
+    local zone = mapID and Explore.zones[mapID]
+    if zone == nil and mapID then
+        Explore.Request(mapID)
+        zone = Explore.zones[mapID]
+    end
+    local target = Explore.target
+    if not (zone and zone.done and not zone.busy and Explore.On() and C_Map.GetPlayerMapPosition) then
+        if target and not (zone and zone.busy and target.mapID == mapID) then
+            Explore.target, Explore.key = nil, nil
+        end
+        return
+    end
+    local position = C_Map.GetPlayerMapPosition(mapID, "player")
+    local px, py
+    if position and position.GetXY then
+        px, py = position:GetXY()
+        px, py = Safe(px), Safe(py)
+    end
+    if type(px) ~= "number" or type(py) ~= "number" or (px == 0 and py == 0) then
+        return
+    end
+    if target and target.mapID ~= mapID then
+        target = nil
+    end
+    -- Standing on the target and it doesn't reveal: land without a named area. Set it aside.
+    if target and zone.open[target.cell] then
+        local half = 0.5 / EXPLORE_GRID
+        if Explore.Distance(px, py, target.x, target.y) <= half * half * 2 then
+            Explore.dwell = Explore.dwell + (elapsed or 0)
+            if Explore.dwell >= EXPLORE_DWELL then
+                local cells = Explore.Walked(mapID, true)
+                if cells and (cells.n or 0) < MAX_WALKED then
+                    cells[target.cell] = true
+                    cells.n = (cells.n or 0) + 1
+                end
+                zone.open[target.cell] = false
+                zone.openCount = math.max(0, zone.openCount - 1)
+                zone.label = Explore.Label(zone)
+                target = nil
+            end
+        else
+            Explore.dwell = 0
+        end
+    end
+    if target and not zone.open[target.cell] then
+        target = nil
+    end
+    local bestCell, bestDistance
+    local grid = EXPLORE_GRID
+    for cell = 1, grid * grid do
+        if zone.open[cell] then
+            local x, y = Explore.CellXY(cell)
+            local distance = Explore.Distance(px, py, x, y)
+            -- Inland cells first: a cell with sea or another zone on two or more sides counts as four times as far.
+            local index = cell - 1
+            local col = index % grid
+            local inland = 0
+            if col > 0 and zone.land[cell - 1] then inland = inland + 1 end
+            if col < grid - 1 and zone.land[cell + 1] then inland = inland + 1 end
+            if zone.land[cell - grid] then inland = inland + 1 end
+            if zone.land[cell + grid] then inland = inland + 1 end
+            if inland < 3 then
+                distance = distance * 4
+            end
+            if not bestDistance or distance < bestDistance then
+                bestCell, bestDistance = cell, distance
+            end
+        end
+    end
+    if target and bestCell and bestCell ~= target.cell then
+        local current = Explore.Distance(px, py, target.x, target.y)
+        if bestDistance >= current * EXPLORE_SWITCH * EXPLORE_SWITCH then
+            bestCell = target.cell
+        end
+    end
+    if not bestCell then
+        Explore.target, Explore.key = nil, nil
+        return
+    end
+    if not (Explore.target and Explore.target.mapID == mapID and Explore.target.cell == bestCell) then
+        local x, y = Explore.CellXY(bestCell)
+        Explore.target = { mapID = mapID, cell = bestCell, x = x, y = y }
+        Explore.key = mapID .. ":" .. bestCell
+        Explore.dwell = 0
+    end
+end
+
+-- The label shown on the world map's info line for this map, or nil. Asks for a sample the first time.
+function Explore.LineFor(mapID)
+    local zone = Explore.zones[mapID]
+    if zone == nil and mapID and Explore.On() then
+        Explore.Request(mapID)
+        zone = Explore.zones[mapID]
+    end
+    return zone and zone.label or nil
+end
+
+-- The pin for the nearest unexplored spot.
+local function Unexplored(list)
+    local target = Explore.target
+    if not target then
+        return
+    end
+    local zone = Explore.zones[target.mapID]
+    Add(list, "explore", {
+        mapID = target.mapID, x = target.x, y = target.y, icon = ICONS.explore,
+        title = "Not explored yet: the nearest spot",
+        lines = { zone and zone.label and (zone.label .. " of " .. (MapName(target.mapID) or "this zone")) or nil,
+            "Walk there to reveal it on your map (exploring gives XP).",
+            "An estimate from the map; it moves on when you get there." },
+    })
+end
+
+-- For pages and tests: what is known about a zone's exploration, or nil.
+function MapPins_Exploration(mapID)
+    local zone = Explore.zones[mapID]
+    if not zone then
+        return nil
+    end
+    local target = Explore.target and Explore.target.mapID == mapID and Explore.target or nil
+    return {
+        done = zone.done and not zone.busy or false, land = zone.landCount, open = zone.openCount,
+        areas = zone.areaCount, label = zone.label, x = target and target.x, y = target and target.y,
+    }
+end
+
 local SOURCES = { guide = GuideStops, givers = Givers, places = Places, deaths = Deaths, rares = Rares, farms = Farms,
-    dungeons = Dungeons, camps = Camps }
+    dungeons = Dungeons, camps = Camps, explore = Unexplored }
 
 -- Whether you want a layer: most are on unless switched off; some are off unless switched on.
 local function LayerWanted(key)
@@ -650,6 +966,10 @@ end
 
 local function LayerOn(key)
     return db and LayerWanted(key) and not IsOff(LAYER[key].helper)
+end
+
+function Explore.On()
+    return LayerOn("explore") and true or false
 end
 
 local function Rebuild()
@@ -696,6 +1016,8 @@ local function Signature()
     for _, layer in ipairs(LAYERS) do
         parts[#parts + 1] = IsOff(layer.helper) and "x" or "o"
     end
+    -- The nearest unexplored spot moved.
+    parts[#parts + 1] = Explore.key or "-"
     if type(LevelGuide_QuestGivers) == "function" then
         local ok, _, key = pcall(LevelGuide_QuestGivers)
         parts[#parts + 1] = ok and tostring(key) or "-"
@@ -1104,6 +1426,11 @@ do
                 parts[#parts + 1] = string.format("You %.1f, %.1f", px * 100, py * 100)
             end
         end
+        -- Round 5 #11: how much of the zone shown you have explored (a cached string, made once per sample).
+        local explored = Explore.LineFor(mapID)
+        if explored then
+            parts[#parts + 1] = explored
+        end
         local text = table.concat(parts, "    ")
         if text == "" then
             Info.text:Hide()
@@ -1457,9 +1784,13 @@ driver:SetScript("OnUpdate", function(_, elapsed)
     end
     sinceTick = 0
     local force = false
+    if not InCombat() then
+        Explore.Step()
+    end
     if sinceData >= DATA_TICK then
         sinceData = 0
         if not InCombat() then
+            Explore.Retarget(DATA_TICK)
             local now = Signature()
             if now ~= signature then
                 signature = now
@@ -1497,6 +1828,7 @@ local AVAILABLE = {
     farms = function() return type(GoldGuideData) == "table" end,
     dungeons = function() return type(DungeonsData) == "table" end,
     camps = function() return type(LevelGuideQuestFacts) == "table" end,
+    explore = function() return C_MapExplorationInfo ~= nil end,
 }
 
 local function ShowPage(arg)
@@ -1526,7 +1858,7 @@ local function ShowPage(arg)
             targets[1] = FindLayer(what)
         end
         if not targets[1] then
-            Print("I don't know a layer called '" .. what .. "'. Try: guide, givers, places, deaths, rares, farms, dungeons, camps, all.")
+            Print("I don't know a layer called '" .. what .. "'. Try: guide, givers, places, deaths, rares, farms, dungeons, camps, explore, all.")
         else
             for _, layer in ipairs(targets) do
                 db.layers[layer.key] = verb == "on"
@@ -1567,6 +1899,11 @@ local function ShowPage(arg)
         Print(string.format("|cffffd100%s:|r %s", layer.label, state))
     end
     Print("|cffffd100Minimap:|r " .. (db.minimap and "on" or "|cff999999off|r"))
+    local explored = here and MapPins_Exploration(here)
+    if explored and explored.label then
+        Print(string.format("|cffffd100Exploration:|r %s of %s%s", explored.label, hereName or "this zone",
+            explored.x and string.format(" |cff999999(nearest unexplored spot %.1f, %.1f)|r", explored.x * 100, explored.y * 100) or ""))
+    end
 end
 
 SLASH_MAPPINS1 = "/mappins"
@@ -1579,6 +1916,8 @@ for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED"
     "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP", "PLAYER_REGEN_ENABLED", "MINIMAP_UPDATE_ZOOM", "QUEST_LOG_UPDATE" }) do
     events:RegisterEvent(event)
 end
+-- Round 5 #11: a newly discovered area. Documented in MapExplorationDocumentation (not a CallbackEvent).
+pcall(events.RegisterEvent, events, "MAP_EXPLORATION_UPDATED")
 events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         MapPinsDB = type(MapPinsDB) == "table" and MapPinsDB or {}
@@ -1587,6 +1926,8 @@ events:SetScript("OnEvent", function(_, event)
         if db.minimap == nil then
             db.minimap = true
         end
+        -- Exploration targets set aside per zone (bounded: MAX_WALKED_ZONES zones, MAX_WALKED cells each).
+        db.walked = type(db.walked) == "table" and db.walked or {}
         MarkDirty()
         return
     end
@@ -1599,6 +1940,14 @@ events:SetScript("OnEvent", function(_, event)
         if LayerOn("camps") then
             lastState = nil
             MarkDirty()
+        end
+        return
+    end
+    if event == "MAP_EXPLORATION_UPDATED" then
+        -- Sample your zone again (a few cells a tick); the pin and the info line follow when it's done.
+        local here = PlayerMap()
+        if here then
+            Explore.Request(here)
         end
         return
     end

@@ -107,6 +107,7 @@ local EXPIRY_WARN = 3 * DAY
 local LOGIN_WARN_DELAY = 8       -- seconds after login, so the hub window is ready for the pop-up
 local MAX_MONEY_MAIL = 50        -- mails with money kept per character (for the warning only)
 local EXPIRING_COMMAND = "expiring"
+local BAGS_COMMAND = "bags"         -- round 5 #18: opens the bag view
 -- Places in the order searches and tooltips list them, with their labels.
 local PLACES = { "bags", "keys", "bank", "gear", "mail" }
 local PLACE_LABEL = { bags = "bags", keys = "keyring", bank = "bank", gear = "worn", mail = "mail" }
@@ -682,13 +683,424 @@ local function OnTooltip(tooltip)
     end
 end
 
+-- Bag view ----------------------------------------------------------------------------------------------
+-- Round 5 #18 (research\re_round5.md): a Bagnon-style icon grid of any character's bags, keyring, bank, worn
+-- items and mail, from what ItemFinder saved (Bagnon/Baganator: ideas only, no code; Bagnon has no licence).
+-- The saved data holds counts by item ID, not bag slots, so each kind of item is one icon with its total count,
+-- a quality-coloured border, sorted by quality and then name. The search box dims what doesn't match.
+-- Read-only: an icon shows a tooltip while the mouse is over it; clicking does nothing. Our own window, made
+-- the first time it's opened; nothing of Blizzard's is changed.
+local GRID_COLUMNS, GRID_ICON, GRID_GAP, GRID_PAD = 10, 32, 4, 14
+local GRID_VIEW_HEIGHT = 360
+local GRID_MAX_ICONS = 600          -- icons drawn at most (one per kind of item; far more than a bank holds)
+local GRID_TITLE = { bags = "Bags", keys = "Keyring", bank = "Bank", gear = "Worn, and bags in use", mail = "In the mail" }
+local GRID_EMPTY = {
+    bags = "Empty.", keys = "Empty.", gear = "Nothing saved yet.",
+    bank = "Not seen yet: open this character's bank once.",
+    mail = "Nothing saved: mail is read when you open this character's mailbox.",
+}
+local Grid = { icons = {}, headers = {}, keys = {}, index = 1, filter = "" }
+
+-- Characters with saved items: this one first, then by name.
+function Grid.Characters()
+    local keys = {}
+    for key, record in pairs(ItemFinderDB or {}) do
+        if type(record) == "table" and (type(record.items) == "table" or type(record.bags) == "table") then
+            keys[#keys + 1] = key
+        end
+    end
+    table.sort(keys, function(a, b)
+        if (a == myKey) ~= (b == myKey) then
+            return a == myKey
+        end
+        local na, nb = DisplayName(a, ItemFinderDB[a]), DisplayName(b, ItemFinderDB[b])
+        if na ~= nb then
+            return na < nb
+        end
+        return tostring(a) < tostring(b)
+    end)
+    Grid.keys = keys
+    return keys
+end
+
+-- Icon, quality and name of an item ID, from the game's item cache (nil parts while it's still loading).
+function Grid.Look(id, names)
+    local item = C_Item or {}
+    local icon = Call(item.GetItemIconByID, id) or Call(GetItemIcon, id)
+    local quality = Call(item.GetItemQualityByID, id)
+    local name = type(names) == "table" and names[id] or nil
+    if type(name) ~= "string" then
+        name = Call(item.GetItemNameByID, id)
+    end
+    return icon, type(quality) == "number" and quality or nil, type(name) == "string" and name or nil
+end
+
+-- Sections for one record: { { place, items = { {id, count, name, quality, icon} }, total, legacy } }.
+function Grid.Sections(record)
+    local sections = {}
+    local items = type(record.items) == "table" and record.items or {}
+    for _, place in ipairs(PLACES) do
+        local section = { place = place, items = {}, total = 0, legacy = 0 }
+        for id, count in pairs(type(items[place]) == "table" and items[place] or {}) do
+            if type(id) == "number" and type(count) == "number" and count > 0 then
+                local icon, quality, name = Grid.Look(id, record.names)
+                section.items[#section.items + 1] = { id = id, count = count, icon = icon, quality = quality,
+                    name = name or ("item " .. id) }
+                section.total = section.total + count
+            end
+        end
+        -- Old name-keyed entries have no item ID, so no icon: counted in the header until that place is read again.
+        local legacy = LEGACY[place] and record[LEGACY[place]]
+        for _, count in pairs(type(legacy) == "table" and legacy or {}) do
+            if type(count) == "number" then
+                section.legacy = section.legacy + 1
+            end
+        end
+        table.sort(section.items, function(a, b)
+            local qa, qb = a.quality or 1, b.quality or 1
+            if qa ~= qb then
+                return qa > qb
+            elseif a.name ~= b.name then
+                return a.name < b.name
+            end
+            return a.id < b.id
+        end)
+        sections[#sections + 1] = section
+    end
+    return sections
+end
+
+function Grid.Matches(entry)
+    local needle = Grid.filter
+    if needle == "" then
+        return true
+    end
+    local wantID = IDOf(needle) or tonumber(needle:match("^#?(%d+)$"))
+    if wantID then
+        return entry.id == wantID
+    end
+    return entry.name:lower():find(needle:lower(), 1, true) ~= nil
+end
+
+function Grid.Tooltip()
+    if not Grid.tip then
+        Grid.tip = CreateFrame("GameTooltip", "ItemFinderTooltip", UIParent, "GameTooltipTemplate")
+    end
+    return Grid.tip
+end
+
+function Grid.OnEnter(icon)
+    local entry = icon.entry
+    if not entry then
+        return
+    end
+    local tip = Grid.Tooltip()
+    tip:SetOwner(icon, "ANCHOR_RIGHT")
+    local shown = type(tip.SetItemByID) == "function" and pcall(tip.SetItemByID, tip, entry.id)
+    if not shown then
+        tip:AddLine(entry.name, 1, 1, 1)
+    end
+    tip:AddLine(string.format("%s: %d (%s)", Grid.who or "?", entry.count, GRID_TITLE[icon.place] or icon.place), 0.6, 0.8, 1)
+    tip:Show()
+end
+
+function Grid.OnLeave()
+    if Grid.tip then
+        Grid.tip:Hide()
+    end
+end
+
+-- Pooled icon number index (made on first use; at most GRID_MAX_ICONS).
+function Grid.Icon(index)
+    local icon = Grid.icons[index]
+    if icon or index > GRID_MAX_ICONS then
+        return icon
+    end
+    icon = CreateFrame("Frame", nil, Grid.content)
+    icon:SetSize(GRID_ICON, GRID_ICON)
+    icon:EnableMouse(true)
+    icon.Border = icon:CreateTexture(nil, "BACKGROUND")
+    icon.Border:SetAllPoints(icon)
+    icon.Texture = icon:CreateTexture(nil, "ARTWORK")
+    icon.Texture:SetPoint("TOPLEFT", icon, "TOPLEFT", 2, -2)
+    icon.Texture:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -2, 2)
+    icon.Texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    icon.Count = icon:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+    icon.Count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -2, 2)
+    -- Hover only: no OnClick, no OnMouseDown, nothing a click could do.
+    icon:SetScript("OnEnter", Grid.OnEnter)
+    icon:SetScript("OnLeave", Grid.OnLeave)
+    Grid.icons[index] = icon
+    return icon
+end
+
+function Grid.Header(index)
+    local header = Grid.headers[index]
+    if not header then
+        header = Grid.content:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        header:SetJustifyH("LEFT")
+        Grid.headers[index] = header
+    end
+    return header
+end
+
+function Grid.BorderColour(quality)
+    if type(quality) == "number" and quality >= 2 then
+        local r, g, b = Call(C_Item and C_Item.GetItemQualityColor, quality)
+        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+            return r, g, b
+        end
+        return 0.8, 0.8, 0.8
+    elseif quality == 0 then
+        return 0.45, 0.45, 0.45
+    end
+    return 0.2, 0.2, 0.2
+end
+
+function Grid.ApplyFilter()
+    for _, icon in ipairs(Grid.icons) do
+        if icon.entry then
+            local match = Grid.Matches(icon.entry)
+            icon:SetAlpha(match and 1 or 0.25)
+            if icon.Texture.SetDesaturated then
+                icon.Texture:SetDesaturated(not match)
+            end
+        end
+    end
+end
+
+function Grid.SetScroll(value)
+    local maximum = math.max(0, (Grid.height or 0) - GRID_VIEW_HEIGHT)
+    Grid.scrolled = math.max(0, math.min(value, maximum))
+    Grid.scroll:SetVerticalScroll(Grid.scrolled)
+end
+
+function Grid.Ago(stamp)
+    if type(stamp) ~= "number" then
+        return nil
+    end
+    local seconds = math.max(0, time() - stamp)
+    if seconds < 3600 then
+        return "saved within the hour"
+    elseif seconds < DAY then
+        return string.format("saved %d h ago", math.floor(seconds / 3600))
+    end
+    return string.format("saved %d day%s ago", math.floor(seconds / DAY), seconds < 2 * DAY and "" or "s")
+end
+
+-- Lays out the shown character's grid. Runs on open and when the data changes, never every frame.
+function Grid.Refresh()
+    Grid.pending = false
+    if not (Grid.frame and Grid.frame:IsShown()) then
+        return
+    end
+    local keys = Grid.Characters()
+    if Grid.wantKey then
+        for index, key in ipairs(keys) do
+            if key == Grid.wantKey then
+                Grid.index = index
+            end
+        end
+        Grid.wantKey = nil
+    end
+    Grid.index = math.max(1, math.min(Grid.index, #keys))
+    local key = keys[Grid.index]
+    local record = key and ItemFinderDB[key]
+    Grid.who = key and DisplayName(key, record) or nil
+    local own = key == myKey and " |cff999999(this character)|r" or ""
+    Grid.title:SetText(Grid.who and (Grid.who .. own) or "No characters saved yet")
+    Grid.count:SetText(#keys > 0 and string.format("%d of %d", Grid.index, #keys) or "")
+    local used, headersUsed, y = 0, 0, 0
+    local step = GRID_ICON + GRID_GAP
+    for _, section in ipairs(type(record) == "table" and Grid.Sections(record) or {}) do
+        headersUsed = headersUsed + 1
+        local header = Grid.Header(headersUsed)
+        local text = GRID_TITLE[section.place] or section.place
+        if #section.items > 0 then
+            text = string.format("%s |cff999999(%d kind%s, %d item%s)|r", text, #section.items,
+                #section.items == 1 and "" or "s", section.total, section.total == 1 and "" or "s")
+        else
+            text = text .. " |cff999999- " .. GRID_EMPTY[section.place] .. "|r"
+        end
+        if section.legacy > 0 then
+            text = text .. string.format(" |cff999999(+%d saved by an older version without icons)|r", section.legacy)
+        end
+        header:SetText(text)
+        header:ClearAllPoints()
+        header:SetPoint("TOPLEFT", Grid.content, "TOPLEFT", 0, -y)
+        header:Show()
+        y = y + 18
+        for position, entry in ipairs(section.items) do
+            local icon = Grid.Icon(used + 1)
+            if not icon then
+                break
+            end
+            used = used + 1
+            icon.entry, icon.place = entry, section.place
+            local column, row = (position - 1) % GRID_COLUMNS, math.floor((position - 1) / GRID_COLUMNS)
+            icon:ClearAllPoints()
+            icon:SetPoint("TOPLEFT", Grid.content, "TOPLEFT", column * step, -(y + row * step))
+            icon.Texture:SetTexture(entry.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            icon.Border:SetColorTexture(Grid.BorderColour(entry.quality))
+            local count = entry.count
+            icon.Count:SetText(count >= 10000 and (math.floor(count / 1000) .. "k") or (count > 1 and tostring(count) or ""))
+            icon:Show()
+        end
+        if #section.items > 0 then
+            y = y + math.ceil(#section.items / GRID_COLUMNS) * step
+        end
+        y = y + 8
+    end
+    for index = used + 1, #Grid.icons do
+        local icon = Grid.icons[index]
+        icon.entry = nil
+        icon:Hide()
+    end
+    for index = headersUsed + 1, #Grid.headers do
+        Grid.headers[index]:Hide()
+    end
+    Grid.height = y
+    Grid.content:SetHeight(math.max(y, 1))
+    local ago = type(record) == "table" and Grid.Ago(record.scanTime)
+    Grid.status:SetText("|cff999999Read-only, " .. (ago and (ago .. "; ") or "")
+        .. "bank and mail as of the last visit. One icon per kind of item.|r")
+    Grid.ApplyFilter()
+    Grid.SetScroll(Grid.scrolled or 0)
+end
+
+-- Data changed: lay out again soon (several bag events come together).
+function Grid.Changed()
+    if Grid.frame and Grid.frame:IsShown() and not Grid.pending then
+        Grid.pending = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.3, Grid.Refresh)
+        else
+            Grid.Refresh()
+        end
+    end
+end
+
+function Grid.Build()
+    if Grid.frame then
+        return Grid.frame
+    end
+    local width = GRID_COLUMNS * (GRID_ICON + GRID_GAP) - GRID_GAP + 2 * GRID_PAD + 16
+    local f = CreateFrame("Frame", "ItemFinderBagView", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    f:SetSize(width, GRID_VIEW_HEIGHT + 120)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    f:SetFrameStrata("DIALOG")
+    f:SetClampedToScreen(true)
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    f:SetScript("OnHide", Grid.OnLeave)
+    if f.SetBackdrop then
+        f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+    end
+    local heading = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    heading:SetPoint("TOPLEFT", f, "TOPLEFT", GRID_PAD, -10)
+    heading:SetText("|cffffd100Find an item:|r bags and bank")
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+    close:SetScript("OnClick", function() f:Hide() end)
+    -- Character: previous / next.
+    local previous = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    previous:SetSize(24, 22)
+    previous:SetPoint("TOPLEFT", f, "TOPLEFT", GRID_PAD, -28)
+    previous:SetText("<")
+    previous:SetScript("OnClick", function()
+        Grid.index, Grid.scrolled = Grid.index - 1 < 1 and #Grid.keys or Grid.index - 1, 0
+        Grid.Refresh()
+    end)
+    local nextButton = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    nextButton:SetSize(24, 22)
+    nextButton:SetPoint("LEFT", previous, "RIGHT", 4, 0)
+    nextButton:SetText(">")
+    nextButton:SetScript("OnClick", function()
+        Grid.index, Grid.scrolled = Grid.index + 1 > #Grid.keys and 1 or Grid.index + 1, 0
+        Grid.Refresh()
+    end)
+    Grid.previous, Grid.nextButton = previous, nextButton
+    Grid.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    Grid.title:SetPoint("LEFT", nextButton, "RIGHT", 8, 0)
+    Grid.count = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    Grid.count:SetPoint("TOPRIGHT", f, "TOPRIGHT", -GRID_PAD - 20, -34)
+    -- Search: dims what doesn't match (part of a name, an item ID or "#ID").
+    local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+    search:SetSize(width - 2 * GRID_PAD - 60, 20)
+    search:SetPoint("TOPLEFT", f, "TOPLEFT", GRID_PAD + 52, -56)
+    search:SetAutoFocus(false)
+    search:SetScript("OnTextChanged", function(self)
+        local text = Safe(self:GetText())
+        Grid.filter = type(text) == "string" and text:match("^%s*(.-)%s*$") or ""
+        Grid.ApplyFilter()
+    end)
+    search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    search:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    Grid.search = search
+    local searchLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    searchLabel:SetPoint("RIGHT", search, "LEFT", -8, 0)
+    searchLabel:SetText("Search")
+    -- The grid scrolls with the mouse wheel.
+    local scroll = CreateFrame("ScrollFrame", nil, f)
+    scroll:SetPoint("TOPLEFT", f, "TOPLEFT", GRID_PAD, -84)
+    scroll:SetSize(width - 2 * GRID_PAD, GRID_VIEW_HEIGHT)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(_, delta)
+        Grid.SetScroll((Grid.scrolled or 0) - (tonumber(delta) or 0) * (GRID_ICON + GRID_GAP) * 2)
+    end)
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(width - 2 * GRID_PAD, 1)
+    scroll:SetScrollChild(content)
+    Grid.scroll, Grid.content = scroll, content
+    Grid.status = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    Grid.status:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", GRID_PAD, 12)
+    Grid.status:SetWidth(width - 2 * GRID_PAD)
+    Grid.status:SetJustifyH("LEFT")
+    f:Hide()
+    Grid.frame = f
+    return f
+end
+
+-- Opens the bag view (on a character whose name starts with `who`, when given), or closes it when it's open
+-- and nobody is named. For the hub's buttons and "/find bags [name]".
+function ItemFinder_ShowBags(who)
+    if not charData then
+        return false
+    end
+    local frame = Grid.Build()
+    if type(who) == "string" and who ~= "" then
+        local wanted = who:lower()
+        for _, key in ipairs(Grid.Characters()) do
+            if DisplayName(key, ItemFinderDB[key]):lower():sub(1, #wanted) == wanted then
+                Grid.wantKey = key
+                break
+            end
+        end
+    elseif frame:IsShown() then
+        frame:Hide()
+        return true
+    else
+        Grid.wantKey = myKey
+    end
+    Grid.scrolled = 0
+    frame:Show()
+    Grid.Refresh()
+    return true
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("BAG_UPDATE_DELAYED")
 events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 -- Listed as unverified on Forever, so a missing event must not stop the addon.
 for _, name in ipairs({ "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "PLAYERBANKSLOTS_CHANGED", "MAIL_SHOW", "MAIL_CLOSED",
-    "MAIL_INBOX_UPDATE", "MAIL_SEND_INFO_UPDATE", "MAIL_LOCK_SEND_ITEMS", "MAIL_SEND_SUCCESS", "MAIL_FAILED" }) do
+    "MAIL_INBOX_UPDATE", "MAIL_SEND_INFO_UPDATE", "MAIL_LOCK_SEND_ITEMS", "MAIL_SEND_SUCCESS", "MAIL_FAILED",
+    "GET_ITEM_INFO_RECEIVED" }) do
     pcall(events.RegisterEvent, events, name)
 end
 events:SetScript("OnEvent", function(_, event, arg1, arg2)
@@ -787,6 +1199,8 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
     elseif event == "MAIL_SEND_SUCCESS" then
         CommitSend()
     end
+    -- The bag view, when open, follows the saved data and items the game has just loaded (icons, quality).
+    Grid.Changed()
 end)
 
 SLASH_ITEMFINDER1 = "/find"
@@ -796,13 +1210,15 @@ SlashCmdList.ITEMFINDER = function(message)
         return
     end
     if term == "" then
-        Print("Use /find <part of an item name, an item ID, or a shift-clicked item>. Bank items appear after you've opened that character's bank, mail after you've opened its mailbox. Type " .. EXPIRING_COMMAND .. " to see when each character's mail runs out.")
+        Print("Use /find <part of an item name, an item ID, or a shift-clicked item>. Bank items appear after you've opened that character's bank, mail after you've opened its mailbox. Type " .. EXPIRING_COMMAND .. " to see when each character's mail runs out, or " .. BAGS_COMMAND .. " (optionally with a character's name) for a picture of their bags and bank.")
         local warning = ExpiryWarning()
         if warning then
             Print(warning)
         end
     elseif term:lower() == EXPIRING_COMMAND then
         ShowExpiring()
+    elseif term:lower() == BAGS_COMMAND or term:lower():match("^" .. BAGS_COMMAND .. "%s") then
+        ItemFinder_ShowBags(term:match("^%S+%s+(.+)$"))
     else
         Search(term)
     end
