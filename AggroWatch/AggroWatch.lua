@@ -134,10 +134,27 @@ local function InteractYards(index, yards)
     return race or yards
 end
 
--- true / false, or nil when this check can't answer (item not cached, refused, secret).
+-- Full review: the range reads below are restricted on hostile units in combat, so each one is guarded here
+-- directly, not only by the scan's check (AggroWatch_Measure is a global anyone can call). Strict: only an
+-- InCombatLockdown() that answers exactly false, with you not flagged in combat, lets a range read through.
+local function RangeAllowed()
+    if fighting or not InCombatLockdown then
+        return false
+    end
+    local ok, locked = pcall(InCombatLockdown)
+    if not ok or Safe(locked) ~= false then
+        return false
+    end
+    if UnitAffectingCombat and Read(UnitAffectingCombat, "player") ~= false then
+        return false
+    end
+    return true
+end
+
+-- true / false, or nil when this check can't answer (item not cached, refused, secret, or in combat).
 local function InRange(unit, check)
     if check[2] then
-        if not CheckInteractDistance then
+        if not CheckInteractDistance or not RangeAllowed() then
             return nil
         end
         local result = Read(CheckInteractDistance, unit, check[2])
@@ -151,6 +168,9 @@ local function InRange(unit, check)
     end
     local items = check[3]
     for i = 1, #items do
+        if not RangeAllowed() then
+            return nil
+        end
         local result = Read(C_Item.IsItemInRange, items[i], unit)
         if type(result) == "boolean" then
             return result
