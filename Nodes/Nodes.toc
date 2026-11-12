@@ -1,7 +1,8 @@
 ## Interface: 16001
-## OptionalDeps: ForeverHub
+## OptionalDeps: ForeverHub, MapPins
 ## Title: Nodes
-## Notes: Herb, ore and fishing spots you have gathered, on your own map overlay. Only gives information.
-## Version: 0.0.1
+## Notes: Herb, ore and fishing spots you have gathered, on your own map overlay (drawn by MapPins). Only gives information.
+## Version: 0.1.0
+## SavedVariables: NodesDB
 
 Nodes.lua

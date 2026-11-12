@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## OptionalDeps: ForeverHub, LevelGuide, Landmarks, DeathNotes, RareWatch, GoldGuide, Dungeons, ZoneLevels
 ## Title: MapPins
-## Notes: Shows pins on your world map and minimap for guide stops, remembered places, deaths, rares, gold farms, dungeon entrances, quest givers, (optional) objective camps and the nearest spot you haven't explored, with how much of the zone you have explored. Click one to set a map pin, or type /way 45.2 58.5. Only gives information.
-## Version: 0.2.0
+## Notes: Shows pins on your world map and minimap for guide stops, remembered places, deaths, rares, gold farms, dungeon entrances, quest givers, (optional) objective camps, the nearest spot you haven't explored, your own notes (+ Note on the world map) and other helpers' layers, with how much of the zone you have explored. Click one to set a map pin, or type /way 45.2 58.5. Only gives information.
+## Version: 0.3.0
 ## SavedVariables: MapPinsDB
 
 MapPins.lua

@@ -211,7 +211,7 @@ local WORLD_SIZE, MINIMAP_SIZE = 16, 12
 -- heights, with x weighted 1.5 because maps are about that much wider than tall. Higher-ranked pins are
 -- placed first and drawn on top; the kept pin's tooltip names what it covers.
 local SPACING, OVERLAP, X_WEIGHT = 0.018, 0.009, 1.5
-local RANK = { guide = 1, turnin = 2, accept = 3, rares = 4, deaths = 5, dungeons = 6, places = 7, farms = 8, camps = 9, explore = 9 }
+local RANK = { guide = 1, turnin = 2, accept = 3, notes = 3, rares = 4, deaths = 5, dungeons = 6, places = 7, farms = 8, camps = 9, explore = 9 }
 -- Minimap fade (after Questie's minimap fade, idea only): full alpha out to FADE_FROM of the view
 -- radius, then down to FADE_MIN at the rim; half alpha for a pin sitting on you.
 local FADE_FROM, FADE_MIN, ON_YOU_YARDS = 0.6, 0.35, 10
@@ -254,6 +254,9 @@ local LAYERS = {
     { key = "camps", label = "Objective camps", helper = "LevelGuide", defaultOff = true },
     -- Round 5 #11: the nearest spot of your zone you haven't explored (MapPins' own exploration sampling).
     { key = "explore", label = "Unexplored spot", helper = "MapPins" },
+    -- Round 6 #17: your own notes, added with the "+ Note" button on the world map.
+    { key = "notes", label = "Your notes", helper = "MapPins" },
+    -- Layers other helpers add with MapPins_RegisterLayer (Nodes' herbs, ore, fishing) are appended here.
 }
 local LAYER = {}
 for _, layer in ipairs(LAYERS) do
@@ -281,6 +284,7 @@ local ICONS = {
     dungeons = { atlas = "Dungeon", file = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull" },
     camps = { file = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_3", size = 12 },
     explore = { file = "Interface\\Icons\\INV_Misc_Spyglass_02", size = 14 },
+    notes = { file = "Interface\\Icons\\INV_Misc_Note_01", size = 14 },
 }
 
 local PLACE_LABEL = {
@@ -956,11 +960,140 @@ function MapPins_Exploration(mapID)
     }
 end
 
+---------------------------------------------------------------------------- your notes
+
+-- Round 6 #17 (research\re_round6.md): your own notes on the map, HandyNotes' idea with our own code. Added with
+-- the "+ Note" button on our world map overlay (at your position, or coordinates you type) or "note <text>" on the
+-- Map pins page; listed and deleted in the "Notes" panel on the map. Kept in MapPinsDB.notes (account-wide),
+-- bounded: MAX notes, TEXT letters each. No click-catcher over Blizzard's map: nothing of the map is touched.
+local Notes = { MAX = 200, TEXT = 60, version = 0, ROWS = 8, page = 1, view = {} }
+
+function Notes.List()
+    return db and type(db.notes) == "table" and db.notes or nil
+end
+
+-- Note text: one line, no escape codes, at most TEXT letters; nil when nothing is left.
+function Notes.Clean(text)
+    text = Safe(text)
+    if type(text) ~= "string" then
+        return nil
+    end
+    text = text:gsub("[\r\n\t]", " "):gsub("|", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if text == "" then
+        return nil
+    end
+    return text:sub(1, Notes.TEXT)
+end
+
+-- Adds a note. Returns true, or false and why (said on the dialog or the page).
+function Notes.Add(mapID, x, y, text)
+    local list = Notes.List()
+    text = Notes.Clean(text)
+    if not list then
+        return false, "Notes aren't loaded yet."
+    elseif not text then
+        return false, "Type a short text for the note."
+    elseif type(mapID) ~= "number" then
+        return false, "No map to put it on."
+    elseif type(x) ~= "number" or type(y) ~= "number" or x < 0 or x > 1 or y < 0 or y > 1 then
+        return false, "Coordinates go from 0 to 100."
+    elseif #list >= Notes.MAX then
+        return false, string.format("You have %d notes, the most kept; delete one first.", Notes.MAX)
+    end
+    list[#list + 1] = { mapID = mapID, x = x, y = y, text = text, at = time and Safe(time()) or 0 }
+    Notes.Changed()
+    return true
+end
+
+function Notes.Delete(index)
+    local list = Notes.List()
+    if not (list and type(index) == "number" and list[index]) then
+        return false
+    end
+    table.remove(list, index)
+    Notes.Changed()
+    return true
+end
+
+-- Saved notes as read at login: anything malformed is dropped, the rest bounded.
+function Notes.Load()
+    local kept = {}
+    for _, note in ipairs(type(db.notes) == "table" and db.notes or {}) do
+        if type(note) == "table" and type(note.mapID) == "number" and Fraction(note.x) and Fraction(note.y)
+            and Notes.Clean(note.text) and #kept < Notes.MAX then
+            note.text = Notes.Clean(note.text)
+            kept[#kept + 1] = note
+        end
+    end
+    db.notes = kept
+end
+
+function Notes.Where(note)
+    return string.format("%s %.1f, %.1f", MapName(note.mapID) or "Map " .. tostring(note.mapID), note.x * 100, note.y * 100)
+end
+
+local function YourNotes(list)
+    for _, note in ipairs(Notes.List() or {}) do
+        Add(list, "notes", {
+            mapID = note.mapID, x = note.x, y = note.y, icon = ICONS.notes, title = note.text,
+            lines = { "Your note", Notes.Where(note), "Delete it in the Notes panel on the world map." },
+        })
+    end
+end
+
+---------------------------------------------------------------------------- layers from other helpers
+
+-- MapPins_RegisterLayer(def): another helper (Nodes) adds a layer of pins drawn on our own overlay.
+--   def.key, def.label: unique layer key and name; def.helper: its hub name (Off on the hub hides the layer).
+--   def.records(add): calls add(record) for each pin; record = { mapID, x, y (0-1), title, lines = {...}, icon }.
+--     MapPins sets record.layer and caches record.world on it; the helper may hand the same table every time.
+--   def.stamp(): a number or string that changes whenever its pins change (looked at once a second).
+--   def.wanted() / def.setWanted(on): the layer's on/off switch, kept by the helper.
+--   def.icon (default icon), def.rank (draw order; higher is under), def.available() (optional).
+-- Returns true when added. Never touches Blizzard's map; the pins are our own frames like every other layer.
+local external = {}
+function MapPins_RegisterLayer(def)
+    if type(def) ~= "table" or type(def.key) ~= "string" or LAYER[def.key] or type(def.records) ~= "function"
+        or type(def.label) ~= "string" or type(def.helper) ~= "string" then
+        return false
+    end
+    local layer = { key = def.key, label = def.label, helper = def.helper, external = def }
+    LAYERS[#LAYERS + 1] = layer
+    LAYER[def.key] = layer
+    RANK[def.key] = tonumber(def.rank) or 10
+    external[#external + 1] = def
+    dirty = true
+    return true
+end
+
+local function NoStamp()
+    return "-"
+end
+
+local function ExternalSource(key, list)
+    local def = LAYER[key].external
+    def.records(function(record)
+        if type(record) == "table" and type(record.mapID) == "number" and Fraction(record.x) and Fraction(record.y) then
+            record.icon = record.icon or def.icon
+            record.title = Text(record.title) or def.label
+            Add(list, key, record)
+        end
+    end)
+end
+
 local SOURCES = { guide = GuideStops, givers = Givers, places = Places, deaths = Deaths, rares = Rares, farms = Farms,
-    dungeons = Dungeons, camps = Camps, explore = Unexplored }
+    dungeons = Dungeons, camps = Camps, explore = Unexplored, notes = YourNotes }
 
 -- Whether you want a layer: most are on unless switched off; some are off unless switched on.
 local function LayerWanted(key)
+    local def = LAYER[key].external
+    if def then
+        if type(def.wanted) ~= "function" then
+            return true
+        end
+        local ok, wanted = pcall(def.wanted)
+        return ok and wanted and true or false
+    end
     local saved = db and db.layers[key]
     if LAYER[key].defaultOff then
         return saved == true
@@ -981,7 +1114,12 @@ local function Rebuild()
     for _, layer in ipairs(LAYERS) do
         local before = #list
         if LayerOn(layer.key) then
-            local ok = pcall(SOURCES[layer.key], list)
+            local ok
+            if layer.external then
+                ok = pcall(ExternalSource, layer.key, list)
+            else
+                ok = pcall(SOURCES[layer.key], list)
+            end
             if not ok then
                 for index = #list, before + 1, -1 do
                     list[index] = nil
@@ -1022,6 +1160,13 @@ local function Signature()
     end
     -- The nearest unexplored spot moved.
     parts[#parts + 1] = Explore.key or "-"
+    -- Your notes, and the other helpers' layers (their own change stamp, and whether you want them).
+    parts[#parts + 1] = Notes.version
+    for _, def in ipairs(external) do
+        local ok, stamp = pcall(def.stamp or NoStamp)
+        parts[#parts + 1] = ok and tostring(stamp) or "-"
+        parts[#parts + 1] = LayerWanted(def.key) and "o" or "x"
+    end
     if type(LevelGuide_QuestGivers) == "function" then
         local ok, _, key = pcall(LevelGuide_QuestGivers)
         parts[#parts + 1] = ok and tostring(key) or "-"
@@ -1217,6 +1362,10 @@ end
 local function HideWorld()
     if overlay:IsShown() then
         overlay:Hide()
+        -- The map closed (or MapPins is Off): the note dialog and panel close with it.
+        if Notes.HideUI then
+            Notes.HideUI()
+        end
     end
     worldGeometry = nil
 end
@@ -1301,6 +1450,10 @@ local function AssignWorld(mapID)
         pin.record, pin.mapID, pin.covered = nil, nil, nil
     end
     worldUsed = used
+    -- The notes bar above the pins; the open panel follows the map shown (not every frame: only here).
+    if Notes.Placed then
+        Notes.Placed(mapID)
+    end
 end
 
 -- Move our pins to where their map points are on screen; hide the ones outside the visible map.
@@ -1312,6 +1465,9 @@ local function LayoutWorld(map)
     if not (cl and sl and type(own) == "number" and own > 0) then
         for index = 1, worldUsed do
             worldPins[index]:Hide()
+        end
+        if Notes.bar then
+            Notes.bar:Hide()
         end
         worldGeometry = nil
         return
@@ -1329,6 +1485,12 @@ local function LayoutWorld(map)
     g[1], g[2], g[3], g[4], g[5], g[6], g[7], g[8], g[9] = r1, r2, r3, r4, r5, r6, r7, r8, r9
     worldGeometry = true
     local right, bottom = sl + sw, st - sh
+    -- The notes bar sits in the visible map's bottom-right corner (the info line has the bottom-left).
+    if Notes.bar then
+        Notes.bar:ClearAllPoints()
+        Notes.bar:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMLEFT", (right - 8 * own) / own, (bottom + 8 * own) / own)
+        Notes.bar:Show()
+    end
     for index = 1, worldUsed do
         local pin = worldPins[index]
         local record = pin.record
@@ -1811,6 +1973,306 @@ driver:SetScript("OnUpdate", function(_, elapsed)
     UpdateMinimap(force)
 end)
 
+-- For other helpers (Nodes) when their pins changed or they were switched on or off: rebuilt and drawn now.
+function MapPins_Refresh()
+    if not db then
+        return
+    end
+    Rebuild()
+    worldStale, lastState = true, nil
+    UpdateWorld()
+    UpdateMinimap(true)
+end
+
+---------------------------------------------------------------------------- your notes: the map's buttons
+
+-- A "+ Note" and a "Notes" button in the bottom-right corner of the visible world map, a small dialog to type a
+-- note, and a panel listing this map's notes with Delete buttons. All our own frames, children of our overlay
+-- (so they show only with the map and with MapPins on), made when the file loads; no OnUpdate of their own.
+-- (Test stand-ins lack some frame methods; Try skips a method a frame doesn't have.)
+local function Try(object, method, ...)
+    local fn = type(object) == "table" and object[method]
+    if type(fn) == "function" then
+        return fn(object, ...)
+    end
+end
+
+do
+    local BACKDROP = {
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    }
+    local function Label(parent, template, text)
+        local fs = Try(parent, "CreateFontString", nil, "OVERLAY", template or "GameFontHighlightSmall")
+        Try(fs, "SetJustifyH", "LEFT")
+        Try(fs, "SetText", text or "")
+        return fs
+    end
+    local function Button(parent, text, width, onClick)
+        local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+        button:SetSize(width, 20)
+        Try(button, "SetText", text)
+        button:SetScript("OnClick", onClick)
+        return button
+    end
+    local function Box(parent, width, letters)
+        local box = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
+        box:SetSize(width, 20)
+        Try(box, "SetBackdrop", BACKDROP)
+        Try(box, "SetBackdropColor", 0, 0, 0, 0.9)
+        if GameFontHighlightSmall then
+            Try(box, "SetFontObject", GameFontHighlightSmall)
+        end
+        Try(box, "SetTextInsets", 6, 6, 0, 0)
+        Try(box, "SetAutoFocus", false)
+        Try(box, "SetMaxLetters", letters)
+        box:SetScript("OnEscapePressed", function() Notes.CloseDialog() end)
+        return box
+    end
+    local function Panel(parent, width, height)
+        local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+        frame:SetSize(width, height)
+        Try(frame, "SetBackdrop", BACKDROP)
+        Try(frame, "SetBackdropColor", 0.04, 0.04, 0.07, 0.95)
+        Try(frame, "EnableMouse", true)
+        frame:Hide()
+        return frame
+    end
+
+    Notes.bar = CreateFrame("Frame", nil, overlay)
+    Notes.bar:SetSize(150, 20)
+    Notes.bar:Hide()
+    Notes.addButton = Button(Notes.bar, "+ Note", 66, function() Notes.OpenDialog() end)
+    Notes.addButton:SetPoint("BOTTOMLEFT", Notes.bar, "BOTTOMLEFT", 0, 0)
+    Notes.listButton = Button(Notes.bar, "Notes", 80, function() Notes.TogglePanel() end)
+    Notes.listButton:SetPoint("BOTTOMRIGHT", Notes.bar, "BOTTOMRIGHT", 0, 0)
+
+    -- The dialog: the text, then where (prefilled with your position on the map shown).
+    local dialog = Panel(Notes.bar, 260, 124)
+    Notes.dialog = dialog
+    dialog:SetPoint("BOTTOMRIGHT", Notes.bar, "TOPRIGHT", 0, 4)
+    local title = Label(dialog, "GameFontNormal", "Add a note to this map")
+    Try(title, "SetPoint", "TOPLEFT", dialog, "TOPLEFT", 10, -8)
+    Notes.textBox = Box(dialog, 240, Notes.TEXT)
+    Notes.textBox:SetPoint("TOPLEFT", dialog, "TOPLEFT", 10, -26)
+    Notes.textBox:SetScript("OnEnterPressed", function() Notes.Save() end)
+    local xLabel = Label(dialog, nil, "Across")
+    Try(xLabel, "SetPoint", "TOPLEFT", dialog, "TOPLEFT", 10, -56)
+    Notes.xBox = Box(dialog, 50, 5)
+    Notes.xBox:SetPoint("TOPLEFT", dialog, "TOPLEFT", 52, -52)
+    Notes.xBox:SetScript("OnEnterPressed", function() Notes.Save() end)
+    local yLabel = Label(dialog, nil, "Down")
+    Try(yLabel, "SetPoint", "TOPLEFT", dialog, "TOPLEFT", 112, -56)
+    Notes.yBox = Box(dialog, 50, 5)
+    Notes.yBox:SetPoint("TOPLEFT", dialog, "TOPLEFT", 148, -52)
+    Notes.yBox:SetScript("OnEnterPressed", function() Notes.Save() end)
+    Notes.hint = Label(dialog, nil, "")
+    Try(Notes.hint, "SetPoint", "TOPLEFT", dialog, "TOPLEFT", 10, -78)
+    Try(Notes.hint, "SetWidth", 240)
+    local save = Button(dialog, "Save", 70, function() Notes.Save() end)
+    save:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -84, 8)
+    local cancel = Button(dialog, "Cancel", 70, function() Notes.CloseDialog() end)
+    cancel:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -10, 8)
+
+    -- The panel: this map's notes, ROWS a page; click a note for a map pin, Delete to remove it.
+    local panel = Panel(Notes.bar, 300, 56 + Notes.ROWS * 20)
+    Notes.panel = panel
+    panel:SetPoint("BOTTOMRIGHT", Notes.bar, "TOPRIGHT", 0, 4)
+    Notes.title = Label(panel, "GameFontNormal", "")
+    Try(Notes.title, "SetPoint", "TOPLEFT", panel, "TOPLEFT", 10, -8)
+    Notes.empty = Label(panel, nil, "No notes on this map yet. Use + Note to add one.")
+    Try(Notes.empty, "SetPoint", "TOPLEFT", panel, "TOPLEFT", 10, -30)
+    Notes.rows = {}
+    for index = 1, Notes.ROWS do
+        local row = CreateFrame("Button", nil, panel)
+        row:SetSize(216, 18)
+        row:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -28 - (index - 1) * 20)
+        row.Text = Label(row, nil, "")
+        Try(row.Text, "SetAllPoints", row)
+        row:SetScript("OnClick", function(self) Notes.Pin(self.index) end)
+        row.delete = Button(panel, "Delete", 60, function() Notes.DeleteRow(index) end)
+        row.delete:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -10, -27 - (index - 1) * 20)
+        row:Hide()
+        row.delete:Hide()
+        Notes.rows[index] = row
+    end
+    Notes.prev = Button(panel, "<", 30, function() Notes.page = Notes.page - 1; Notes.Fill() end)
+    Notes.prev:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 10, 8)
+    Notes.next = Button(panel, ">", 30, function() Notes.page = Notes.page + 1; Notes.Fill() end)
+    Notes.next:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 44, 8)
+    Notes.pageText = Label(panel, nil, "")
+    Try(Notes.pageText, "SetPoint", "BOTTOMLEFT", panel, "BOTTOMLEFT", 82, 12)
+    local close = Button(panel, "Close", 60, function() panel:Hide() end)
+    close:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -10, 8)
+end
+
+-- Notes on the map shown, by their place in the saved list (Notes.view is reused).
+function Notes.Collect(mapID)
+    local view = Notes.view
+    for index = #view, 1, -1 do
+        view[index] = nil
+    end
+    for index, note in ipairs(Notes.List() or {}) do
+        if note.mapID == mapID then
+            view[#view + 1] = index
+        end
+    end
+    return view
+end
+
+function Notes.Fill()
+    local view = Notes.Collect(Notes.mapID)
+    local pages = math.max(1, math.ceil(#view / Notes.ROWS))
+    Notes.page = math.min(math.max(Notes.page or 1, 1), pages)
+    Try(Notes.title, "SetText", string.format("Your notes on %s (%d)", MapName(Notes.mapID) or "this map", #view))
+    local list = Notes.List() or {}
+    for row = 1, Notes.ROWS do
+        local frame = Notes.rows[row]
+        local index = view[(Notes.page - 1) * Notes.ROWS + row]
+        local note = index and list[index]
+        frame.index = index
+        if note then
+            Try(frame.Text, "SetText", string.format("%s  |cff999999%.1f, %.1f|r", note.text, note.x * 100, note.y * 100))
+            frame:Show()
+            frame.delete:Show()
+        else
+            frame:Hide()
+            frame.delete:Hide()
+        end
+    end
+    if #view == 0 then Try(Notes.empty, "Show") else Try(Notes.empty, "Hide") end
+    if pages > 1 then
+        Notes.prev:Show()
+        Notes.next:Show()
+        Try(Notes.pageText, "SetText", string.format("%d / %d", Notes.page, pages))
+    else
+        Notes.prev:Hide()
+        Notes.next:Hide()
+        Try(Notes.pageText, "SetText", "")
+    end
+end
+
+-- The "Notes" button counts this map's notes.
+function Notes.Count()
+    Try(Notes.listButton, "SetText", string.format("Notes (%d)", #Notes.Collect(Notes.mapID)))
+end
+
+-- Called when the world map's pins are picked again (another map, new data, a new frame level).
+function Notes.Placed(mapID)
+    local changed = mapID ~= Notes.mapID
+    Notes.mapID = mapID
+    local level = (overlayLevel or 1) + #LAYERS + 14
+    Try(Notes.bar, "SetFrameLevel", level)
+    Try(Notes.dialog, "SetFrameLevel", level + 2)
+    Try(Notes.panel, "SetFrameLevel", level + 2)
+    if changed then
+        Notes.page = 1
+        Notes.CloseDialog()
+    end
+    Notes.Count()
+    if Notes.panel:IsShown() then
+        Notes.Fill()
+    end
+end
+
+function Notes.OpenDialog()
+    if not (db and Notes.mapID) then
+        return
+    end
+    Notes.panel:Hide()
+    local x, y
+    if C_Map and C_Map.GetPlayerMapPosition then
+        local ok, position = pcall(C_Map.GetPlayerMapPosition, Notes.mapID, "player")
+        if ok and type(position) == "table" and position.GetXY then
+            x, y = position:GetXY()
+            x, y = Fraction(x), Fraction(y)
+        end
+    end
+    if x and y and (x > 0 or y > 0) then
+        Try(Notes.xBox, "SetText", string.format("%.1f", x * 100))
+        Try(Notes.yBox, "SetText", string.format("%.1f", y * 100))
+        Try(Notes.hint, "SetText", "At your position. Change the numbers to put it elsewhere.")
+    else
+        Try(Notes.xBox, "SetText", "")
+        Try(Notes.yBox, "SetText", "")
+        Try(Notes.hint, "SetText", "Type where it goes: 0-100 across, 0-100 down.")
+    end
+    Try(Notes.textBox, "SetText", "")
+    Notes.dialog:Show()
+    Try(Notes.textBox, "SetFocus")
+end
+
+function Notes.CloseDialog()
+    Try(Notes.textBox, "ClearFocus")
+    Try(Notes.xBox, "ClearFocus")
+    Try(Notes.yBox, "ClearFocus")
+    if Notes.dialog:IsShown() then
+        Notes.dialog:Hide()
+    end
+end
+
+local function Number(text)
+    text = Safe(text)
+    return type(text) == "string" and tonumber((text:gsub(",", "."))) or nil
+end
+
+function Notes.Save()
+    local x, y = Number(Try(Notes.xBox, "GetText")), Number(Try(Notes.yBox, "GetText"))
+    local ok, why = Notes.Add(Notes.mapID, x and x / 100, y and y / 100, Try(Notes.textBox, "GetText"))
+    if ok then
+        Notes.CloseDialog()
+    else
+        Try(Notes.hint, "SetText", "|cffff6060" .. why .. "|r")
+    end
+end
+
+function Notes.TogglePanel()
+    if Notes.panel:IsShown() then
+        Notes.panel:Hide()
+        return
+    end
+    Notes.CloseDialog()
+    Notes.Fill()
+    Notes.panel:Show()
+end
+
+function Notes.DeleteRow(row)
+    local frame = Notes.rows[row]
+    if frame and frame.index then
+        Notes.Delete(frame.index)
+    end
+end
+
+-- A click on a note in the panel sets the game's own map pin there, like a click on a pin.
+function Notes.Pin(index)
+    local note = index and (Notes.List() or {})[index]
+    if note then
+        ForeverWaypoint_Set(note.mapID, note.x, note.y, note.text)
+    end
+end
+
+function Notes.HideUI()
+    Notes.CloseDialog()
+    Notes.panel:Hide()
+end
+
+-- A note was added or deleted: pins, the panel and the count follow at once.
+function Notes.Changed()
+    Notes.version = Notes.version + 1
+    if Notes.panel:IsShown() then
+        Notes.Fill()
+    end
+    Notes.Count()
+    MapPins_Refresh()
+end
+
+-- Switched Off on the hub: the note dialog and panel close, and every pin goes now (not on the next tick).
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.MapPins = function()
+    Notes.HideUI()
+    MapPins_Refresh()
+end
+
 ---------------------------------------------------------------------------- page
 
 local function FindLayer(word)
@@ -1833,17 +2295,87 @@ local AVAILABLE = {
     dungeons = function() return type(DungeonsData) == "table" end,
     camps = function() return type(LevelGuideQuestFacts) == "table" end,
     explore = function() return C_MapExplorationInfo ~= nil end,
+    notes = function() return true end,
 }
+
+-- Whether a layer has a source to show (other helpers' layers say so themselves).
+local function Available(layer)
+    local def = layer.external
+    if def then
+        if type(def.available) ~= "function" then
+            return true
+        end
+        local ok, yes = pcall(def.available)
+        return ok and yes and true or false
+    end
+    return AVAILABLE[layer.key]()
+end
+
+-- Switches a layer: ours are saved here, other helpers' through their own switch.
+local function SetLayer(layer, on)
+    local def = layer.external
+    if def then
+        if type(def.setWanted) == "function" then
+            pcall(def.setWanted, on)
+        end
+    else
+        db.layers[layer.key] = on
+    end
+end
+
+-- The notes view of the page: every note, numbered for "delete note <n>".
+local function NotesPage()
+    local list = Notes.List() or {}
+    Print(string.format("|cffffd100Your notes|r (%d of %d) |cff999999(add one with + Note on the world map, or type: note <text>)|r",
+        #list, Notes.MAX))
+    if #list == 0 then
+        Print("|cff999999None yet. Open the world map and click + Note in its bottom-right corner.|r")
+    end
+    for index, note in ipairs(list) do
+        Print(string.format("%d. %s  |cff999999%s|r", index, note.text, Notes.Where(note)))
+    end
+    if #list > 0 then
+        Print("|cff999999Delete one in the Notes panel on the world map, or type: delete note 2|r")
+    end
+end
 
 local function ShowPage(arg)
     if not db then
         return
+    end
+    -- "note <text>": a note at your position, with the text as typed (the rest of the page reads lowercase words).
+    local noteText = type(arg) == "string" and arg:match("^%s*[Nn][Oo][Tt][Ee]%s+(.+)$")
+    if noteText then
+        local mapID = PlayerMap()
+        local x, y
+        local position = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
+        if type(position) == "table" and position.GetXY then
+            x, y = position:GetXY()
+            x, y = Fraction(x), Fraction(y)
+        end
+        if not (x and y and (x > 0 or y > 0)) then
+            Print("Your position can't be read here (an instance?). Add the note from the world map instead.")
+        else
+            local ok, why = Notes.Add(mapID, x, y, noteText)
+            Print(ok and "Note added at your position." or why)
+        end
+        return NotesPage()
     end
     local words = {}
     for word in (arg or ""):lower():gmatch("%S+") do
         words[#words + 1] = word
     end
     local verb, what = words[1], table.concat(words, " ", 2)
+    if verb == "notes" and what == "" then
+        return NotesPage()
+    end
+    local deleteAt = (verb == "delete" or verb == "forget") and tonumber(what:match("^notes? (%d+)$") or "")
+    if deleteAt then
+        local note = (Notes.List() or {})[deleteAt]
+        local text = note and note.text
+        Print(Notes.Delete(deleteAt) and ("Deleted note " .. deleteAt .. ": " .. text) or ("There's no note " .. deleteAt .. "."))
+        return NotesPage()
+    end
     if verb == "minimap" and (what == "on" or what == "off") then
         db.minimap = what == "on"
         lastState = nil
@@ -1862,10 +2394,14 @@ local function ShowPage(arg)
             targets[1] = FindLayer(what)
         end
         if not targets[1] then
-            Print("I don't know a layer called '" .. what .. "'. Try: guide, givers, places, deaths, rares, farms, dungeons, camps, explore, all.")
+            local keys = {}
+            for _, layer in ipairs(LAYERS) do
+                keys[#keys + 1] = layer.key
+            end
+            Print("I don't know a layer called '" .. what .. "'. Try: " .. table.concat(keys, ", ") .. ", all.")
         else
             for _, layer in ipairs(targets) do
-                db.layers[layer.key] = verb == "on"
+                SetLayer(layer, verb == "on")
             end
             Rebuild()
             lastState = nil
@@ -1888,7 +2424,7 @@ local function ShowPage(arg)
             state = "|cff999999off|r"
         elseif IsOff(layer.helper) then
             state = "|cff999999on, but " .. layer.helper .. " is switched off|r"
-        elseif not AVAILABLE[layer.key]() then
+        elseif not Available(layer) then
             state = "on |cff999999(" .. layer.helper .. " has nothing to show yet)|r"
         else
             local local_ = 0
@@ -1932,6 +2468,8 @@ events:SetScript("OnEvent", function(_, event)
         end
         -- Exploration targets set aside per zone (bounded: MAX_WALKED_ZONES zones, MAX_WALKED cells each).
         db.walked = type(db.walked) == "table" and db.walked or {}
+        -- Your notes (bounded: Notes.MAX notes of Notes.TEXT letters).
+        Notes.Load()
         MarkDirty()
         return
     end
