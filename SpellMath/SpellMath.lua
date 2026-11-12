@@ -637,12 +637,17 @@ events:SetScript("OnEvent", function(_, event, arg)
         local id = Safe(arg)
         if id and waitingSpells[id] then
             waitingSpells[id] = nil
-            loadRetries = 0
-            Schedule(1)
+            -- Counted with the retries (not reset): a spell whose text stays empty while this event keeps
+            -- coming back would otherwise be re-read every few seconds for good.
+            if loadRetries < LOAD_RETRY_LIMIT then
+                loadRetries = loadRetries + 1
+                Schedule(1)
+            end
         end
     elseif InCombat() then
         dirty = true
     else
+        loadRetries = 0 -- something really changed (new spell, level, gear): loading may be retried again
         Schedule(2)
     end
 end)

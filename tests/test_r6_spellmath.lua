@@ -92,7 +92,7 @@ C_Spell = {
     GetSpellDescription = function(id) reads = reads + 1; return SPELLS[id] and SPELLS[id][3] end,
     GetSpellInfo = function(id) return SPELLS[id] and { name = SPELLS[id][1], castTime = SPELLS[id][5], spellID = id } end,
     GetSpellPowerCost = function(id) return SPELLS[id] and { { type = 0, name = "MANA", cost = SPELLS[id][4] } } end,
-    RequestLoadSpellData = function(id) loadsAsked[id] = true end,
+    RequestLoadSpellData = function(id) loadsAsked[id] = (loadsAsked[id] or 0) + 1 end,
 }
 
 -- TrainerNotes' Forever spell list: the lower ranks (Lesser Heal 2050 and Smite 585 are only named as
@@ -190,6 +190,27 @@ flush()
 page()
 need("Rank 2: 28.0 damage, 30 mana, 2.00 s cast.", "Smite rank 2 once its text arrives")
 need("Smite|r (damage)", "Smite listed")
+
+-- Full review: a spell whose text stays empty while the load event keeps coming back is asked for a few
+-- times, not forever (each load result used to reset the retry count, so it re-read every few seconds).
+local mindBlastText = SPELLS[8092][3]
+SPELLS[8092][3] = ""
+fire("SPELLS_CHANGED")
+now = now + 10
+flush()
+for _ = 1, 20 do
+    fire("SPELL_DATA_LOAD_RESULT", 8092, true)
+    now = now + 10
+    flush()
+end
+-- The first read plus 3 retries, however many load results come back (20 here).
+check((loadsAsked[8092] or 0) <= 4, "an always-empty spell is asked for at most 4 times: " .. tostring(loadsAsked[8092]))
+SPELLS[8092][3] = mindBlastText
+fire("SPELLS_CHANGED")
+now = now + 10
+flush()
+page()
+need("Mind Blast|r (damage)", "the spell shows again once its text is there")
 
 ------------------------------------------------------------------------------------------------ tooltip
 local lines = tip({ id = 2050 })
