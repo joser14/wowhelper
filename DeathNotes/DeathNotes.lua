@@ -1,6 +1,7 @@
 -- DeathNotes: remembers where you died, what killed you and at what level, and warns you when you
 -- walk back into one of those spots while it can still hurt. Read-only: it listens for your death,
--- takes your hostile target as the killer (the combat log is closed to addons), and reads your map position.
+-- takes the killer and last hits from the game's death recap (C_DeathRecap), or your hostile target when
+-- the recap is empty (the combat log is closed to addons), and reads your map position.
 
 -- Shared Forever waypoint (the same copy is in every helper that pins places; whichever loads first
 -- defines it, so all helpers share one remembered pin). Sets the game's own map pin and tracks it,
@@ -405,6 +406,225 @@ local function Killer()
     return nil
 end
 
+--------------------------------------------------------------------------------------------------
+-- The game's own death recap (C_DeathRecap): the real killer and the last hits, when the client
+-- gives them. It has no event of its own in this client's API docs, so it is read a moment after
+-- PLAYER_DEAD (1 s and 3 s later) and again when the Deaths page opens shortly after a death.
+-- Every field goes through Safe(): a secret value is treated as missing, never compared or joined.
+-- Without the API, or with an empty recap, the target-based guess above stays. Idea after
+-- Memories' Record/Deaths.lua (GPL-3.0-or-later); no code or hooks taken.
+--------------------------------------------------------------------------------------------------
+local RECAP_HITS = 5               -- last hits kept per death
+local RECAP_TEXT = 40              -- longest name kept from the recap
+local RECAP_RETRIES = { 1, 3 }     -- seconds after PLAYER_DEAD
+local RECAP_PAGE_SECONDS = 300     -- the page still asks for the recap this long after a death
+local SWING_SPELL_ID = 88163       -- DeathRecapConsts.SWING_DAMAGE_SPELL_ID
+local ENVIRONMENT = {
+    FALLING = "Falling", DROWNING = "Drowning", FATIGUE = "Fatigue", FIRE = "Fire", LAVA = "Lava", SLIME = "Slime",
+}
+
+local pendingDeath, pendingAt      -- the latest death still waiting for its recap (not saved)
+
+local function RecapText(value)
+    value = Safe(value)
+    if type(value) ~= "string" or value == "" then
+        return nil
+    end
+    return value:sub(1, RECAP_TEXT)
+end
+
+local function RecapNumber(value)
+    value = Safe(value)
+    return type(value) == "number" and value or nil
+end
+
+-- One recap entry as plain values: who, what, how much, when. nil when nothing is readable.
+local function RecapHit(entry, index)
+    if type(entry) ~= "table" then
+        return nil
+    end
+    local env = RecapText(entry.environmentalType)
+    if env then
+        env = ENVIRONMENT[env:upper()] or env
+    end
+    local spellID = RecapNumber(entry.spellId)
+    local spell = RecapText(entry.spellName)
+    if not spell and (spellID == SWING_SPELL_ID or RecapText(entry.event) == "SWING_DAMAGE") then
+        spell = "Melee"
+    end
+    local amount = RecapNumber(entry.amount)
+    local hit = {
+        source = RecapText(entry.sourceName), spell = spell, env = env,
+        amount = amount and amount >= 0 and math.floor(amount) or nil,
+        t = RecapNumber(entry.timestamp), index = index,
+    }
+    if not (hit.source or hit.spell or hit.env or hit.amount) then
+        return nil
+    end
+    return hit
+end
+
+-- The recap's hits, newest first (by timestamp; without one, the game's order, killing blow first).
+local function ReadRecap()
+    if not (C_DeathRecap and type(C_DeathRecap.GetRecapEvents) == "function") then
+        return nil
+    end
+    if type(C_DeathRecap.HasRecapEvents) == "function" then
+        local ok, has = pcall(C_DeathRecap.HasRecapEvents)
+        if ok and Safe(has) == false then
+            return nil
+        end
+    end
+    local ok, list = pcall(C_DeathRecap.GetRecapEvents)
+    list = ok and Safe(list) or nil
+    if type(list) ~= "table" then
+        return nil
+    end
+    local hits = {}
+    local readOk = pcall(function()
+        for index, entry in ipairs(list) do
+            local hit = RecapHit(entry, index)
+            if hit then
+                hits[#hits + 1] = hit
+            end
+            if index >= 50 then
+                break
+            end
+        end
+    end)
+    if not readOk or #hits == 0 then
+        return nil
+    end
+    local timed = true
+    for _, hit in ipairs(hits) do
+        if not hit.t then
+            timed = false
+        end
+    end
+    table.sort(hits, function(a, b)
+        if timed and a.t ~= b.t then
+            return a.t > b.t
+        end
+        if timed then
+            return a.index > b.index   -- same time: the later entry is the newer hit
+        end
+        return a.index < b.index
+    end)
+    return hits, timed and hits[1].t or nil
+end
+
+-- "Kobold Miner (Strike 38)", "Falling (120)", "Melee 41".
+local function HitText(hit)
+    local who = hit.env or hit.source
+    local what = hit.env and nil or hit.spell
+    local detail = what and (hit.amount and (what .. " " .. hit.amount) or what) or (hit.amount and tostring(hit.amount))
+    if who and detail then
+        return who .. " (" .. detail .. ")"
+    end
+    return who or detail or "?"
+end
+
+-- Writes the recap into a saved death. Returns true when the death got something from it.
+local function ApplyRecap(death)
+    if not (db and death) then
+        return false
+    end
+    local hits, stamp = ReadRecap()
+    if not hits then
+        return false
+    end
+    -- The same recap read again (an older death's): leave this death on its guess.
+    if stamp and db.lastRecap == stamp then
+        return false
+    end
+    local last = hits[1]
+    local killer = last.env or last.source
+    if not killer then
+        for _, hit in ipairs(hits) do
+            killer = hit.env or hit.source
+            if killer then
+                break
+            end
+        end
+    end
+    local kept = {}
+    for index = math.min(#hits, RECAP_HITS), 1, -1 do   -- oldest first, the killing blow last
+        local hit = hits[index]
+        kept[#kept + 1] = { source = hit.source, spell = hit.spell, env = hit.env, amount = hit.amount }
+    end
+    db.lastRecap = stamp
+    if killer then
+        if death.killer and death.killer ~= killer then
+            death.guess = death.killer
+        end
+        death.killer = killer
+    end
+    death.blow = HitText(last)
+    death.hits = kept
+    death.recap = true
+    return true
+end
+
+local function TryRecap()
+    local death = pendingDeath
+    if not death then
+        return
+    end
+    local ok, got = pcall(ApplyRecap, death)
+    if ok and got then
+        pendingDeath, pendingAt = nil, nil
+        Print(string.format("Death recap: killed by %s%s.", death.killer or "?",
+            death.blow and death.blow ~= death.killer and (", last hit " .. death.blow) or ""))
+    end
+end
+
+local function StartRecap(death)
+    pendingDeath, pendingAt = nil, nil
+    if not (death and C_DeathRecap and type(C_DeathRecap.GetRecapEvents) == "function") then
+        return
+    end
+    pendingDeath, pendingAt = death, GetTime and GetTime() or nil
+    if C_Timer and C_Timer.After then
+        for _, seconds in ipairs(RECAP_RETRIES) do
+            C_Timer.After(seconds, TryRecap)
+        end
+    else
+        TryRecap()
+    end
+end
+
+-- The Deaths page asks again for a recent death the timers couldn't fill.
+local function RecapOnPage()
+    if not pendingDeath then
+        return
+    end
+    if pendingAt and GetTime and GetTime() - pendingAt > RECAP_PAGE_SECONDS then
+        pendingDeath, pendingAt = nil, nil
+        return
+    end
+    TryRecap()
+end
+
+-- "Last hits: Kobold Miner (Melee 38), Kobold Miner (Strike 41)" for the page, or nil.
+local function HitsLine(death)
+    if type(death.hits) ~= "table" or #death.hits == 0 then
+        return nil
+    end
+    local parts = {}
+    for index, hit in ipairs(death.hits) do
+        if index > RECAP_HITS then
+            break
+        end
+        if type(hit) == "table" then
+            parts[#parts + 1] = HitText(hit)
+        end
+    end
+    if #parts == 0 then
+        return nil
+    end
+    return "|cff999999    Last hits: " .. table.concat(parts, ", ") .. "|r"
+end
+
 local function RecordDeath()
     if not db then
         return
@@ -423,6 +643,7 @@ local function RecordDeath()
     warned[death] = true
     Print(string.format("Noted: died at level %s in %s%s.", tostring(death.level or "?"), death.where,
         death.killer and (" to " .. death.killer) or ""))
+    return death
 end
 
 local function DeathLine(index, death, spot)
@@ -465,6 +686,9 @@ local function Forget(death)
         if entry == death then
             table.remove(db.deaths, index)
             warned[entry] = nil
+            if entry == pendingDeath then
+                pendingDeath, pendingAt = nil, nil
+            end
             return true
         end
     end
@@ -476,6 +700,7 @@ local function ShowPage(arg)
         return
     end
     local want = (arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    RecapOnPage()
     local spot = Here()
     local list = Ordered()
     if want ~= "" then
@@ -487,6 +712,7 @@ local function ShowPage(arg)
             db.deaths = {}
             warned = {}
             nearNow = nil
+            pendingDeath, pendingAt = nil, nil
             Print(string.format("Forgot %d death(s).", count))
             list = {}
         elseif forgetIndex then
@@ -530,6 +756,10 @@ local function ShowPage(arg)
             break
         end
         Print(DeathLine(index, death, spot))
+        local hits = index <= 3 and HitsLine(death)
+        if hits then
+            Print(hits)
+        end
     end
     -- Who dies to what, in one line, so a pattern is easy to spot.
     local byKiller, order = {}, {}
@@ -771,7 +1001,8 @@ events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 events:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
 -- Never register COMBAT_LOG_EVENT_UNFILTERED: Forever (Midnight rules) forbids it, and even inside
 -- pcall the attempt raises ADDON_ACTION_FORBIDDEN ("blocked from an action", logged as UNKNOWN()).
--- The killer is taken from your hostile target instead (see Killer).
+-- The killer is taken from the game's death recap (C_DeathRecap, read on timers after PLAYER_DEAD;
+-- it has no event of its own here), else from your hostile target (see Killer).
 events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         DeathNotesDB = DeathNotesDB or {}
@@ -806,7 +1037,7 @@ events:SetScript("OnEvent", function(_, event)
             end)
         end
     elseif event == "PLAYER_DEAD" then
-        RecordDeath()
+        StartRecap(RecordDeath())
         lastFoe = nil
     elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
         local ok, err = pcall(CheckZoneDanger)
