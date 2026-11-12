@@ -215,6 +215,17 @@ these sources:
   a choice can't be scored" rule in ItemAdvisor and WindowBadges follows Pawn (CC BY-NC-ND); ItemFinder's
   keyring, equipped-bag and mail counts follow features of Baganator/Syndicator (all rights reserved), done
   without their SendMail hooks.
+- Round 6 (11 November 2026):
+  - Quest reward item IDs in `LevelGuide\QuestRewards.lua` (made by `tools\gen_questrewards.js`): ALL THE THINGS
+    (https://github.com/ATTWoWAddon/AllTheThings, db/Camelot), MIT License, Copyright (c) 2026 AllTheThings WoW Addon.
+  - Darkmoon Faire turn-in item IDs, counts and quest IDs in `Events\Data.lua`: Darkmoon Turn-ins, Copyright (c)
+    2026 Felipe M. (https://github.com/fmartingr/wow-addon-darkmoon-turn-ins), MIT License.
+  - AggroWatch's range-check item IDs and yards: LibRangeCheck-3.0 by the WeakAuras team, MIT License.
+  - AggroWatch's aggro-radius rule and approach: Olfato (GPL-3.0); written in our own code.
+  - Legacy: the idea of reading Legacy challenges from the achievement API with
+    C_Traits.GetTraitCurrencyForAchievement comes from Legacy Forever by cjber (GPL-3.0-or-later); no code copied.
+  - Ideas only, no code or data: Nodes follows GatherMate2's idea of remembering gathered spots (all rights
+    reserved); SpellMath's per-mana view follows Spellwise (no licence).
 
 Third-party addons studied for research (RestedXP and others) are described in our own words under
 `research\`; none of their code or guide text is included.

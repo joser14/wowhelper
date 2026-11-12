@@ -115,7 +115,8 @@ local GOLD, GRAY, GREEN, ORANGE, RED = "|cffffd100", "|cff999999", "|cff33ff33",
 
 -- Most useful first; the panel shows these in this order.
 local STATUS_ORDER = { "RareWatch", "DeathNotes", "LevelLog", "RestGuard", "ItemAdvisor", "Builds", "TalentNudge", "TrainerNotes", "SpellReady", "QuestCheck", "Dungeons",
-    "DurabilityWatch", "BagCheck", "SupplyWatch", "FoodCheck", "ProfessionCap", "ProfessionGuide", "WeaponSkillWatch", "GoldGoal", "GoldGuide" }
+    "DurabilityWatch", "BagCheck", "SupplyWatch", "FoodCheck", "ProfessionCap", "ProfessionGuide", "WeaponSkillWatch", "GoldGoal", "GoldGuide",
+    "Events", "Legacy", "SpellMath" }
 
 -- The sidebar groups, one per installed addon (see build.ps1), in the order they're shown.
 -- "core" is the addon that holds the hub itself, so it can never be turned off from here.
@@ -169,13 +170,20 @@ local HELPERS = {
     { name = "RepWatch", section = "character", about = "Reputation gained this session and how far each faction is from its next standing." },
     { name = "LevelLog", section = "character", about = "Records your play time, deaths and where your XP came from (quests or kills) for each level." },
     -- Lives in the ReadyCheck folder, but calls itself SpellReady everywhere it talks to the hub.
-    { name = "SpellReady", section = "character", about = "Checks for missing buffs and spells you could train a higher rank of." },
+    { name = "SpellReady", section = "character", about = "Checks for missing buffs (yours and your group's) and spells you could train a higher rank of." },
+    { name = "Legacy", section = "character", about = "Unfinished Legacy challenges, the points they pay and your progress." },
+    { name = "SpellMath", section = "character", about = "Heal and damage per mana and per second for each rank of your spells, and which rank is the most efficient." },
     { name = "Landmarks", section = "world", about = "Remembers vendors, inns, flight masters, mailboxes, banks and trainers you visit, finds the nearest, and learns flight times as you fly." },
     { name = "DeathNotes", section = "world", about = "Remembers where you died and warns when you walk back into that spot; warns loudly when your breath or fatigue is running out." },
     { name = "RareWatch", section = "world",
         about = "A pop-up and a sound when a rare appears on your minimap; remembers where and when each was last seen or killed, and estimates your layer." },
     { name = "MapPins", section = "world",
         about = "Draws your guide stops, quest givers (! to pick up, ? to hand in), remembered places, deaths, rares, gold farms and dungeon entrances on the world map and minimap. Click a pin to set a waypoint, or type /way 45.2 58.5." },
+    { name = "AggroWatch", section = "world", where = "a small line under your character, out of combat",
+        about = "Warns out of combat when you are about to walk into a hostile mob's aggro range." },
+    { name = "Events", section = "world", about = "Holidays and the Darkmoon Faire: where, until when, and what each turn-in needs." },
+    { name = "Nodes", section = "world", where = "the world map and minimap",
+        about = "Herb, ore and fishing spots you have gathered, on the world map and minimap." },
     { name = "ForeverHelper", section = "hub", about = "Leveling rates, a to-do list for each character, and an overview of your characters." },
     { name = "ErrorLog", section = "hub", about = "Saves Lua errors so you can read them later." },
 }
@@ -220,11 +228,16 @@ local TABS = {
     { label = "Level log", key = "LEVELLOG", helper = "LevelLog", arg = "all" },
     -- Not READYCHECK: that is Blizzard's own /readycheck command, which the hub must never wrap.
     { label = "Ready check", key = "SPELLREADY", helper = "SpellReady", hint = "Type: ignore Frostbolt   Or: unignore Frostbolt" },
+    { label = "Legacy", key = "LEGACYPOINTS", helper = "Legacy" },
+    { label = "Spell math", key = "SPELLMATH", helper = "SpellMath" },
     { label = "Places", key = "LANDMARKS", helper = "Landmarks", hint = "The buttons pin the nearest on your map. Or type: food, profession, arrows, bullets, bags, reagents" },
     { label = "Deaths", key = "DEATHNOTES", helper = "DeathNotes", hint = "Type a number to pin that death on your map. Or: forget 2   Or: forget all" },
     -- "Rares" exactly: RareWatch's side panel line opens this page by that name.
     { label = "Rares", key = "RAREWATCH", helper = "RareWatch", hint = "Type a number to pin that rare on your map. Or: forget all   watch <name or NPC ID>   unwatch <name>" },
     { label = "Map pins", key = "MAPPINS", helper = "MapPins", hint = "Type: off deaths   Or: on farms   Or: minimap off" },
+    { label = "Aggro", key = "AGGROWATCH", helper = "AggroWatch" },
+    { label = "Events", key = "EVENTS", helper = "Events" },
+    { label = "Gathering", key = "NODES", helper = "Nodes" },
     { label = "Characters", key = "FOREVERHELPER", helper = "ForeverHelper", arg = "chars", hint = "To-do: add Buy bags   Or: remove 1   Or: reset   Or: window" },
     { label = "Pop-up history", alerts = true, section = "hub", about = "Every pop-up from this session, newest first." },
     { label = "Errors", key = "ERRORLOG", helper = "ErrorLog", hint = "Type a number for details, or: clear" },
@@ -237,7 +250,16 @@ local VIEWS = {
     ["Profession guide"] = { professions = true, { label = "Overview", arg = "" }, { label = "Craft now", arg = "craft" },
         { label = "Shopping list", arg = "shopping" } },
     ["Gold goal"] = { { label = "Goal", arg = "" }, { label = "Money sources", arg = "sources" }, { label = "Auction sales", arg = "sales" } },
-    ["Gold guide"] = { { label = "Best farms", arg = "" }, { label = "All farms", arg = "all" }, { label = "Tips", arg = "tips" } },
+    ["Gold guide"] = { { label = "Best farms", arg = "" }, { label = "All farms", arg = "all" }, { label = "Tips", arg = "tips" },
+        { label = "Darkmoon", arg = "darkmoon" } },
+    ["Legacy"] = { { label = "Unfinished", arg = "" }, { label = "This zone", arg = "zone" }, { label = "Finished", arg = "done" } },
+    ["Spell math"] = { { label = "Ranks", arg = "" }, { label = "Tooltip line off", arg = "tooltip off" },
+        { label = "Tooltip line on", arg = "tooltip on" } },
+    ["Gathering"] = { { label = "This zone", arg = "" }, { label = "All zones", arg = "all" },
+        { label = "Herbs on/off", arg = "toggle herbs" }, { label = "Ore on/off", arg = "toggle ore" },
+        { label = "Fishing on/off", arg = "toggle fishing" } },
+    ["Map pins"] = { { label = "Layers", arg = "" }, { label = "My notes", arg = "notes" } },
+    ["Events"] = { { label = "Now", arg = "" }, { label = "Holidays", arg = "holidays" }, { label = "All turn-ins", arg = "turnins" } },
     ["Dungeons"] = { { label = "For your level", arg = "" }, { label = "All dungeons", arg = "all" },
         { label = "Instance log", arg = "log" }, { label = "Wish list", arg = "wish" }, { label = "Groups", arg = "groups" },
         { label = "Window", arg = "window", action = true } },
@@ -247,14 +269,16 @@ local VIEWS = {
         { label = "PvP", arg = "pvp" }, { label = "Tank", arg = "tank" }, { label = "Healer", arg = "healer" }, { label = "Damage", arg = "dps" } },
     ["Weapon skills"] = { { label = "All skills", arg = "all" }, { label = "Equipped", arg = "" } },
     ["Reputation"] = { { label = "All factions", arg = "all" }, { label = "This session", arg = "" } },
-    ["Level log"] = { { label = "Show or hide window", arg = "window", action = true } },
+    ["Level log"] = { { label = "Log", arg = "all" }, { label = "Game statistics", arg = "stats" },
+        { label = "Show or hide window", arg = "window", action = true } },
     ["Ready check"] = { { label = "Checks", arg = "" }, { label = "Ignored spells", arg = "ignored" } },
     ["Places"] = { { label = "Nearest repair", arg = "repair", action = true }, { label = "Vendor", arg = "vendor", action = true },
         { label = "Inn", arg = "inn", action = true }, { label = "Flight", arg = "flight", action = true },
         { label = "Mailbox", arg = "mail", action = true }, { label = "Bank", arg = "bank", action = true },
         { label = "Trainer", arg = "trainer", action = true } },
     ["Rares"] = { { label = "Recent", arg = "" }, { label = "All rares", arg = "all" } },
-    ["Characters"] = { { label = "Own window", arg = "window", action = true } },
+    ["Characters"] = { { label = "Characters", arg = "chars" }, { label = "Cooldowns", arg = "cooldowns" },
+        { label = "Own window", arg = "window", action = true } },
 }
 
 local PAGE_BY_KEY, PAGE_BY_LABEL = {}, {}

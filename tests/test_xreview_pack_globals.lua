@@ -22,7 +22,7 @@ local BUNDLES = {
     { "ForeverGuides", {
         { "LevelGuide", { "QuestIDs.lua", "Prereqs.lua", "QuestDB.lua", "QuestLookup.lua", "QuestRules.lua", "Routes.lua",
             "QuestXP.lua", "Travel.lua", "HostileTowns.lua", "Boats.lua", "SkyborneSpots.lua", "Planner.lua", "TravelPlan.lua",
-            "LevelGuide.lua" } },
+            "QuestRewards.lua", "Ahead.lua", "LevelGuide.lua" } },
         { "ProfessionCap", { "ProfessionCap.lua" } },
         { "ProfessionGuide", { "Data_Alchemy.lua", "Data_Blacksmithing.lua", "Data_Enchanting.lua", "Data_Engineering.lua",
             "Data_Leatherworking.lua", "Data_Tailoring.lua", "Data_Mining.lua", "Data_Herbalism.lua", "Data_Skinning.lua",
@@ -54,12 +54,17 @@ local BUNDLES = {
         { "RestGuard", { "RestGuard.lua" } },
         { "LevelLog", { "LevelLog.lua" } },
         { "RepWatch", { "RepWatch.lua" } },
-        { "ReadyCheck", { "ReadyCheck.lua" } } } },
+        { "ReadyCheck", { "ReadyCheck.lua" } },
+        { "Legacy", { "Legacy.lua" } },
+        { "SpellMath", { "SpellMath.lua" } } } },
     { "ForeverWorld", {
         { "Landmarks", { "Landmarks.lua" } },
         { "DeathNotes", { "DeathNotes.lua", "BreathWatch.lua", "LowWarn.lua" } },
         { "RareWatch", { "RareWatch.lua" } },
-        { "MapPins", { "MapPins.lua", "Way.lua" } } } },
+        { "MapPins", { "MapPins.lua", "Way.lua" } },
+        { "AggroWatch", { "AggroWatch.lua" } },
+        { "Events", { "Data.lua", "Events.lua" } },
+        { "Nodes", { "Nodes.lua" } } } },
 }
 
 local CALLBACK_EVENTS = {}
@@ -244,8 +249,8 @@ for key, folder in pairs(slashKeyOwner) do
 end
 
 -- Not a vacuous pass.
-check(moduleCount == 35, "helpers read: " .. moduleCount)
-check(fileCount == 73, "files read: " .. fileCount)
+check(moduleCount == 40, "helpers read: " .. moduleCount)
+check(fileCount == 81, "files read: " .. fileCount)
 check(writeCount >= 200, "global writes found: " .. writeCount)
 local keys = 0
 for _ in pairs(slashKeyOwner) do keys = keys + 1 end
