@@ -677,12 +677,13 @@ local function ComputeParty()
         if SafeCall(UnitExists, unit) then
             local ok, _, class = pcall(UnitClass, unit)
             class = ok and Safe(class) or nil
-            if class then
-                present[class] = true
-            end
             -- Not SafeCall: it turns false into nil, and "offline" is a false.
             local okOnline, online = pcall(UnitIsConnected, unit)
             online = okOnline and Safe(online)
+            -- Someone offline can't give their class's buff (a dead one will be back up, so still counts).
+            if class and (unit == "player" or online ~= false) then
+                present[class] = true
+            end
             local usable = unit == "player" or (online ~= false and not SafeCall(UnitIsDeadOrGhost, unit))
             if usable then
                 members[#members + 1] = { unit = unit, name = MemberName(unit), power = SafeCall(UnitPowerType, unit) }
