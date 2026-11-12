@@ -949,6 +949,135 @@ local function CraftableNow(list, reserved)
     return rows, unread
 end
 
+----- Gear you can craft that beats what you wear (research\re_round6.md #14) ------------------------------
+-- The output of every recipe you know (read from your profession windows), else of your guide steps up to
+-- your skill, judged by ItemAdvisor (ItemAdvisor_Judge: its weights for your role against what you wear).
+-- CraftUpgrades' idea (no licence) only; nothing is added to Blizzard's crafting window and nothing is crafted.
+local MAX_JUDGED = 300   -- recipe outputs judged per page view
+
+local function MatName(itemID, name)
+    if type(name) == "string" and name ~= "" then
+        return name
+    end
+    if C_Item and C_Item.GetItemInfo then
+        local ok, itemName = pcall(C_Item.GetItemInfo, itemID)
+        itemName = ok and Safe(itemName)
+        if type(itemName) == "string" and itemName ~= "" then
+            return itemName
+        end
+    end
+    return "item " .. tostring(itemID)
+end
+
+-- Rows { item, prof, reason, percent, level, missing (text or nil), guess (from the guide, not your window) },
+-- best gain first, and how many outputs were still loading.
+local function CraftUpgrades(list)
+    local judge = ItemAdvisor_Judge
+    if type(judge) ~= "function" then
+        return nil, 0
+    end
+    local haveLine, haveName = {}, {}
+    for _, profession in ipairs(list) do
+        if profession.line then
+            haveLine[profession.line] = true
+        end
+        haveName[Squash(profession.name)] = true
+    end
+    local candidates, seen, readLine, readName = {}, {}, {}, {}
+    local recipes = type(ProfessionGuideDB) == "table" and type(ProfessionGuideDB.recipes) == "table" and ProfessionGuideDB.recipes or {}
+    for _, recipe in pairs(recipes) do
+        if type(recipe) == "table" then
+            if recipe.line then
+                readLine[recipe.line] = true
+            elseif recipe.prof then
+                readName[Squash(recipe.prof)] = true
+            end
+            local known = recipe.line and haveLine[recipe.line] or (not recipe.line and recipe.prof and haveName[Squash(recipe.prof)])
+            local out = tonumber(recipe.out)
+            if known and out and not seen[out] then
+                seen[out] = true
+                local mats = {}
+                for _, mat in ipairs(type(recipe.mats) == "table" and recipe.mats or {}) do
+                    mats[#mats + 1] = { itemID = mat[1], count = mat[2] }
+                end
+                candidates[#candidates + 1] = { item = out, prof = recipe.prof, name = recipe.name, mats = mats }
+            end
+        end
+    end
+    -- Professions whose window wasn't read yet: their guide's crafts up to your skill (you may not know them all).
+    for _, profession in ipairs(list) do
+        local guide = profession.guide
+        if guide and not ((profession.line and readLine[profession.line]) or readName[Squash(profession.name)]) then
+            for _, step in ipairs(guide.steps or {}) do
+                local out = tonumber(step.itemID)
+                if out and step.craft and step.mats and #step.mats > 0 and step.from <= profession.rank and not seen[out] then
+                    seen[out] = true
+                    candidates[#candidates + 1] = { item = out, prof = guide.name, name = step.craft, mats = step.mats, guess = true }
+                end
+            end
+        end
+    end
+    local rows, pending = {}, 0
+    for index = 1, math.min(#candidates, MAX_JUDGED) do
+        local candidate = candidates[index]
+        local ok, verdict = pcall(judge, candidate.item)
+        if ok and verdict == nil then
+            pending = pending + 1
+        elseif ok and type(verdict) == "table" and verdict.upgrade then
+            local missing = {}
+            for _, mat in ipairs(candidate.mats) do
+                local item, need = tonumber(mat.itemID), tonumber(mat.count)
+                local short = item and need and need - InBags(item) or 0
+                if short > 0 then
+                    missing[#missing + 1] = string.format("%d %s", short, MatName(item, mat.name))
+                end
+            end
+            local text = candidate.name
+            if C_Item and C_Item.GetItemInfo then
+                local okInfo, _, link = pcall(C_Item.GetItemInfo, candidate.item)
+                link = okInfo and Safe(link)
+                if type(link) == "string" and link ~= "" then
+                    text = link
+                end
+            end
+            rows[#rows + 1] = { text = tostring(text), prof = candidate.prof, reason = tostring(verdict.reason or ""),
+                gain = tonumber(verdict.gain) or 0, level = tonumber(verdict.level), guess = candidate.guess,
+                missing = #missing > 0 and table.concat(missing, ", ") or nil }
+        end
+    end
+    table.sort(rows, function(a, b)
+        if (a.level == nil) ~= (b.level == nil) then
+            return a.level == nil
+        end
+        if a.gain ~= b.gain then
+            return a.gain > b.gain
+        end
+        return a.text < b.text
+    end)
+    return rows, pending
+end
+
+local function ShowCraftUpgrades(list)
+    local rows, pending = CraftUpgrades(list)
+    if not rows then
+        return
+    end
+    Print("|cffffd100Upgrades you can make|r |cff999999(judged by ItemAdvisor against what you wear)|r")
+    if #rows == 0 then
+        Print(pending > 0 and "  Reading your recipes' items... open this page again in a moment."
+            or "  Nothing you can craft beats what you wear.")
+    end
+    for index = 1, math.min(#rows, 10) do
+        local row = rows[index]
+        Print(string.format("  %s%s: %s%s%s", row.text, row.prof and (" |cff999999(" .. row.prof .. ")|r") or "", row.reason,
+            row.missing and (" |cffff9933- missing " .. row.missing .. "|r") or " |cff66dd66- mats ready|r",
+            row.guess and " |cff999999(guide recipe: if you know it)|r" or ""))
+    end
+    if #rows > 10 then
+        Print(string.format("  ...and %d more.", #rows - 10))
+    end
+end
+
 local function ShowCraftable()
     local list = ReadProfessions()
     if #list == 0 then
@@ -979,6 +1108,7 @@ local function ShowCraftable()
         Print("  |cff999999Only guide recipes are listed for " .. table.concat(names, ", ")
             .. ". Open a profession window once to list every recipe you know.|r")
     end
+    ShowCraftUpgrades(list)
     -- Materials kept for later steps, and what you hold beyond everything the guide still needs.
     local keep, spare = {}, {}
     local seenMat = {}

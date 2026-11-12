@@ -1753,6 +1753,20 @@ local function ShowScan()
     end
     Print(string.format("%d to equip, %d to sell (%s), %d to auction, %d to disenchant, %d to check, %d to keep.",
         #results.EQUIP, #results.SELL, FormatMoney(sellTotal), #results.AUCTION, #results.DISENCHANT, #results.CHECK, #results.KEEP))
+    -- Quest rewards further along LevelGuide's route that beat what you wear (re_round6 #12): don't buy
+    -- or keep a stopgap for a slot a quest fills soon.
+    if type(LevelGuide_UpgradesAhead) == "function" then
+        local ok, ahead = pcall(LevelGuide_UpgradesAhead)
+        if ok and type(ahead) == "table" and #ahead > 0 then
+            Print("|cffffd100Upgrades ahead on your leveling route|r |cff999999(quest rewards)|r")
+            for index = 1, math.min(#ahead, 10) do
+                local entry = ahead[index]
+                Print(string.format("  %s from %s (step %d)%s: %s", tostring(entry.itemText), tostring(entry.quest),
+                    tonumber(entry.step) or 0, entry.questLevel and string.format(", level %d", entry.questLevel) or "",
+                    tostring(entry.reason)))
+            end
+        end
+    end
 end
 
 local function ShowRawStats(link)
@@ -2430,6 +2444,32 @@ function ItemAdvisor_IsUpgrade(link)
     end
     local verdict, reason = Evaluate(link)
     return verdict == "EQUIP", reason
+end
+
+-- An item you don't own yet (a quest reward further along the route, something you could craft), by item
+-- ID, judged against what you wear with this character's weights (research\re_round6.md #12 and #14).
+-- Returns nil until the item has loaded (asked for here; ask again later), else
+-- { upgrade, verdict, reason, gain, percent, level }: upgrade is true for "Upgrade for ..." now and for
+-- "Upgrade at level N" (level = N then); gain and percent are the score change when the reason gives them.
+function ItemAdvisor_Judge(itemID)
+    itemID = tonumber(Safe(itemID))
+    if not charData or not itemID or itemID <= 0 then
+        return nil
+    end
+    local link = "item:" .. math.floor(itemID)
+    local verdict, reason = Evaluate(link)
+    if reason:find("loading", 1, true) or reason:find("Can't read", 1, true) then
+        return nil
+    end
+    local result = { upgrade = false, verdict = verdict, reason = reason }
+    local later = reason:match("^Upgrade at level (%d+)")
+    if verdict == "EQUIP" or later then
+        result.upgrade = true
+        result.level = tonumber(later)
+        result.gain = tonumber(reason:match("%(%+(%d+)"))
+        result.percent = tonumber(reason:match("%(%+%d+, (%d+)%%"))
+    end
+    return result
 end
 
 ForeverHubStatus = ForeverHubStatus or {}

@@ -2280,6 +2280,40 @@ function X.Project(route, byTitle, level)
     X.projection = { at = at, final = summary.at, route = route }
 end
 
+-- Upgrades ahead (research\re_round6.md #12, Ahead.lua): the route's next turn-ins from the first step shown,
+-- not skipped, for your class and not yet handed in, with their quest IDs; Ahead.lua judges their rewards.
+function X.AheadQuests(route, byTitle)
+    local A = LevelGuideAhead
+    if not (A and A.Update and route and byTitle and charData) then
+        return
+    end
+    local from
+    for _, step in ipairs(steps) do
+        if step.stepIndex and (not from or step.stepIndex < from) then
+            from = step.stepIndex
+        end
+    end
+    local quests, seen = {}, {}
+    for index = from or 1, #route.steps do
+        if #quests >= (A.MAX_QUESTS or 25) then
+            break
+        end
+        local step = route.steps[index]
+        if step.q and not step.side and step.t == "turnin" and ClassMatches(step.cls)
+            and not charData.skips[RouteKey(route, index)] and TurnedIn(step.q) < (tonumber(step.part) or 1) then
+            local id = X.QuestIDFor(step, byTitle)
+            if id and not seen[id] then
+                seen[id] = true
+                quests[#quests + 1] = { step = index, id = id, title = RealTitle(step.q), questLevel = X.QuestLevel(id) }
+            end
+        end
+    end
+    local ok, err = pcall(A.Update, quests, Now())
+    if not ok and geterrorhandler then
+        geterrorhandler()(err)
+    end
+end
+
 -- Work or a pick-up for a quest 3+ levels above where the route has you then: step.hard = its level.
 function X.MarkHard(list)
     local projection = X.projection
@@ -5083,6 +5117,24 @@ local function Render(mapID, playerX, playerY, later)
             row:Hide()
         end
     end
+    -- Upgrade ahead (X.AheadQuests, Ahead.lua): the first quest reward on the route that beats your gear.
+    local aheadRow = X.aheadRow
+    local ahead = aheadRow and not db.collapsed and LevelGuideAhead and LevelGuideAhead.First and LevelGuideAhead.First()
+    if aheadRow then
+        aheadRow.entry = ahead or nil
+        if ahead then
+            local more = #LevelGuideAhead.List() - 1
+            aheadRow.left:SetText(LevelGuideAhead.Line(ahead))
+            aheadRow.right:SetText(more > 0 and string.format("%s+%d more|r", COLOR_DIM, more) or "")
+            aheadRow:ClearAllPoints()
+            aheadRow:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, y)
+            aheadRow:SetPoint("RIGHT", frame, "RIGHT", -8, 0)
+            aheadRow:Show()
+            y = y - 16
+        else
+            aheadRow:Hide()
+        end
+    end
     local also = not db.collapsed and ChoresText(later)
     alsoText:SetShown(also and true or false)
     if also then
@@ -5849,6 +5901,7 @@ local function Rebuild()
     -- A current step on another map shows the next leg of the way there (TravelPlan.lua).
     X.ApplyTravel(steps)
     X.WhileHere(steps)
+    X.AheadQuests(activeRoute, lastByTitle)
     Render(mapID, playerX, playerY, later)
     X.RenderLost()
     X.RenderGroup()
@@ -6060,7 +6113,25 @@ local function Build()
         row:Hide()
         X.hereRows[index] = row
     end
-    alsoText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    -- "Upgrade ahead": a click opens the list of every reward upgrade on the route (Ahead.lua's window).
+    X.aheadRow = MakeStepButton(16, "GameFontHighlightSmall")
+    X.aheadRow:SetScript("OnClick", function()
+        if LevelGuideAhead and LevelGuideAhead.Toggle then
+            LevelGuideAhead.Toggle()
+        end
+    end)
+    X.aheadRow:SetScript("OnEnter", function(self)
+        if self.entry and LevelGuideAhead and LevelGuideAhead.ShowTip then
+            LevelGuideAhead.ShowTip(self, self.entry)
+        end
+    end)
+    X.aheadRow:SetScript("OnLeave", function()
+        if LevelGuideAheadTooltip then
+            LevelGuideAheadTooltip:Hide()
+        end
+    end)
+    X.aheadRow:Hide()
+    alsoText =frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     alsoText:SetJustifyH("LEFT")
     alsoText:SetWordWrap(true)
 

@@ -18,4 +18,6 @@ Boats.lua
 SkyborneSpots.lua
 Planner.lua
 TravelPlan.lua
+QuestRewards.lua
+Ahead.lua
 LevelGuide.lua
