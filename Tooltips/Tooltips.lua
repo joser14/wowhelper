@@ -117,7 +117,7 @@ local LINES = {
     { name = "giver", label = "Quest giver", default = true,
       about = "Leveling guide quests a creature starts or takes back that you haven't done yet; (ready) when you can turn it in. Not shown inside dungeons." },
     { name = "forever", label = "New in Forever", default = true,
-      about = "Tags quests that aren't among the original Classic quests (quest ID 10000 and up), on quest tooltips and on the quest giver lines." },
+      about = "Tags quests Forever added (not in Classic or later Classic releases), on quest tooltips and on the quest giver lines." },
     { name = "upgrade", label = "Upgrade", default = false,
       about = "Upgrade for you, from ItemAdvisor, when ItemAdvisor isn't already showing its own verdict." },
     { name = "id", label = "Item ID and level", default = false,
@@ -125,11 +125,10 @@ local LINES = {
     { name = "npc", label = "NPC ID", default = false,
       about = "The ID number of the creature under your mouse. Not shown inside dungeons." },
 }
--- Round 6 #19, "New in Forever": forever-db marks no quest as new, so the quest ID decides. The original
--- Classic quests all have IDs below 10000 (LevelGuide's QuestDB tops out at 9664 there); the quests Forever
--- added or took from later Classic releases start far above (65602 and up). QuestCheck and QuestTracker
--- use the same rule.
-local FOREVER_FIRST_ID = 10000
+-- Round 6 #19, "New in Forever": forever-db marks no quest as new, so the quest ID decides. forever-db's IDs
+-- 65593-84402 are later-Classic quests (Love is in the Air, Season of Discovery), nothing sits between 84403
+-- and 86573, and Forever's own quests start at 86574. QuestCheck and QuestTracker use the same rule.
+local FOREVER_FIRST_ID = 85000
 local FOREVER_TEXT, FOREVER_TAG = "New in Forever", " |cffc58cff(new in Forever)|r"
 local FOREVER_R, FOREVER_G, FOREVER_B = 0.77, 0.55, 1
 local MAX_LIST = 3
