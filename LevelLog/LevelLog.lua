@@ -1289,12 +1289,256 @@ function LevelLog_TimeLines()
     return lines
 end
 
+-- ---- Fights: a summary from the client's own damage meter (research\re_round5.md #2) ----------------------
+-- See research\fight_summary_feasibility.md. Read only out of combat, a moment after PLAYER_REGEN_ENABLED, from
+-- C_DamageMeter (SecretWhenInCombat; not protected; no CallbackEvent). Every number goes through Safe() and is
+-- dropped when secret, so nothing secret is compared or added. The meter's reset function is never called (it
+-- would clear the player's own Blizzard meter). The newest FIGHTS_CAP fights are kept per character; session totals since login.
+local CaptureFightSoon, LevelLog_FightLinesLocal
+do
+    local FIGHTS_CAP = 20
+    local CAPTURE_DELAY, RETRY_DELAY, MAX_TRIES = 1, 2, 3
+    local SESSION_CURRENT = 1
+    local function MeterType(name, fallback)
+        local enum = type(Enum) == "table" and type(Enum.DamageMeterType) == "table" and Enum.DamageMeterType[name]
+        return type(enum) == "number" and enum or fallback
+    end
+    local session = { n = 0, d = 0, h = 0, tk = 0, s = 0 }
+    local unavailable
+
+    local function Number(value)
+        value = Safe(value)
+        return type(value) == "number" and value or nil
+    end
+
+    -- The meter's newest tracked session ID, or nil.
+    local function NewestSessionID(meter)
+        if type(meter.GetAvailableCombatSessions) ~= "function" then
+            return nil
+        end
+        local ok, list = pcall(meter.GetAvailableCombatSessions)
+        list = ok and Safe(list)
+        if type(list) ~= "table" then
+            return nil
+        end
+        local newest
+        for _, entry in ipairs(list) do
+            local id = type(entry) == "table" and Number(entry.sessionID)
+            if id and (not newest or id > newest) then
+                newest = id
+            end
+        end
+        return newest
+    end
+
+    -- Your own total and per-second amount of one meter type: amount, perSecond, duration. amount is 0 when the
+    -- session is readable but has no line for you; nil when nothing could be read (secret, missing, error).
+    local function ReadMine(meter, kind, sessionID)
+        local ok, data
+        if sessionID then
+            ok, data = pcall(meter.GetCombatSessionFromID, sessionID, kind)
+        else
+            ok, data = pcall(meter.GetCombatSessionFromType, SESSION_CURRENT, kind)
+        end
+        data = ok and Safe(data)
+        if type(data) ~= "table" then
+            return nil
+        end
+        local sources = Safe(data.combatSources)
+        if type(sources) ~= "table" then
+            return nil
+        end
+        local duration = Number(data.durationSeconds)
+        for _, source in ipairs(sources) do
+            if type(source) == "table" and Safe(source.isLocalPlayer) == true then
+                local amount = Number(source.totalAmount)
+                if not amount then
+                    return nil
+                end
+                return amount, Number(source.amountPerSecond), duration
+            end
+        end
+        return 0, 0, duration
+    end
+
+    local function Fights()
+        local list = Table(levels, "fights")
+        while #list > FIGHTS_CAP do
+            table.remove(list, 1)
+        end
+        return list
+    end
+
+    -- One fight, or false when it should be tried again (still secret), or nil when there is nothing to record.
+    local function Capture()
+        local meter = C_DamageMeter
+        if not (levels and type(meter) == "table" and type(meter.GetCombatSessionFromType) == "function") then
+            return nil
+        end
+        if InCombatLockdown and Safe(InCombatLockdown()) ~= false then
+            return nil
+        end
+        if type(meter.IsDamageMeterAvailable) == "function" then
+            local ok, available, reason = pcall(meter.IsDamageMeterAvailable)
+            available = ok and Safe(available)
+            if available ~= true then
+                reason = ok and Safe(reason)
+                unavailable = type(reason) == "string" and reason ~= "" and reason or "not available"
+                return nil
+            end
+        end
+        unavailable = nil
+        local damage, dps, duration = ReadMine(meter, MeterType("DamageDone", 0))
+        local sessionID
+        if (damage == nil or (damage == 0 and not duration)) and type(meter.GetCombatSessionFromID) == "function" then
+            -- "Current" may already have moved on (empty): the newest tracked session instead.
+            local newest = NewestSessionID(meter)
+            if newest then
+                local d2, dps2, duration2 = ReadMine(meter, MeterType("DamageDone", 0), newest)
+                if d2 ~= nil then
+                    sessionID, damage, dps, duration = newest, d2, dps2, duration2
+                end
+            end
+        end
+        if damage == nil then
+            return false
+        end
+        local healing, hps = ReadMine(meter, MeterType("HealingDone", 2), sessionID)
+        local taken = ReadMine(meter, MeterType("DamageTaken", 7), sessionID)
+        if not duration and type(meter.GetSessionDurationSeconds) == "function" and not sessionID then
+            local ok, seconds = pcall(meter.GetSessionDurationSeconds, SESSION_CURRENT)
+            duration = ok and Number(seconds) or nil
+        end
+        healing, taken = healing or 0, taken or 0
+        if damage <= 0 and healing <= 0 and taken <= 0 then
+            return nil
+        end
+        duration = duration and duration > 0 and duration or nil
+        local fight = {
+            t = Now(), l = currentLevel, z = currentZone, s = duration and math.floor(duration * 10 + 0.5) / 10,
+            d = math.floor(damage + 0.5), h = math.floor(healing + 0.5), tk = math.floor(taken + 0.5),
+        }
+        fight.dps = dps and dps > 0 and math.floor(dps * 10 + 0.5) / 10 or (duration and math.floor(damage / duration * 10 + 0.5) / 10) or nil
+        fight.hps = hps and hps > 0 and math.floor(hps * 10 + 0.5) / 10 or (duration and math.floor(healing / duration * 10 + 0.5) / 10) or nil
+        -- The same fight seen twice (two REGEN_ENABLED without a new one): kept once.
+        local list = Fights()
+        local last = list[#list]
+        if type(last) == "table" and last.d == fight.d and last.h == fight.h and last.tk == fight.tk and last.s == fight.s then
+            return nil
+        end
+        list[#list + 1] = fight
+        Fights()
+        session.n, session.d, session.h, session.tk = session.n + 1, session.d + fight.d, session.h + fight.h, session.tk + fight.tk
+        session.s = session.s + (fight.s or 0)
+        RefreshWindowSoon()
+        return fight
+    end
+
+    local function Try(tries)
+        local ok, result = pcall(Capture)
+        if not ok then
+            if geterrorhandler then
+                geterrorhandler()(result)
+            end
+            return
+        end
+        if result == false and tries < MAX_TRIES and C_Timer and C_Timer.After then
+            C_Timer.After(RETRY_DELAY, function() Try(tries + 1) end)
+        end
+    end
+
+    CaptureFightSoon = function()
+        if C_Timer and C_Timer.After then
+            C_Timer.After(CAPTURE_DELAY, function() Try(1) end)
+        end
+    end
+
+    local function Short(n)
+        n = tonumber(n) or 0
+        if n >= 1000000 then
+            return string.format("%.1fM", n / 1000000)
+        elseif n >= 10000 then
+            return string.format("%.1fk", n / 1000)
+        end
+        return tostring(math.floor(n + 0.5))
+    end
+
+    local function Rate(amount, seconds)
+        if not seconds or seconds <= 0 then
+            return "?"
+        end
+        return string.format("%.1f", amount / seconds)
+    end
+
+    local function FightLine(fight)
+        local seconds = tonumber(fight.s)
+        return string.format("%s%s|r  %s dmg (%s/s), %s healed (%s/s), %s taken%s",
+            GREY, seconds and string.format("%ds", math.floor(seconds + 0.5)) or "?s",
+            Short(fight.d), fight.dps and string.format("%.1f", fight.dps) or "?",
+            Short(fight.h), fight.hps and string.format("%.1f", fight.hps) or "?", Short(fight.tk),
+            fight.z and (GREY .. "  " .. tostring(fight.z) .. "|r") or "")
+    end
+
+    LevelLog_FightLinesLocal = function()
+        if not levels then
+            return {}
+        end
+        local lines = {}
+        local list = Fights()
+        local last = list[#list]
+        lines[#lines + 1] = GOLD .. "Last fight|r"
+        if type(last) == "table" then
+            local seconds = tonumber(last.s)
+            lines[#lines + 1] = string.format("  %s, level %s%s", Clock(last.t), tostring(last.l or "?"),
+                seconds and string.format(", %d s", math.floor(seconds + 0.5)) or "")
+            lines[#lines + 1] = string.format("  Damage done: %s (%s per second)", Short(last.d), last.dps and string.format("%.1f", last.dps) or "?")
+            lines[#lines + 1] = string.format("  Healing done: %s (%s per second)", Short(last.h), last.hps and string.format("%.1f", last.hps) or "?")
+            lines[#lines + 1] = string.format("  Damage taken: %s", Short(last.tk))
+        else
+            lines[#lines + 1] = GREY .. "  No fight recorded yet. A summary appears here a moment after each fight ends.|r"
+        end
+        if unavailable then
+            lines[#lines + 1] = RED .. "  The game's damage meter isn't available: " .. unavailable .. "|r"
+        elseif not (type(C_DamageMeter) == "table") then
+            lines[#lines + 1] = GREY .. "  This client has no damage meter to read.|r"
+        end
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = GOLD .. "This session|r" .. GREY .. "  (since you logged in)|r"
+        if session.n > 0 then
+            lines[#lines + 1] = string.format("  %d fight(s), %s in combat", session.n, FormatDuration(session.s))
+            lines[#lines + 1] = string.format("  Damage done: %s (%s per second in combat)", Short(session.d), Rate(session.d, session.s))
+            lines[#lines + 1] = string.format("  Healing done: %s (%s per second in combat)", Short(session.h), Rate(session.h, session.s))
+            lines[#lines + 1] = string.format("  Damage taken: %s (%s per fight)", Short(session.tk), Short(session.tk / session.n))
+        else
+            lines[#lines + 1] = GREY .. "  No fights yet this session.|r"
+        end
+        if #list > 0 then
+            lines[#lines + 1] = " "
+            lines[#lines + 1] = GOLD .. string.format("Last %d fight(s)", #list) .. "|r" .. GREY .. "  (newest first)|r"
+            for i = #list, 1, -1 do
+                if type(list[i]) == "table" then
+                    lines[#lines + 1] = "  " .. FightLine(list[i])
+                end
+            end
+        end
+        lines[#lines + 1] = " "
+        lines[#lines + 1] = GREY .. "From the game's own damage meter, read after combat. Only your own numbers.|r"
+        return lines
+    end
+end
+
+-- The Fights card's lines (the window's Fights tab).
+function LevelLog_FightLines()
+    return LevelLog_FightLinesLocal()
+end
+
 -- ---- The window ----------------------------------------------------------------------------------------------
 local WINDOW_WIDTH, WINDOW_HEIGHT = 480, 440
 local VIEWS = {
     { key = "journey", label = "Journey" },
     { key = "stats", label = "Stats" },
     { key = "time", label = "Time and ETA" },
+    { key = "fights", label = "Fights" },
 }
 
 -- Kept in this character's record, so LevelLogDB stays one record per character.
@@ -1324,6 +1568,8 @@ RefreshWindow = function()
         lines = LevelLog_StatsLines()
     elseif window.view == "time" then
         lines = LevelLog_TimeLines()
+    elseif window.view == "fights" then
+        lines = LevelLog_FightLinesLocal()
     else
         lines = LevelLog_JourneyLines(window.byLevel)
     end
@@ -1544,6 +1790,8 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
     elseif event == "PLAYER_REGEN_ENABLED" then
         inCombat, combatEndedAt = false, GetTime()
         MarkActive()
+        -- The fight summary, read a moment later from the game's damage meter (out of combat only).
+        CaptureFightSoon()
     elseif event == "PLAYER_MONEY" then
         TrackMoney()
     elseif QUEST_WINDOW_EVENTS[event] then

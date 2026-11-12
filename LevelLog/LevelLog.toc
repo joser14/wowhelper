@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## OptionalDeps: ForeverHub
 ## Title: LevelLog
-## Notes: Records logged-in time, deaths and XP from quests and from kills for each level, per character; a dated journey, lifetime stats, where your time goes and when you will level, in its own window.
+## Notes: Records logged-in time, deaths and XP from quests and from kills for each level, per character; a dated journey, lifetime stats, where your time goes and when you will level, and a summary of your last fights from the game's damage meter, in its own window.
 ## Version: 0.2.0
 ## SavedVariables: LevelLogDB, LevelLogXPCurve
 
