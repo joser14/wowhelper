@@ -301,6 +301,9 @@ local function Safe(value)
     return value
 end
 
+-- Round 5 (instance log, wish list, Group Finder listings): filled in further down, used by the pages.
+local R5 = {}
+
 local function Print(text)
     if ForeverHub_Receive then
         return ForeverHub_Receive("Dungeons", text)
@@ -896,7 +899,7 @@ end
 local function ShortLine(index, dungeon, level)
     return string.format("%s%d.|r %s%s %s(%d-%d, %s)|r%s %s%s", GOLD, index, dungeon.name, Tags(dungeon), GRAY,
         dungeon.minLevel or 0, dungeon.maxLevel or 0, dungeon.zone or "?", GameRangeText(dungeon), CountsText(dungeon, level),
-        UpgradeText(dungeon))
+        UpgradeText(dungeon)) .. R5.WishText(dungeon)
 end
 
 local STATE_TEXT = {
@@ -959,6 +962,9 @@ local function LootLine(item, classFile, level)
     if note then
         text = text .. GRAY .. ", " .. note .. "|r"
     end
+    if itemID and R5.IsWished(itemID) then
+        text = text .. " " .. R5.STAR .. YELLOW .. "wish list|r"
+    end
     if itemID and Owned(itemID) then
         text = text .. " " .. GREEN .. "(you have it)|r"
     elseif itemID and upgradeOf[itemID] and CanJudge() then
@@ -1020,6 +1026,8 @@ local function ShowDetails(index, dungeon, level)
         for _, item in ipairs(dungeon.loot) do
             Print(LootLine(item, classFile, level))
         end
+        Print(GRAY .. "Wish list: tick items in the Dungeons window (Wish list), or type: wish " .. index
+            .. " and the item's place in this list (wish " .. index .. " 1 for the first).|r")
     end
     if dungeon.keys then
         Print(GOLD .. "Keys:|r " .. dungeon.keys)
@@ -1066,6 +1074,9 @@ local function ShowSuited(level)
         Print(GRAY .. "The quest lists here are the Alliance ones.|r")
     end
     Print(GRAY .. "Type a number or a name for details, pin 2 to mark an entrance, or all for every dungeon.|r")
+    Print(GRAY .. "Also: log (dungeon entries and your runs), wish (your wish list), groups (Group Finder listings"
+        .. " after you search), window (the Dungeons window).|r")
+    R5.CapLine()
 end
 
 local function Which(matches)
@@ -1089,6 +1100,10 @@ local function ShowPage(arg)
             return
         end
         ShowSuited(level)
+        return
+    end
+    -- Instance log, wish list, Group Finder listings, the window and their settings.
+    if R5.Page(want) then
         return
     end
     if want == "all" then
@@ -1318,6 +1333,1302 @@ local function LearnEntrance()
     lastSpot = nil
 end
 
+-- Round 5 -------------------------------------------------------------------------------------------
+-- #3 Instance log (ideas from Nova Instance Tracker and Memories; our own code): every new copy of a
+-- dungeon you enter is a run, kept account-wide in DungeonsDB.runs (last MAX_RUNS). Entries in the last
+-- hour and day are counted against a cap that is a setting (Forever's real cap is unconfirmed; Classic's
+-- 5 an hour and 30 a day are the defaults). An entry is counted until an hour (a day) after you last left
+-- that copy, the careful reading. Per run: time inside, kills that gave XP (one CHAT_MSG_COMBAT_XP_GAIN
+-- each; the text is never read), XP, gold looted (money gained while a loot window is open), deaths,
+-- notable loot that reached your bags, levels in and out.
+-- A new copy is told from a re-entry by the copy number in creature GUIDs (Creature-0-server-instance-
+-- zoneUID-npc-spawn) of your target, mouseover or nameplates, when the game lets us read them in there
+-- (in-game check: they may be hidden in instances). Until then, and when they never show: back within
+-- the re-entry window (30 minutes, a setting) is the same copy. A guess the GUIDs prove wrong is undone.
+-- #7 Wish list (ideas from AtlasLoot's favourites; no code): per character, dungeon items only, at most
+-- MAX_WISH. Dungeons_IsWished(itemID or link) answers for a later tooltip line.
+-- #12 Group Finder listings: only after you search yourself (LFG_LIST_SEARCH_RESULTS_RECEIVED), the
+-- results are matched to our dungeons by activity ID. Nothing here searches, applies or signs up, and a
+-- listing's name and comment are never read. Kept for this session only.
+do
+    local MAX_RUNS, MAX_WISH, MAX_RUN_LOOT, LOG_RUNS, WISH_ROWS = 100, 150, 12, 15, 14
+    local HOUR, DAY = 3600, 86400
+    local LOOT_GRACE, GROUPS_FRESH, MAX_RESULTS = 1.5, 600, 200
+    local DEFAULTS = { hourCap = 5, dayCap = 30, reentryMinutes = 30 }
+    local LIMITS = { hourCap = { 1, 30 }, dayCap = { 1, 200 }, reentryMinutes = { 5, 240 } }
+    -- What the round-5 code keeps between events: XP, level and money last read, the copy seen this visit,
+    -- the loot window, the Group Finder snapshot, the window.
+    local st = { lootOpen = false }
+    R5.STAR = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t"
+
+    local function Call(fn, ...)
+        if type(fn) ~= "function" then
+            return nil
+        end
+        local ok, a, b, c = pcall(fn, ...)
+        if not ok then
+            return nil
+        end
+        return Safe(a), Safe(b), Safe(c)
+    end
+
+    local function Clock()
+        return tonumber(Call(time)) or 0
+    end
+
+    local function Mono()
+        return tonumber(Call(GetTime)) or 0
+    end
+
+    local function DB()
+        DungeonsDB = type(DungeonsDB) == "table" and DungeonsDB or {}
+        local db = DungeonsDB
+        db.runs = type(db.runs) == "table" and db.runs or {}
+        db.wish = type(db.wish) == "table" and db.wish or {}
+        db.settings = type(db.settings) == "table" and db.settings or {}
+        return db
+    end
+
+    local function CharKey()
+        return type(ForeverCharacterKey) == "function" and ForeverCharacterKey() or "?"
+    end
+
+    function R5.Setting(name)
+        local value = type(DungeonsDB) == "table" and type(DungeonsDB.settings) == "table" and tonumber(DungeonsDB.settings[name])
+        local limit = LIMITS[name]
+        if not value or value < limit[1] or value > limit[2] then
+            return DEFAULTS[name]
+        end
+        return math.floor(value)
+    end
+
+    function R5.SetSetting(name, value)
+        value = tonumber(value)
+        local limit = LIMITS[name]
+        if not (limit and value) then
+            return nil
+        end
+        value = math.max(limit[1], math.min(limit[2], math.floor(value + 0.5)))
+        DB().settings[name] = value
+        return value
+    end
+
+    local function Money(copper)
+        copper = math.floor(tonumber(copper) or 0)
+        local gold, silver = math.floor(copper / 10000), math.floor(copper / 100) % 100
+        if gold > 0 then
+            return string.format("%dg %ds", gold, silver)
+        elseif silver > 0 then
+            return string.format("%ds %dc", silver, copper % 100)
+        end
+        return string.format("%dc", copper % 100)
+    end
+
+    local function Minutes(seconds)
+        local minutes = math.max(1, math.ceil((tonumber(seconds) or 0) / 60))
+        if minutes >= 60 then
+            return string.format("%dh %dm", math.floor(minutes / 60), minutes % 60)
+        end
+        return minutes .. " min"
+    end
+
+    local function When(stamp)
+        local text = type(date) == "function" and tonumber(stamp) and Call(date, "%d %b %H:%M", stamp)
+        return type(text) == "string" and text or "?"
+    end
+
+    -- Wish list and item sources ---------------------------------------------------------------------
+
+    local sourceOf
+    -- { dungeon, item row } for a dungeon item on our list, or nil.
+    function R5.Source(id)
+        if not sourceOf then
+            sourceOf = {}
+            for _, dungeon in ipairs(List()) do
+                for _, item in ipairs(dungeon.loot or {}) do
+                    if type(item[1]) == "number" and not sourceOf[item[1]] then
+                        sourceOf[item[1]] = { dungeon = dungeon, item = item }
+                    end
+                end
+            end
+        end
+        return sourceOf[tonumber(id) or 0]
+    end
+
+    -- This character's wish list (itemID -> time added), read only: nil before saved data exists.
+    local function Wishes(create)
+        if create then
+            local db = DB()
+            local key = CharKey()
+            db.wish[key] = type(db.wish[key]) == "table" and db.wish[key] or {}
+            return db.wish[key]
+        end
+        local list = type(DungeonsDB) == "table" and type(DungeonsDB.wish) == "table" and DungeonsDB.wish[CharKey()]
+        return type(list) == "table" and list or nil
+    end
+
+    function R5.IsWished(id)
+        local list = Wishes(false)
+        return list ~= nil and list[tonumber(id) or 0] ~= nil
+    end
+
+    local function WishCount()
+        local count = 0
+        for _ in pairs(Wishes(false) or {}) do
+            count = count + 1
+        end
+        return count
+    end
+
+    -- Adds or removes a dungeon item. Returns true (added), false (removed), or nil and a reason.
+    function R5.Toggle(id)
+        id = tonumber(id)
+        if not (id and R5.Source(id)) then
+            return nil, "Only items from the dungeon loot lists can go on the wish list."
+        end
+        local list = Wishes(true)
+        if list[id] then
+            list[id] = nil
+            return false
+        end
+        if WishCount() >= MAX_WISH then
+            return nil, string.format("Your wish list is full (%d items). Take something off first.", MAX_WISH)
+        end
+        list[id] = Clock()
+        return true
+    end
+
+    local function ItemName(id, link)
+        local name = Call(C_Item and C_Item.GetItemInfo, id)
+        if type(name) == "string" and name ~= "" then
+            return name
+        end
+        if type(link) == "string" and link:match("%[(.-)%]") then
+            return link:match("%[(.-)%]")
+        end
+        local source = R5.Source(id)
+        return source and source.item[2] or ("item " .. tostring(id))
+    end
+
+    local function Have(id)
+        return (tonumber(Call(C_Item and C_Item.GetItemCount, id, true)) or 0) > 0
+    end
+
+    -- " *2" after a dungeon's line when 2 of its items are on your wish list.
+    function R5.WishText(dungeon)
+        local count = 0
+        for _, item in ipairs(dungeon.loot or {}) do
+            if item[1] and R5.IsWished(item[1]) then
+                count = count + 1
+            end
+        end
+        return count > 0 and (" " .. R5.STAR .. YELLOW .. count .. "|r") or ""
+    end
+
+    -- Wished items in loot-list order: { id, item row, dungeon }.
+    local function WishedItems()
+        local items = {}
+        local list = Wishes(false)
+        if not list then
+            return items
+        end
+        for _, dungeon in ipairs(List()) do
+            for _, item in ipairs(dungeon.loot or {}) do
+                if item[1] and list[item[1]] then
+                    items[#items + 1] = { id = item[1], item = item, dungeon = dungeon }
+                end
+            end
+        end
+        return items
+    end
+
+    local function WishLine(entry)
+        local item = entry.item
+        local text = R5.STAR .. " " .. (item[2] or ItemName(entry.id))
+        if item[4] then
+            text = text .. GRAY .. " (" .. item[4] .. ")|r"
+        end
+        text = text .. " - " .. tostring(item[3] or "?") .. ", " .. entry.dungeon.name
+        if Have(entry.id) then
+            text = text .. " " .. GREEN .. "(you have it)|r"
+        end
+        return text
+    end
+
+    function R5.WishLines()
+        local lines = { GOLD .. "Your wish list|r" .. GRAY .. " (this character; dungeon items only)|r" }
+        local items = WishedItems()
+        if #items == 0 then
+            lines[#lines + 1] = "Nothing on it yet. Tick items in the Dungeons window (Wish list), or open a dungeon's page"
+                .. " and type: wish <dungeon number> <item number>."
+            return lines
+        end
+        local byDungeon = {}
+        for _, entry in ipairs(items) do
+            local name = entry.dungeon.name
+            byDungeon[name] = (byDungeon[name] or 0) + 1
+        end
+        for _, entry in ipairs(items) do
+            lines[#lines + 1] = "  " .. WishLine(entry)
+        end
+        local counts = {}
+        for _, dungeon in ipairs(List()) do
+            if byDungeon[dungeon.name] then
+                counts[#counts + 1] = string.format("%s %d", dungeon.name, byDungeon[dungeon.name])
+            end
+        end
+        lines[#lines + 1] = GRAY .. "By dungeon: " .. table.concat(counts, ", ") .. "|r"
+        return lines
+    end
+
+    -- Instance log -----------------------------------------------------------------------------------
+
+    -- In a dungeon or raid: true, its name, its map's instance ID. false outside; nil when unreadable.
+    local function Where()
+        if not IsInInstance then
+            return nil
+        end
+        local ok, inside, kind = pcall(IsInInstance)
+        if not ok then
+            return nil
+        end
+        inside, kind = Safe(inside), Safe(kind)
+        if inside ~= true or (kind ~= "party" and kind ~= "raid") then
+            return false
+        end
+        local okInfo, name, _, _, _, _, _, _, mapID = pcall(GetInstanceInfo)
+        name, mapID = okInfo and Safe(name) or nil, okInfo and Safe(mapID) or nil
+        if type(name) ~= "string" or name == "" then
+            return nil
+        end
+        return true, name, tonumber(mapID) or name
+    end
+
+    local function Snapshot()
+        st.xp, st.xpMax = tonumber(Call(UnitXP, "player")), tonumber(Call(UnitXPMax, "player"))
+        st.level = tonumber(Call(UnitLevel, "player"))
+        st.money = tonumber(Call(GetMoney))
+    end
+
+    -- The latest run of a character (in that dungeon), skipping one.
+    local function LatestRun(char, mapID, except)
+        local runs = DB().runs
+        for index = #runs, 1, -1 do
+            local run = runs[index]
+            if type(run) == "table" and run ~= except and run.char == char and (mapID == nil or run.mapID == mapID) then
+                return run
+            end
+        end
+        return nil
+    end
+
+    local function Remove(run)
+        local runs = DB().runs
+        for index = #runs, 1, -1 do
+            if runs[index] == run then
+                table.remove(runs, index)
+                return
+            end
+        end
+    end
+
+    local function NewRun(name, mapID, now)
+        local runs = DB().runs
+        local run = { char = CharKey(), who = type(ForeverCharacterName) == "function" and ForeverCharacterName() or nil,
+            name = name, mapID = mapID, start = now, seen = now, secs = 0, xp = 0, kills = 0, gold = 0, deaths = 0,
+            loot = {}, lvlIn = st.level, reentries = 0, judged = "new" }
+        runs[#runs + 1] = run
+        while #runs > MAX_RUNS do
+            table.remove(runs, 1)
+        end
+        return run
+    end
+
+    local function Open()
+        local run = st.run
+        return run and run.inSince and run or nil
+    end
+
+    -- New dungeons entered in the last hour and day (every character on this account), and the seconds
+    -- until the oldest of them stops counting.
+    function R5.Entries(now)
+        now = now or Clock()
+        local hour, day, freeHour, freeDay = 0, 0, nil, nil
+        for _, run in ipairs(DB().runs) do
+            if type(run) == "table" then
+                local last = run.inSince and now or tonumber(run.leave) or tonumber(run.seen) or tonumber(run.start) or 0
+                if now - last < HOUR then
+                    hour = hour + 1
+                    freeHour = math.min(freeHour or HOUR, last + HOUR - now)
+                end
+                if now - last < DAY then
+                    day = day + 1
+                    freeDay = math.min(freeDay or DAY, last + DAY - now)
+                end
+            end
+        end
+        return hour, day, freeHour, freeDay
+    end
+
+    -- "2 of 5 this hour, 3 of 30 today", and the warning part when near or at the cap.
+    local function CapState()
+        local hour, day, freeHour, freeDay = R5.Entries()
+        local hourCap, dayCap = R5.Setting("hourCap"), R5.Setting("dayCap")
+        local counts = string.format("%d of %d this hour, %d of %d today", hour, hourCap, day, dayCap)
+        local full = hour >= hourCap and freeHour or (day >= dayCap and freeDay) or nil
+        if full then
+            return counts, string.format("at the cap: a new dungeon may be refused for about %s", Minutes(full)), true
+        elseif hour == hourCap - 1 or day >= dayCap - 2 then
+            return counts, "one more new dungeon reaches the cap", false
+        end
+        return counts, nil, nil
+    end
+
+    function R5.WarnCap()
+        local counts, warning, full = CapState()
+        if warning then
+            Print((full and ORANGE or YELLOW) .. "Dungeon entries: " .. counts .. ": " .. warning .. ".|r")
+        end
+    end
+
+    -- One line for the dungeon list page, only when you entered something lately.
+    function R5.CapLine()
+        local hour, day = R5.Entries()
+        if day == 0 then
+            return
+        end
+        local counts, warning, full = CapState()
+        Print((full and ORANGE or GRAY) .. "Dungeon entries: " .. counts .. (warning and (": " .. warning) or "") .. ".|r")
+    end
+
+    local function Changed()
+        if st.window and st.window:IsShown() and R5.Refresh then
+            R5.Refresh()
+        end
+    end
+
+    local function Enter(name, mapID)
+        local now = Clock()
+        Snapshot()
+        local last = LatestRun(CharKey(), mapID)
+        local lastOut = last and (tonumber(last.leave) or tonumber(last.seen) or tonumber(last.start))
+        local run
+        if last and lastOut and now - lastOut <= R5.Setting("reentryMinutes") * 60 then
+            run = last
+            run.reentries = (tonumber(run.reentries) or 0) + 1
+            run.prevLeave, run.leave = run.leave, nil
+            if run.judged ~= "ids" then
+                run.judged = "time"
+            end
+        else
+            run = NewRun(name, mapID, now)
+        end
+        run.inSince, run.seen = now, now
+        st.run, st.copy, st.visitStart = run, nil, now
+        if run.reentries == 0 then
+            R5.WarnCap()
+        end
+        Changed()
+    end
+
+    local function CloseVisit(now)
+        local run = Open()
+        if run then
+            run.secs = (tonumber(run.secs) or 0) + math.max(0, now - run.inSince)
+            run.inSince, run.leave, run.seen = nil, now, now
+            run.lvlOut = tonumber(Call(UnitLevel, "player")) or run.lvlOut
+        end
+        st.run, st.copy = nil, nil
+    end
+
+    -- Runs left open by a crash or a lost logout: closed at the last time we saw you inside.
+    local function CloseStale()
+        for _, run in ipairs(DB().runs) do
+            if type(run) == "table" and run.inSince and run ~= st.run then
+                local seen = tonumber(run.seen) or tonumber(run.inSince) or 0
+                run.secs = (tonumber(run.secs) or 0) + math.max(0, seen - (tonumber(run.inSince) or seen))
+                run.inSince, run.leave = nil, seen
+            end
+        end
+    end
+
+    function R5.CheckZone()
+        st.zonePending = false
+        local inside, name, mapID = Where()
+        if inside == nil then
+            return
+        end
+        if not st.staleChecked then
+            st.staleChecked = true
+            CloseStale()
+        end
+        local run = Open()
+        if inside then
+            if run and run.mapID == mapID then
+                run.seen = Clock()
+                return
+            end
+            if run then
+                CloseVisit(Clock())
+            end
+            Enter(name, mapID)
+        elseif run then
+            CloseVisit(Clock())
+            Changed()
+        end
+    end
+
+    local function AddLoot(run, id)
+        run.loot = type(run.loot) == "table" and run.loot or {}
+        for _, have in ipairs(run.loot) do
+            if have == id then
+                return
+            end
+        end
+        if #run.loot < MAX_RUN_LOOT then
+            run.loot[#run.loot + 1] = id
+        end
+    end
+
+    local function Add(run, field, amount)
+        run[field] = (tonumber(run[field]) or 0) + amount
+    end
+
+    -- This visit's run was opened as new, but the GUIDs show the copy of your previous run: one run.
+    local function MergeInto(previous, run)
+        Remove(run)
+        for _, field in ipairs({ "xp", "kills", "gold", "deaths", "secs" }) do
+            Add(previous, field, tonumber(run[field]) or 0)
+        end
+        for _, id in ipairs(type(run.loot) == "table" and run.loot or {}) do
+            AddLoot(previous, id)
+        end
+        previous.reentries = (tonumber(previous.reentries) or 0) + 1
+        previous.prevLeave, previous.leave = previous.leave, nil
+        previous.inSince, previous.seen, previous.judged = run.inSince, run.seen, "ids"
+        st.run = previous
+    end
+
+    -- This visit was taken for a re-entry, but the GUIDs show another copy: a new run from this visit on.
+    local function Split(run, copy)
+        local fresh = NewRun(run.name, run.mapID, st.visitStart or Clock())
+        fresh.inSince, fresh.seen, fresh.copy, fresh.judged = run.inSince, run.seen, copy, "ids"
+        run.inSince = nil
+        run.leave = run.prevLeave or st.visitStart
+        run.reentries = math.max(0, (tonumber(run.reentries) or 1) - 1)
+        st.run = fresh
+        R5.WarnCap()
+    end
+
+    -- A creature's GUID seen inside: its copy number tells this copy of the dungeon from another.
+    function R5.SeeGUID(guid)
+        local run = Open()
+        guid = Safe(guid)
+        if not run or st.copy or type(guid) ~= "string" then
+            return
+        end
+        local kind, server, instance, zone = guid:match("^(%a+)%-%d+%-(%d+)%-(%d+)%-(%d+)%-%d+%-")
+        if (kind ~= "Creature" and kind ~= "Vehicle") or not zone or zone == "0" then
+            return
+        end
+        local copy = server .. "-" .. instance .. "-" .. zone
+        st.copy = copy
+        if run.copy == nil then
+            local previous = run.reentries == 0 and LatestRun(run.char, run.mapID, run)
+            if previous and previous.copy == copy and not previous.inSince then
+                MergeInto(previous, run)
+            else
+                run.copy, run.judged = copy, "ids"
+            end
+        elseif run.copy ~= copy then
+            Split(run, copy)
+        else
+            run.judged = "ids"
+        end
+        Changed()
+    end
+
+    local function XPChanged()
+        local xp, xpMax, level = tonumber(Call(UnitXP, "player")), tonumber(Call(UnitXPMax, "player")), tonumber(Call(UnitLevel, "player"))
+        if not (xp and level) then
+            return
+        end
+        local run = Open()
+        if st.xp and st.level then
+            local gained
+            if level == st.level and xp < st.xp and st.xpMax then
+                -- A level-up while UnitLevel still gives the old level: count it once, as the next level.
+                gained = st.xpMax - st.xp + xp
+                level = level + 1
+            elseif level == st.level then
+                gained = xp - st.xp
+            elseif level > st.level and st.xpMax then
+                gained = st.xpMax - st.xp + xp
+            end
+            if run and gained and gained > 0 then
+                Add(run, "xp", gained)
+                run.seen = Clock()
+            end
+        end
+        st.xp, st.xpMax, st.level = xp, xpMax or st.xpMax, math.max(level, st.level or level)
+    end
+
+    local function MoneyChanged()
+        local money = tonumber(Call(GetMoney))
+        if not money then
+            return
+        end
+        local run = Open()
+        local looting = st.lootOpen or (st.lootClosedAt and Mono() - st.lootClosedAt <= LOOT_GRACE)
+        if run and st.money and money > st.money and looting then
+            Add(run, "gold", money - st.money)
+        end
+        st.money = money
+    end
+
+    local function Count(id)
+        return tonumber(Call(C_Item and C_Item.GetItemCount, id)) or 0
+    end
+
+    -- Worth keeping in a run: a dungeon item on our lists, a wish, or anything blue or better.
+    local function Notable(id, link)
+        if R5.Source(id) or R5.IsWished(id) then
+            return true
+        end
+        local _, _, quality = Call(C_Item and C_Item.GetItemInfo, link or id)
+        return (tonumber(quality) or 0) >= 3
+    end
+
+    local function LootOpened()
+        st.lootOpen = true
+        local slots = math.min(tonumber(Call(GetNumLootItems)) or 0, 30)
+        local run = Open()
+        local wished = {}
+        st.pending = run and {} or nil
+        for slot = 1, slots do
+            local link = Call(GetLootSlotLink, slot)
+            local id = type(link) == "string" and tonumber(link:match("item:(%d+)"))
+            if id then
+                if R5.IsWished(id) then
+                    wished[#wished + 1] = ItemName(id, link)
+                end
+                if run and Notable(id, link) then
+                    st.pending[id] = Count(id)
+                end
+            end
+        end
+        if #wished > 0 then
+            Print(YELLOW .. "On your wish list, in this loot: " .. table.concat(wished, ", ") .. "|r")
+        end
+    end
+
+    -- After the loot window closes: notable items that reached your bags join the run.
+    local function CheckPending()
+        local pending, run = st.pending, st.lootRun
+        st.pending, st.lootRun = nil, nil
+        if not (pending and run) then
+            return
+        end
+        for id, before in pairs(pending) do
+            if Count(id) > before then
+                AddLoot(run, id)
+            end
+        end
+    end
+
+    local function LootClosed()
+        st.lootOpen, st.lootClosedAt = false, Mono()
+        if st.pending then
+            st.lootRun = Open()
+            if C_Timer and C_Timer.After then
+                C_Timer.After(1, CheckPending)
+            else
+                CheckPending()
+            end
+        end
+    end
+
+    local function RunLine(run, now)
+        local secs = (tonumber(run.secs) or 0) + (run.inSince and math.max(0, now - run.inSince) or 0)
+        local parts = { string.format("%s%s|r %s(%s)|r, %s", GOLD, tostring(run.name or "?"), GRAY, When(run.start), Minutes(secs)) }
+        parts[#parts + 1] = string.format("%d kill%s with XP", tonumber(run.kills) or 0, (tonumber(run.kills) or 0) == 1 and "" or "s")
+        if (tonumber(run.xp) or 0) > 0 then
+            parts[#parts + 1] = string.format("%d XP", run.xp)
+        end
+        if (tonumber(run.gold) or 0) > 0 then
+            parts[#parts + 1] = Money(run.gold) .. " looted"
+        end
+        local deaths = tonumber(run.deaths) or 0
+        if deaths > 0 then
+            parts[#parts + 1] = ORANGE .. deaths .. (deaths == 1 and " death" or " deaths") .. "|r"
+        end
+        local lvlOut = run.inSince and st.level or run.lvlOut
+        if run.lvlIn and lvlOut and lvlOut ~= run.lvlIn then
+            parts[#parts + 1] = string.format("level %d to %d", run.lvlIn, lvlOut)
+        end
+        local text = table.concat(parts, ", ")
+        if type(run.loot) == "table" and #run.loot > 0 then
+            local names = {}
+            for _, id in ipairs(run.loot) do
+                names[#names + 1] = (R5.IsWished(id) and (R5.STAR) or "") .. ItemName(id)
+            end
+            text = text .. "\n      " .. GRAY .. "Loot:|r " .. table.concat(names, ", ")
+        end
+        local notes = {}
+        if (tonumber(run.reentries) or 0) > 0 then
+            notes[#notes + 1] = string.format("went back in %d time%s", run.reentries, run.reentries == 1 and "" or "s")
+        end
+        if run.judged == "ids" then
+            notes[#notes + 1] = "copy told by creature IDs"
+        elseif run.judged == "time" then
+            notes[#notes + 1] = "same copy by the re-entry rule"
+        end
+        if run.char ~= CharKey() and run.who then
+            notes[#notes + 1] = tostring(run.who)
+        end
+        if run.inSince then
+            notes[#notes + 1] = GREEN .. "inside now|r"
+        end
+        if #notes > 0 then
+            text = text .. GRAY .. " (" .. table.concat(notes, "; ") .. ")|r"
+        end
+        return "  " .. text
+    end
+
+    function R5.LogLines()
+        local now = Clock()
+        local counts, warning, full = CapState()
+        local lines = { GOLD .. "Instance log|r" }
+        lines[#lines + 1] = "New dungeons entered: " .. counts .. "."
+        if warning then
+            lines[#lines + 1] = (full and ORANGE or YELLOW) .. warning:sub(1, 1):upper() .. warning:sub(2) .. ".|r"
+        end
+        lines[#lines + 1] = GRAY .. string.format("Forever's real cap isn't confirmed: %d an hour and %d a day are the"
+            .. " settings (type: cap %d %d, or use the window's buttons). An entry counts until an hour (a day) after you"
+            .. " last left it. Going back in within %d minutes counts as the same copy unless the creatures show another"
+            .. " (type: reentry 30).|r", R5.Setting("hourCap"), R5.Setting("dayCap"), R5.Setting("hourCap"),
+            R5.Setting("dayCap"), R5.Setting("reentryMinutes"))
+        local runs = DB().runs
+        if #runs == 0 then
+            lines[#lines + 1] = "No runs yet. Each dungeon you enter shows here with its time, kills, XP, gold, deaths and loot."
+            return lines
+        end
+        lines[#lines + 1] = GOLD .. "Your runs|r " .. GRAY .. "(newest first, every character)|r"
+        local shown = 0
+        for index = #runs, 1, -1 do
+            local run = runs[index]
+            if type(run) == "table" and shown < LOG_RUNS then
+                shown = shown + 1
+                lines[#lines + 1] = RunLine(run, now)
+            end
+        end
+        if #runs > shown then
+            lines[#lines + 1] = GRAY .. string.format("(%d older runs kept for the counts)", #runs - shown) .. "|r"
+        end
+        return lines
+    end
+
+    -- Group Finder ----------------------------------------------------------------------------------
+
+    local dungeonOfActivity = {}
+    local function ActivityDungeon(id)
+        id = tonumber(Safe(id))
+        if not id then
+            return nil
+        end
+        if dungeonOfActivity[id] == nil then
+            local found = false
+            local info = ActivityInfo(id)
+            for _, dungeon in ipairs(List()) do
+                if (info and SameDungeon(dungeon, info.fullName)) or (not info and dungeon.activity == id) then
+                    found = dungeon
+                    break
+                end
+            end
+            dungeonOfActivity[id] = found
+        end
+        return dungeonOfActivity[id] or nil
+    end
+
+    -- Reads the results of the search you just made. Never searches, applies or reads names or comments.
+    function R5.ReadSearch()
+        local lfg = C_LFGList
+        if not (lfg and lfg.GetSearchResults and lfg.GetSearchResultInfo) then
+            return
+        end
+        local ok, _, results = pcall(lfg.GetSearchResults)
+        if not ok or type(results) ~= "table" then
+            return
+        end
+        local snapshot = { at = Mono(), total = 0, other = 0, byDungeon = {} }
+        for index = 1, math.min(#results, MAX_RESULTS) do
+            local id = Safe(results[index])
+            local okInfo, info = false, nil
+            if type(id) == "number" then
+                okInfo, info = pcall(lfg.GetSearchResultInfo, id)
+            end
+            if okInfo and type(info) == "table" and Safe(info.isDelisted) ~= true and Safe(info.hasSelf) ~= true then
+                local dungeon
+                local ids = Safe(info.activityIDs)
+                for _, activity in ipairs(type(ids) == "table" and ids or {}) do
+                    dungeon = ActivityDungeon(activity)
+                    if dungeon then
+                        break
+                    end
+                end
+                dungeon = dungeon or ActivityDungeon(info.activityID)
+                snapshot.total = snapshot.total + 1
+                if dungeon then
+                    local list = snapshot.byDungeon[dungeon] or {}
+                    list[#list + 1] = { members = tonumber(Safe(info.numMembers)), age = tonumber(Safe(info.age)) }
+                    snapshot.byDungeon[dungeon] = list
+                else
+                    snapshot.other = snapshot.other + 1
+                end
+            end
+        end
+        st.groups = snapshot
+        Changed()
+    end
+
+    -- Dungeons with listings: { dungeon, groups, suits }, the ones for your level first.
+    local function Listed()
+        local level = MyLevel()
+        local rows = {}
+        for index, dungeon in ipairs(List()) do
+            local groups = st.groups and st.groups.byDungeon[dungeon]
+            if groups then
+                rows[#rows + 1] = { dungeon = dungeon, groups = groups, suits = Suits(dungeon, level), index = index }
+            end
+        end
+        table.sort(rows, function(a, b)
+            if a.suits ~= b.suits then
+                return a.suits
+            end
+            if #a.groups ~= #b.groups then
+                return #a.groups > #b.groups
+            end
+            return a.index < b.index
+        end)
+        return rows, level
+    end
+
+    function R5.GroupLines()
+        local lines = { GOLD .. "Group Finder listings that fit you|r" }
+        local groups = st.groups
+        if not groups then
+            lines[#lines + 1] = "Search the game's Group Finder for dungeons yourself; the groups it lists are matched to"
+                .. " these dungeons here. This page never searches, applies or signs you up."
+            return lines
+        end
+        local age = Mono() - groups.at
+        lines[#lines + 1] = GRAY .. string.format("From your search %s ago: %d group%s listed.", Minutes(age), groups.total,
+            groups.total == 1 and "" or "s") .. (age > GROUPS_FRESH and " Search again for fresh listings." or "") .. "|r"
+        local rows, level = Listed()
+        local fitting, others = 0, 0
+        for _, row in ipairs(rows) do
+            if row.suits then
+                fitting = fitting + 1
+                local sizes = {}
+                for _, group in ipairs(row.groups) do
+                    if #sizes < 6 then
+                        sizes[#sizes + 1] = group.members and (group.members .. "/5") or "?"
+                    end
+                end
+                local text = string.format("  %s%s|r: %d group%s (%s)", GREEN, row.dungeon.name, #row.groups,
+                    #row.groups == 1 and "" or "s", table.concat(sizes, ", "))
+                local counts = QuestCounts(row.dungeon, level)
+                local extras = {}
+                if counts.log + counts.open > 0 then
+                    extras[#extras + 1] = string.format("%d quest%s to do there", counts.log + counts.open,
+                        counts.log + counts.open == 1 and "" or "s")
+                end
+                local wish = R5.WishText(row.dungeon)
+                if wish ~= "" then
+                    extras[#extras + 1] = "wish list" .. wish
+                end
+                if #extras > 0 then
+                    text = text .. ". " .. table.concat(extras, ", ")
+                end
+                lines[#lines + 1] = text
+            else
+                others = others + #row.groups
+            end
+        end
+        if fitting == 0 then
+            lines[#lines + 1] = string.format("No listed group is for a dungeon that suits level %d.", level)
+        end
+        if others + groups.other > 0 then
+            lines[#lines + 1] = GRAY .. string.format("Also listed: %d group%s for other dungeons or activities.",
+                others + groups.other, others + groups.other == 1 and "" or "s") .. "|r"
+        end
+        return lines
+    end
+
+    -- Side panel ------------------------------------------------------------------------------------
+
+    function R5.Status()
+        local lines = {}
+        local counts, warning, full = CapState()
+        if warning and not Open() then
+            lines[#lines + 1] = { text = "Dungeon entries: " .. counts .. (full and " (at the cap)" or ""), page = "Dungeons" }
+        end
+        local groups = st.groups
+        if groups and Mono() - groups.at <= GROUPS_FRESH then
+            local fitting = 0
+            for _, row in ipairs((Listed())) do
+                if row.suits then
+                    fitting = fitting + #row.groups
+                end
+            end
+            if fitting > 0 then
+                lines[#lines + 1] = { text = string.format("Group Finder: %d group%s for dungeons that fit you", fitting,
+                    fitting == 1 and "" or "s"), page = "Dungeons" }
+            end
+        end
+        return lines
+    end
+
+    -- Window ------------------------------------------------------------------------------------------
+    -- Our own frame (never a Blizzard one): Runs, Wish list (tick items to want) and Groups.
+
+    local WIDTH, HEIGHT = 480, 460
+    local VIEWS = { { key = "log", label = "Runs" }, { key = "wish", label = "Wish list" }, { key = "groups", label = "Groups" } }
+
+    local function HubSaysOff()
+        return type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("Dungeons") == true
+    end
+
+    local function Tip()
+        st.tip = st.tip or CreateFrame("GameTooltip", "DungeonsTooltip", UIParent, "GameTooltipTemplate")
+        return st.tip
+    end
+
+    -- The rows the Wish list view shows: a dungeon's loot, or (pick 0) your list.
+    local function PickRows(pick)
+        local rows = {}
+        if pick == 0 then
+            for _, entry in ipairs(WishedItems()) do
+                rows[#rows + 1] = { id = entry.id, text = WishLine(entry) }
+            end
+            return rows
+        end
+        local dungeon = List()[pick]
+        for _, item in ipairs(dungeon and dungeon.loot or {}) do
+            local text = (item[2] or "?") .. GRAY .. " (" .. tostring(item[4] or "?") .. ")|r - " .. tostring(item[3] or "?")
+            if item[1] and Have(item[1]) then
+                text = text .. " " .. GREEN .. "(you have it)|r"
+            end
+            rows[#rows + 1] = { id = item[1], text = text }
+        end
+        return rows
+    end
+
+    local function DefaultPick()
+        local current = CurrentDungeon()
+        local level = MyLevel()
+        for index, dungeon in ipairs(List()) do
+            if dungeon == current then
+                return index
+            end
+        end
+        for index, dungeon in ipairs(List()) do
+            if Suits(dungeon, level) and not dungeon.horde and #(dungeon.loot or {}) > 0 then
+                return index
+            end
+        end
+        return 0
+    end
+
+    function R5.Refresh()
+        local w = st.window
+        if not w then
+            return
+        end
+        local wish = w.view == "wish"
+        w.scroll:SetShown(not wish)
+        st.picker:SetShown(wish)
+        w.capBar:SetShown(w.view == "log")
+        for _, tab in ipairs(w.tabs) do
+            if tab.key == w.view then
+                tab:LockHighlight()
+            else
+                tab:UnlockHighlight()
+            end
+        end
+        if not wish then
+            local lines = w.view == "groups" and R5.GroupLines() or R5.LogLines()
+            w.text:SetText(table.concat(lines, "\n"))
+            w.content:SetHeight(math.max((tonumber(Safe(w.text:GetStringHeight())) or 0) + 8, 1))
+            w.capText:SetText(string.format("Cap: %d an hour, %d a day", R5.Setting("hourCap"), R5.Setting("dayCap")))
+            for _, row in ipairs(w.rows) do
+                row:Hide()
+            end
+            return
+        end
+        local count = #List()
+        st.pick = st.pick or DefaultPick()
+        if st.pick < 0 or st.pick > count then
+            st.pick = 0
+        end
+        if st.pick == 0 then
+            st.pickText:SetText(string.format("%sYour wish list|r (%d)", GOLD, WishCount()))
+        else
+            local dungeon = List()[st.pick]
+            st.pickText:SetText(string.format("%s%d. %s|r%s", GOLD, st.pick, dungeon.name, R5.WishText(dungeon)))
+        end
+        local rows = PickRows(st.pick)
+        for index, row in ipairs(w.rows) do
+            local data = rows[index]
+            if data and not (index == #w.rows and #rows > #w.rows) then
+                row.id = data.id
+                row.check:Show()
+                row.check:SetChecked(R5.IsWished(data.id))
+                row.label:SetText(data.text)
+                row:Show()
+            elseif data then
+                row.id = nil
+                row.check:Hide()
+                row.label:SetText(GRAY .. string.format("+%d more on the hub's Dungeons page (wish)", #rows - index + 1) .. "|r")
+                row:Show()
+            elseif index == 1 then
+                row.id = nil
+                row.check:Hide()
+                row.label:SetText(st.pick == 0 and "Nothing on your wish list yet: pick a dungeon with the arrows and tick items."
+                    or "No notable loot listed for this dungeon.")
+                row:Show()
+            else
+                row:Hide()
+            end
+        end
+    end
+
+    local function Button(parent, text, width, onClick)
+        local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+        button:SetSize(width, 22)
+        button:SetText(text)
+        button:SetScript("OnClick", onClick)
+        return button
+    end
+
+    local function BuildWindow()
+        local w = CreateFrame("Frame", "DungeonsWindow", UIParent, "BackdropTemplate")
+        st.window = w
+        w:SetSize(WIDTH, HEIGHT)
+        w:SetFrameStrata("HIGH")
+        w:SetClampedToScreen(true)
+        w:SetMovable(true)
+        w:EnableMouse(true)
+        w:RegisterForDrag("LeftButton")
+        if w.SetBackdrop then
+            w:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+            w:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
+        end
+        w:SetScript("OnDragStart", w.StartMoving)
+        w:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            local point, _, relativePoint, x, y = self:GetPoint()
+            if point then
+                DB().settings.position = { point, relativePoint, x, y }
+            end
+        end)
+        local position = DB().settings.position
+        if type(position) == "table" and position[1] then
+            w:SetPoint(position[1], UIParent, position[2], position[3], position[4])
+        else
+            w:SetPoint("CENTER", UIParent, "CENTER", -240, 40)
+        end
+        w.view = "log"
+        local title = w:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("TOPLEFT", w, "TOPLEFT", 12, -10)
+        title:SetText("Dungeons")
+        local close = CreateFrame("Button", nil, w, "UIPanelCloseButton")
+        close:SetPoint("TOPRIGHT", w, "TOPRIGHT", -2, -2)
+
+        w.tabs = {}
+        for index, view in ipairs(VIEWS) do
+            local tab = Button(w, view.label, 90, function()
+                w.view = view.key
+                R5.Refresh()
+            end)
+            tab:SetPoint("TOPLEFT", w, "TOPLEFT", 10 + (index - 1) * 94, -30)
+            tab.key = view.key
+            w.tabs[#w.tabs + 1] = tab
+        end
+
+        -- Runs and Groups: text in a scroll frame.
+        w.scroll = CreateFrame("ScrollFrame", nil, w, "UIPanelScrollFrameTemplate")
+        w.scroll:SetPoint("TOPLEFT", w, "TOPLEFT", 12, -60)
+        w.scroll:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", -32, 40)
+        w.content = CreateFrame("Frame", nil, w.scroll)
+        w.content:SetSize(WIDTH - 50, 10)
+        w.scroll:SetScrollChild(w.content)
+        w.text = w.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        w.text:SetPoint("TOPLEFT", w.content, "TOPLEFT", 0, 0)
+        w.text:SetWidth(WIDTH - 54)
+        w.text:SetJustifyH("LEFT")
+        w.text:SetJustifyV("TOP")
+        w.text:SetSpacing(2)
+
+        -- Runs: the entry cap, a setting until Forever's real cap is known.
+        w.capBar = CreateFrame("Frame", nil, w)
+        w.capBar:SetPoint("BOTTOMLEFT", w, "BOTTOMLEFT", 10, 8)
+        w.capBar:SetSize(WIDTH - 20, 24)
+        w.capText = w.capBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        w.capText:SetPoint("LEFT", w.capBar, "LEFT", 2, 0)
+        local x = 190
+        for _, spec in ipairs({ { "Hour -", "hourCap", -1 }, { "Hour +", "hourCap", 1 }, { "Day -", "dayCap", -1 }, { "Day +", "dayCap", 1 } }) do
+            local button = Button(w.capBar, spec[1], 62, function()
+                R5.SetSetting(spec[2], R5.Setting(spec[2]) + spec[3])
+                R5.Refresh()
+            end)
+            button:SetPoint("LEFT", w.capBar, "LEFT", x, 0)
+            x = x + 66
+        end
+
+        -- Wish list: a dungeon picker and a ticked row per item.
+        st.picker = CreateFrame("Frame", nil, w)
+        st.picker:SetPoint("TOPLEFT", w, "TOPLEFT", 10, -58)
+        st.picker:SetSize(WIDTH - 20, 24)
+        local prev = Button(st.picker, "<", 28, function()
+            st.pick = (st.pick or 0) - 1
+            if st.pick < 0 then
+                st.pick = #List()
+            end
+            R5.Refresh()
+        end)
+        prev:SetPoint("LEFT", st.picker, "LEFT", 0, 0)
+        local nextButton = Button(st.picker, ">", 28, function()
+            st.pick = (st.pick or 0) + 1
+            if st.pick > #List() then
+                st.pick = 0
+            end
+            R5.Refresh()
+        end)
+        nextButton:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+        local mine = Button(st.picker, "My list", 70, function()
+            st.pick = 0
+            R5.Refresh()
+        end)
+        mine:SetPoint("LEFT", nextButton, "RIGHT", 4, 0)
+        st.pickText = st.picker:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        st.pickText:SetPoint("LEFT", mine, "RIGHT", 8, 0)
+
+        w.rows = {}
+        for index = 1, WISH_ROWS do
+            local row = CreateFrame("Frame", nil, w)
+            row:SetSize(WIDTH - 24, 22)
+            row:SetPoint("TOPLEFT", w, "TOPLEFT", 12, -86 - (index - 1) * 24)
+            row:EnableMouse(true)
+            row.check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+            row.check:SetSize(22, 22)
+            row.check:SetPoint("LEFT", row, "LEFT", 0, 0)
+            row.check:SetScript("OnClick", function()
+                local _, problem = R5.Toggle(row.id)
+                if problem then
+                    Print(problem)
+                end
+                R5.Refresh()
+            end)
+            row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            row.label:SetPoint("LEFT", row.check, "RIGHT", 4, 0)
+            row.label:SetWidth(WIDTH - 60)
+            row.label:SetJustifyH("LEFT")
+            row:SetScript("OnEnter", function(self)
+                if not self.id then
+                    return
+                end
+                local tip = Tip()
+                tip:SetOwner(self, "ANCHOR_RIGHT")
+                pcall(tip.SetItemByID, tip, self.id)
+                tip:Show()
+            end)
+            row:SetScript("OnLeave", function()
+                if st.tip then
+                    st.tip:Hide()
+                end
+            end)
+            row:Hide()
+            w.rows[index] = row
+        end
+
+        w:SetScript("OnShow", R5.Refresh)
+        -- Not added to UISpecialFrames (a Blizzard table): the close button and "window" close it.
+        w:Hide()
+    end
+
+    -- Switched Off on the hub's Manage page: the window hides, and comes back when switched On.
+    ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+    ForeverHubOnSwitch.Dungeons = function(off)
+        local w = st.window
+        if not w then
+            return
+        end
+        if off then
+            st.reopen = w:IsShown() and true or false
+            w:Hide()
+        elseif st.reopen then
+            st.reopen = false
+            w:Show()
+            R5.Refresh()
+        end
+    end
+
+    function R5.ToggleWindow(view)
+        if not (UIParent and CreateFrame) or HubSaysOff() then
+            return
+        end
+        if not st.window then
+            BuildWindow()
+        end
+        local w = st.window
+        if view then
+            w.view = view
+        end
+        if w:IsShown() and not view then
+            w:Hide()
+            return
+        end
+        w:Show()
+        R5.Refresh()
+    end
+
+    -- Hub page words ----------------------------------------------------------------------------------
+
+    local function PrintLines(lines)
+        for _, line in ipairs(lines) do
+            Print(line)
+        end
+    end
+
+    -- Handles the round-5 words of the Dungeons page; false for anything else.
+    function R5.Page(want)
+        if want == "log" or want == "runs" then
+            PrintLines(R5.LogLines())
+            return true
+        elseif want == "wish" or want == "wishlist" or want == "wish list" then
+            PrintLines(R5.WishLines())
+            return true
+        elseif want == "groups" or want == "group finder" then
+            PrintLines(R5.GroupLines())
+            return true
+        elseif want == "window" then
+            R5.ToggleWindow()
+            return true
+        end
+        local hourCap, dayCap = want:match("^cap%s+(%d+)%s+(%d+)$")
+        if hourCap then
+            hourCap, dayCap = R5.SetSetting("hourCap", hourCap), R5.SetSetting("dayCap", dayCap)
+            Print(string.format("Dungeon entry cap set to %d an hour and %d a day.", hourCap, dayCap))
+            PrintLines(R5.LogLines())
+            return true
+        end
+        local minutes = want:match("^reentry%s+(%d+)$")
+        if minutes then
+            Print(string.format("Going back in within %d minutes counts as the same copy.", R5.SetSetting("reentryMinutes", minutes)))
+            return true
+        end
+        local which, number = want:match("^wish%s+(.-)%s+(%d+)$")
+        if which then
+            local matches = Find(which)
+            local dungeon = #matches == 1 and List()[matches[1]]
+            local item = dungeon and (dungeon.loot or {})[tonumber(number)]
+            if not item then
+                Print("Type wish, a dungeon's number or name, and the item's place in its loot list: wish 3 1")
+                return true
+            end
+            local added, problem = R5.Toggle(item[1])
+            if problem then
+                Print(problem)
+            else
+                Print(string.format("%s %s your wish list.", item[2] or "?", added and "is on" or "is off"))
+            end
+            PrintLines(R5.WishLines())
+            return true
+        end
+        return false
+    end
+
+    -- Events ------------------------------------------------------------------------------------------
+
+    local OWN = { ZONE_CHANGED_NEW_AREA = true, CHAT_MSG_COMBAT_XP_GAIN = true, PLAYER_XP_UPDATE = true, PLAYER_MONEY = true,
+        PLAYER_DEAD = true, LOOT_OPENED = true, LOOT_CLOSED = true, UPDATE_MOUSEOVER_UNIT = true, NAME_PLATE_UNIT_ADDED = true,
+        LFG_LIST_SEARCH_RESULTS_RECEIVED = true, PLAYER_LOGOUT = true }
+    R5.EVENTS = OWN
+
+    local function ZoneSoon()
+        if st.zonePending then
+            return
+        end
+        st.zonePending = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(1, R5.CheckZone)
+        else
+            R5.CheckZone()
+        end
+    end
+
+    -- Every event Dungeons gets passes here first; true when it was only ours.
+    function R5.OnEvent(event, ...)
+        if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+            ZoneSoon()
+        elseif event == "PLAYER_LOGIN" then
+            Snapshot()
+        elseif event == "PLAYER_TARGET_CHANGED" then
+            R5.SeeGUID(Call(UnitGUID, "target"))
+        elseif event == "UPDATE_MOUSEOVER_UNIT" then
+            R5.SeeGUID(Call(UnitGUID, "mouseover"))
+        elseif event == "NAME_PLATE_UNIT_ADDED" then
+            local unit = Safe((...))
+            if type(unit) == "string" then
+                R5.SeeGUID(Call(UnitGUID, unit))
+            end
+        elseif event == "CHAT_MSG_COMBAT_XP_GAIN" then
+            -- One per kill that gave XP; the message text is never read.
+            local run = Open()
+            if run then
+                Add(run, "kills", 1)
+            end
+        elseif event == "PLAYER_XP_UPDATE" or event == "PLAYER_LEVEL_UP" then
+            XPChanged()
+        elseif event == "PLAYER_MONEY" then
+            MoneyChanged()
+        elseif event == "PLAYER_DEAD" then
+            local run = Open()
+            if run then
+                Add(run, "deaths", 1)
+            end
+        elseif event == "LOOT_OPENED" then
+            LootOpened()
+        elseif event == "LOOT_CLOSED" then
+            LootClosed()
+        elseif event == "LFG_LIST_SEARCH_RESULTS_RECEIVED" then
+            R5.ReadSearch()
+        elseif event == "PLAYER_LOGOUT" then
+            -- Logout or /reload inside: the visit is stamped, and logging back in within the re-entry
+            -- window continues the same run.
+            CloseVisit(Clock())
+        end
+        return OWN[event] == true
+    end
+end
+
+-- Answers a later tooltip line: true, the dungeon and the boss when this character wants the item.
+-- item: an item ID or an item link.
+function Dungeons_IsWished(item)
+    local id = tonumber(item) or (type(item) == "string" and tonumber(item:match("item:(%d+)")))
+    if not id then
+        return false
+    end
+    local ok, wished = pcall(R5.IsWished, id)
+    if not (ok and wished) then
+        return false
+    end
+    local source = R5.Source(id)
+    return true, source and source.dungeon.name or nil, source and source.item[3] or nil
+end
+
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("QUEST_LOG_UPDATE")
@@ -1338,10 +2649,23 @@ local TALENT_EVENTS = { TRAIT_CONFIG_UPDATED = true, PLAYER_TALENT_UPDATE = true
 for name in pairs(TALENT_EVENTS) do
     pcall(events.RegisterEvent, events, name)
 end
+-- Round 5: instance log, wish-list loot, Group Finder results after your own search (none is a CallbackEvent).
+for name in pairs(R5.EVENTS) do
+    pcall(events.RegisterEvent, events, name)
+end
 -- UnitLevel can still give the old level for about a second after a level-up (ItemAdvisor judges again
 -- then too), and the event order between addons isn't fixed: answers asked for meanwhile are forgotten again.
 local UPGRADE_SETTLE_SECONDS = 2
 events:SetScript("OnEvent", function(_, event, ...)
+    -- Round 5 first (it shares a few events); a fault there never stops the rest.
+    local ok, own = pcall(R5.OnEvent, event, ...)
+    if not ok then
+        if geterrorhandler then
+            geterrorhandler()(own)
+        end
+    elseif own then
+        return
+    end
     if event == "UNIT_DIED" then
         KillByGUID((...))
         return
@@ -1402,10 +2726,18 @@ ForeverHubStatus.Dungeons = function()
     if statusDirty then
         RefreshReady()
     end
+    local lines = {}
     local first = readyQuests[1]
-    if not first then
-        return nil
+    if first then
+        local more = #readyQuests > 1 and string.format(" (+%d more)", #readyQuests - 1) or ""
+        lines[1] = { text = string.format("Dungeon quest ready: %s%s", first.title, more), page = "Dungeons" }
     end
-    local more = #readyQuests > 1 and string.format(" (+%d more)", #readyQuests - 1) or ""
-    return { { text = string.format("Dungeon quest ready: %s%s", first.title, more), page = "Dungeons" } }
+    -- Near the entry cap, and Group Finder groups for your dungeons after a search.
+    local ok, extra = pcall(R5.Status)
+    if ok and type(extra) == "table" then
+        for _, line in ipairs(extra) do
+            lines[#lines + 1] = line
+        end
+    end
+    return #lines > 0 and lines or nil
 end

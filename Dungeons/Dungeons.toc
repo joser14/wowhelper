@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## OptionalDeps: ForeverHub
 ## Title: Dungeons
-## Notes: Which dungeons suit your level, where their entrances are, their quests and what you've done of them, and the loot worth having. Only gives information.
-## Version: 0.1.1
+## Notes: Which dungeons suit your level, where their entrances are, their quests and what you've done of them, the loot worth having, a wish list, your dungeon runs and entries per hour and day, and Group Finder listings that fit you after you search. Only gives information.
+## Version: 0.2.0
 ## SavedVariables: DungeonsDB
 
 Data.lua
