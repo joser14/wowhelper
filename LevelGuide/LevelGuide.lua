@@ -2282,29 +2282,43 @@ end
 
 -- Upgrades ahead (research\re_round6.md #12, Ahead.lua): the route's next turn-ins from the first step shown,
 -- not skipped, for your class and not yet handed in, with their quest IDs; Ahead.lua judges their rewards.
+-- Full review: not a hand-in the guide passes (4+ levels below you), nor one of a quest you don't hold whose
+-- pick-up you skipped or the guide passed; and with no route the list is emptied, not left stale.
 function X.AheadQuests(route, byTitle)
     local A = LevelGuideAhead
-    if not (A and A.Update and route and byTitle and charData) then
+    if not (A and A.Update) then
         return
     end
-    local from
-    for _, step in ipairs(steps) do
-        if step.stepIndex and (not from or step.stepIndex < from) then
-            from = step.stepIndex
-        end
-    end
     local quests, seen = {}, {}
-    for index = from or 1, #route.steps do
-        if #quests >= (A.MAX_QUESTS or 25) then
-            break
+    if route and byTitle and charData then
+        local level = Safe(UnitLevel("player")) or 1
+        local from
+        for _, step in ipairs(steps) do
+            if step.stepIndex and (not from or step.stepIndex < from) then
+                from = step.stepIndex
+            end
         end
-        local step = route.steps[index]
-        if step.q and not step.side and step.t == "turnin" and ClassMatches(step.cls)
-            and not charData.skips[RouteKey(route, index)] and TurnedIn(step.q) < (tonumber(step.part) or 1) then
-            local id = X.QuestIDFor(step, byTitle)
-            if id and not seen[id] then
-                seen[id] = true
-                quests[#quests + 1] = { step = index, id = id, title = RealTitle(step.q), questLevel = X.QuestLevel(id) }
+        -- Quests (title#part) whose pick-up on this route is skipped or passed.
+        local dropped = {}
+        for index, step in ipairs(route.steps) do
+            if step.t == "accept" and step.q and (charData.skips[RouteKey(route, index)] or Outleveled(step, level)) then
+                dropped[step.q .. "#" .. (tonumber(step.part) or 1)] = true
+            end
+        end
+        for index = from or 1, #route.steps do
+            if #quests >= (A.MAX_QUESTS or 25) then
+                break
+            end
+            local step = route.steps[index]
+            if step.q and not step.side and step.t == "turnin" and ClassMatches(step.cls)
+                and not charData.skips[RouteKey(route, index)] and TurnedIn(step.q) < (tonumber(step.part) or 1)
+                and not Outleveled(step, level)
+                and not (dropped[step.q .. "#" .. (tonumber(step.part) or 1)] and not HeldPart(byTitle, step)) then
+                local id = X.QuestIDFor(step, byTitle)
+                if id and not seen[id] then
+                    seen[id] = true
+                    quests[#quests + 1] = { step = index, id = id, title = RealTitle(step.q), questLevel = X.QuestLevel(id) }
+                end
             end
         end
     end

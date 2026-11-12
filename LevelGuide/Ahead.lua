@@ -82,7 +82,7 @@ function A.Update(quests, now)
         state.list, state.pending = {}, 0
         return
     end
-    local list, pending = {}, 0
+    local list, pending, answered = {}, 0, 0
     for index = 1, math.min(#quests, A.MAX_QUESTS) do
         local quest = quests[index]
         local best
@@ -90,7 +90,10 @@ function A.Update(quests, now)
             local ok, verdict = pcall(judge, itemID)
             if not ok or verdict == nil then
                 pending = pending + 1
-            elseif type(verdict) == "table" and verdict.upgrade then
+            else
+                answered = answered + 1
+            end
+            if ok and type(verdict) == "table" and verdict.upgrade then
                 local gain = tonumber(verdict.gain) or 0
                 if not best or gain > best.gain then
                     best = { step = quest.step, quest = tostring(quest.title or ("quest " .. quest.id)), questID = quest.id,
@@ -105,6 +108,21 @@ function A.Update(quests, now)
             list[#list + 1] = best
             if #list >= A.MAX_LIST then
                 break
+            end
+        end
+    end
+    -- Nothing could be judged at all: ItemAdvisor can't read your worn gear (hidden in combat or an
+    -- instance) or nothing has loaded yet. Keep the last list, less quests no longer ahead (full review:
+    -- the line went blank).
+    if answered == 0 and pending > 0 then
+        local still = {}
+        for index = 1, math.min(#quests, A.MAX_QUESTS) do
+            still[tostring(quests[index].id) .. "@" .. tostring(quests[index].step)] = true
+        end
+        list = {}
+        for _, entry in ipairs(state.list) do
+            if still[tostring(entry.questID) .. "@" .. tostring(entry.step)] then
+                list[#list + 1] = entry
             end
         end
     end
