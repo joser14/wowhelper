@@ -183,6 +183,12 @@ local COLOR_NEW = "|cff66ccff"
 local COLOR_FOCUS = "|cffffd100"
 local COLOR_WARN = "|cffff8040"
 local COLOR_BAD = "|cffff3333"
+local COLOR_FOREVER = "|cffc58cff"
+-- Round 6 #19, "New in Forever": forever-db marks no quest as new, so the quest ID decides. The original
+-- Classic quests all have IDs below 10000 (LevelGuide's QuestDB tops out at 9664 there); the quests Forever
+-- added or took from later Classic releases start far above (65602 and up). QuestCheck and Tooltips use
+-- the same rule.
+local FOREVER_FIRST_ID = 10000
 
 local db, panel, headerTitle, collapseButton
 local rows, itemButtons = {}, {}
@@ -512,6 +518,7 @@ local function ReadQuest(info, zone)
         autoComplete = Safe(info.isAutoComplete) and true or false,
         level = Safe(info.difficultyLevel) or Safe(info.level),
         group = Safe(info.suggestedGroup) or 0,
+        forever = type(questID) == "number" and questID >= FOREVER_FIRST_ID,
     }
     quest.ready = (Safe(C_QuestLog.IsComplete(questID)) or Safe(C_QuestLog.ReadyForTurnIn(questID))) and true or false
     quest.failed = C_QuestLog.IsFailed and Safe(C_QuestLog.IsFailed(questID)) or false
@@ -772,6 +779,9 @@ local function RightText(quest)
     if accepted and GetServerTime and GetServerTime() - accepted < NEW_SECONDS then
         parts[#parts + 1] = COLOR_NEW .. "NEW|r"
     end
+    if quest.forever then
+        parts[#parts + 1] = COLOR_FOREVER .. "Forever|r"
+    end
     if quest.xp and quest.xp > 0 then
         parts[#parts + 1] = COLOR_DIM .. FormatNumber(quest.xp) .. " xp|r"
     end
@@ -782,6 +792,9 @@ local function QuestTooltip(owner, quest)
     Tip():SetOwner(owner, "ANCHOR_LEFT")
     Tip():SetText(quest.title, 1, 0.82, 0)
     Tip():AddLine(string.format("Level %d, %s", quest.level or 0, quest.zone), 0.8, 0.8, 0.8)
+    if quest.forever then
+        Tip():AddLine("New in Forever: not one of the original Classic quests.", 0.77, 0.55, 1)
+    end
     if quest.distance then
         Tip():AddLine(string.format(YARDS_LABEL, math.floor(quest.distance)), 0.8, 0.8, 0.8)
     end

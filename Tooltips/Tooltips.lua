@@ -116,6 +116,8 @@ local LINES = {
       about = "Which quest in your log still needs the item, with your count, unless the game already says so." },
     { name = "giver", label = "Quest giver", default = true,
       about = "Leveling guide quests a creature starts or takes back that you haven't done yet; (ready) when you can turn it in. Not shown inside dungeons." },
+    { name = "forever", label = "New in Forever", default = true,
+      about = "Tags quests that aren't among the original Classic quests (quest ID 10000 and up), on quest tooltips and on the quest giver lines." },
     { name = "upgrade", label = "Upgrade", default = false,
       about = "Upgrade for you, from ItemAdvisor, when ItemAdvisor isn't already showing its own verdict." },
     { name = "id", label = "Item ID and level", default = false,
@@ -123,6 +125,13 @@ local LINES = {
     { name = "npc", label = "NPC ID", default = false,
       about = "The ID number of the creature under your mouse. Not shown inside dungeons." },
 }
+-- Round 6 #19, "New in Forever": forever-db marks no quest as new, so the quest ID decides. The original
+-- Classic quests all have IDs below 10000 (LevelGuide's QuestDB tops out at 9664 there); the quests Forever
+-- added or took from later Classic releases start far above (65602 and up). QuestCheck and QuestTracker
+-- use the same rule.
+local FOREVER_FIRST_ID = 10000
+local FOREVER_TEXT, FOREVER_TAG = "New in Forever", " |cffc58cff(new in Forever)|r"
+local FOREVER_R, FOREVER_G, FOREVER_B = 0.77, 0.55, 1
 local MAX_LIST = 3
 local MORE_R, MORE_G, MORE_B = 0.6, 0.6, 0.6
 local LINE_BY_NAME = {}
@@ -961,10 +970,21 @@ end
 
 -- True only when the game says this part of the quest is done; unknown counts as not done
 -- (or, with unknownIs, as that).
-local function QuestDone(title, part, unknownIs)
+local function QuestIDOf(title, part)
     local data = LevelGuideQuestIDs
     local ids = type(data) == "table" and type(data.ids) == "table" and (data.ids[title] or data.ids[RealTitle(title)])
     local id = type(ids) == "table" and ids[part]
+    return type(id) == "number" and id or nil
+end
+
+-- " (new in Forever)" after a guide quest whose ID says so, while that line is on.
+local function ForeverTag(title, part)
+    local id = IsOn("forever") and QuestIDOf(title, part)
+    return id and id >= FOREVER_FIRST_ID and FOREVER_TAG or ""
+end
+
+local function QuestDone(title, part, unknownIs)
+    local id = QuestIDOf(title, part)
     local check = C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted
     if type(id) ~= "number" or type(check) ~= "function" then
         return unknownIs == true
@@ -1003,19 +1023,20 @@ local function AddGiverLines(tooltip, unitName)
         local key = step.kind .. "|" .. step.q
         if not shown[key] and not QuestDone(step.q, step.part) then
             local held = InLog(log, step.q)
+            local tag = ForeverTag(step.q, step.part)
             if step.kind == "accept" then
                 if not held and Offered(step) then
                     shown[key] = true
-                    table.insert(buckets[3], { text = "Starts: " .. step.q, r = 1, g = 0.82, b = 0 })
+                    table.insert(buckets[3], { text = "Starts: " .. step.q .. tag, r = 1, g = 0.82, b = 0 })
                 end
             else
                 shown[key] = true
                 if held and held.complete then
-                    table.insert(buckets[1], { text = "Turn in: " .. step.q .. " |cff33ff33(ready)|r", r = 1, g = 0.82, b = 0 })
+                    table.insert(buckets[1], { text = "Turn in: " .. step.q .. " |cff33ff33(ready)|r" .. tag, r = 1, g = 0.82, b = 0 })
                 elseif held then
-                    table.insert(buckets[2], { text = "Turn in: " .. step.q, r = 1, g = 0.82, b = 0 })
+                    table.insert(buckets[2], { text = "Turn in: " .. step.q .. tag, r = 1, g = 0.82, b = 0 })
                 else
-                    table.insert(buckets[4], { text = "Turn in: " .. step.q, r = 0.7, g = 0.7, b = 0.7 })
+                    table.insert(buckets[4], { text = "Turn in: " .. step.q .. tag, r = 0.7, g = 0.7, b = 0.7 })
                 end
             end
         end
@@ -1291,6 +1312,23 @@ local function OnUnitTooltip(tooltip, data)
     end
 end
 
+-- Quest tooltips (a quest link, a quest under the mouse): data.id is the quest ID.
+local function QuestBody(tooltip, data)
+    if not IsOn("forever") or not ShownTooltip(tooltip) or type(data) ~= "table" then
+        return
+    end
+    local id = Safe(data.id)
+    if type(id) == "number" and id >= FOREVER_FIRST_ID then
+        tooltip:AddLine(FOREVER_TEXT, FOREVER_R, FOREVER_G, FOREVER_B)
+    end
+end
+
+local function OnQuestTooltip(tooltip, data)
+    if not SwitchedOff() then
+        pcall(QuestBody, tooltip, data)
+    end
+end
+
 ----------------------------------------------------------------------------------------------------
 -- Round 5 #5: counting the corpses you loot. Read only: it reads a loot window you opened (LOOT_OPENED) and
 -- never loots, clicks or closes anything.
@@ -1458,6 +1496,9 @@ local function Register()
     if types.Unit ~= nil then
         any = pcall(processor.AddTooltipPostCall, types.Unit, OnUnitTooltip) or any
     end
+    if types.Quest ~= nil then
+        any = pcall(processor.AddTooltipPostCall, types.Quest, OnQuestTooltip) or any
+    end
     return any
 end
 
@@ -1510,7 +1551,7 @@ local function ShowPage()
     if not registered then
         Print("|cffff9933This game version doesn't offer the tooltip hook, so no lines are added.|r")
     end
-    Print("Extra lines on item and creature tooltips. They only add information.")
+    Print("Extra lines on item, creature and quest tooltips. They only add information.")
     Print(" ")
     for _, line in ipairs(LINES) do
         local state = IsOn(line.name) and "|cff33ff33on |r" or "|cff999999off|r"
