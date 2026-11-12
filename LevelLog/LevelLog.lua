@@ -1429,9 +1429,31 @@ local function BuildWindow()
     window:Hide()
 end
 
+-- Switched Off on the hub's Manage page: the window hides and can't be opened; reopenWhenOn remembers
+-- that it was open, so switching On brings it back. Recording goes on. Never Off without the hub.
+local reopenWhenOn = false
+local function HubSaysOff()
+    return type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("LevelLog") == true
+end
+
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.LevelLog = function(off)
+    if not window then
+        return
+    end
+    if off then
+        reopenWhenOn = window:IsShown() and true or false
+        window:Hide()
+    elseif reopenWhenOn then
+        reopenWhenOn = false
+        window:Show()
+        RefreshWindow()
+    end
+end
+
 -- Opens (or with toggle, closes) the window. Only out of the way of loading: needs saved data and UIParent.
 function LevelLog_OpenWindow(toggle)
-    if not (levels and UIParent and CreateFrame) then
+    if not (levels and UIParent and CreateFrame) or HubSaysOff() then
         return
     end
     if not window then

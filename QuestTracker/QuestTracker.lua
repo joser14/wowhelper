@@ -214,6 +214,14 @@ local function InCombat()
     return InCombatLockdown and InCombatLockdown()
 end
 
+-- Switched Off on the hub's Manage page: the panel hides and no sound plays. hubOff is what the panel
+-- shows now; the panel holds secure item buttons, so a switch in combat waits for combat to end.
+-- Without the hub this is never true.
+local hubOff, hubSwitchWaiting = false, false
+local function HubSaysOff()
+    return type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("QuestTracker") == true
+end
+
 -- This addon's own tooltip, so nothing is ever written into Blizzard's GameTooltip.
 local ownTip
 local function Tip()
@@ -1361,6 +1369,10 @@ local function Attempt(step)
 end
 
 local function OnTick()
+    -- Switched Off: nothing is drawn or read, and Blizzard's tracker is left alone.
+    if hubOff then
+        return
+    end
     secondsSinceSort = secondsSinceSort + 1
     if ObjectiveTrackerFrame and not db.keepBlizzard then
         -- Safe: a hidden (secret) alpha can't be compared; the next tick tries again.
@@ -1600,7 +1612,7 @@ end
 
 local function RunSoundScan()
     soundPending = false
-    if not AnySoundOn() then
+    if hubOff or not AnySoundOn() then
         -- Switched off: start again from a fresh reading when one is turned on.
         soundSnap = nil
         return
@@ -1846,15 +1858,62 @@ local function Start()
     SoundSettings()
     QuietSounds()
     BuildPanel()
-    -- A /reload in combat can't place secure buttons yet; the layout waits for combat to end.
-    if InCombat() then
+    if HubSaysOff() then
+        -- Switched Off on the hub's Manage page: hidden from the start. No item button exists yet, so
+        -- hiding is allowed even after a /reload in combat. Switching On draws it (ApplyHubSwitch).
+        hubOff = true
+        panel:Hide()
+        forceLayout = true
+    elseif InCombat() then
+        -- A /reload in combat can't place secure buttons yet; the layout waits for combat to end.
         layoutWaiting = true
     else
         Attempt(Refresh)
     end
-    -- Blizzard's tracker only goes away once this one has been built.
-    Attempt(WatchBlizzardTracker)
+    -- Blizzard's tracker only goes away once this one has been built (and is On).
+    if not hubOff then
+        Attempt(WatchBlizzardTracker)
+    end
     C_Timer.NewTicker(1, OnTick)
+end
+
+-- Follows the hub's Off/On switch (ForeverHubOnSwitch, called by the hub), with no reload. The panel
+-- holds secure item buttons, so showing or hiding it waits for combat to end (PLAYER_REGEN_ENABLED).
+-- On again, the panel keeps where you put it and whether you folded it.
+local function ApplyHubSwitch()
+    if not panel then
+        return
+    end
+    if InCombat() then
+        hubSwitchWaiting = true
+        return
+    end
+    hubSwitchWaiting = false
+    local off = HubSaysOff()
+    if off == hubOff then
+        return
+    end
+    hubOff = off
+    if off then
+        Attempt(FinishMoving)
+        if soundPanel then
+            soundPanel:Hide()
+        end
+        Tip():Hide()
+        panel:Hide()
+        -- Back On, the first reading only remembers: nothing that happened while Off is announced or played.
+        readySeen, soundSnap = nil, nil
+    else
+        panel:Show()
+        dirty, forceLayout = true, true
+        Attempt(Refresh)
+        Attempt(WatchBlizzardTracker)
+    end
+end
+
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.QuestTracker = function()
+    ApplyHubSwitch()
 end
 
 local events = CreateFrame("Frame")
@@ -1888,6 +1947,8 @@ events:SetScript("OnEvent", function(_, event, questID)
     elseif event == "PLAYER_REGEN_DISABLED" then
         Attempt(FinishMoving)
         return
+    elseif event == "PLAYER_REGEN_ENABLED" and hubSwitchWaiting then
+        Attempt(ApplyHubSwitch)
     elseif event == "GET_ITEM_INFO_RECEIVED" then
         -- Any addon's item lookups fire this; only the reward items this panel asked for matter.
         if not (questID and waitingItems[questID]) then

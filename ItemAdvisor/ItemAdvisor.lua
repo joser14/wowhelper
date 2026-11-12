@@ -1848,8 +1848,13 @@ local function TooltipBagItem(tooltip, link)
     end
 end
 
+-- Switched Off on the hub's Manage page: no tooltip line, and the overlay below (bag badges, reward marks)
+-- hides with nothing painted (ForeverHubOnSwitch.ItemAdvisor). Other helpers can still ask
+-- ItemAdvisor_IsUpgrade. Asked of the hub each time: this file's main chunk has no room for more locals
+-- (Lua's limit is 200). Never Off without the hub.
 local function OnTooltip(tooltip)
-    if not charData or (tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip) then
+    if not charData or (tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip)
+        or (type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ItemAdvisor")) then
         return
     end
     local _, link = TooltipUtil.GetDisplayedItem(tooltip)
@@ -2151,6 +2156,9 @@ end
 
 local function RunRepaint()
     repaintScheduled = false
+    if type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ItemAdvisor") then
+        return
+    end
     Report(PaintBags)
     Report(RefreshRewardMarks)
 end
@@ -2282,6 +2290,23 @@ local function ScanBagsSpread(onDone)
     guarded()
 end
 
+-- Follows the hub's Off/On switch (called by the hub, and once at login), with no reload. Everything on
+-- the overlay is our own textures and frames, so this works in combat too. Not a local (see OnTooltip).
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.ItemAdvisor = function()
+    local off = type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ItemAdvisor") == true
+    if off then
+        HideBagBadges()
+        HideRewardMarks()
+        overlay:Hide()
+    elseif not overlay:IsShown() then
+        overlay:Show()
+        if charData then
+            ScheduleRepaint()
+        end
+    end
+end
+
 local function ShowVendorReminder()
     ScanBagsSpread(function(scan)
         if #scan.results.SELL > 0 then
@@ -2389,6 +2414,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
     RebuildQuestItems()
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltip)
     Report(WatchBagFrames)
+    Report(ForeverHubOnSwitch.ItemAdvisor)
 end)
 
 SLASH_ITEMADVISOR1 = "/ia"

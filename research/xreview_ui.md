@@ -104,24 +104,28 @@ Each one failed before its fix and passes after it. `tests\test_final_hub_views.
 
 ## Not fixed (owner decision or needs the game)
 
-- **UX: Off on the Manage page doesn't stop a helper's own frames.**
-  - The page says Off hides pages, side panel lines and pop-ups, and that the helper "keeps running
-    quietly". That is true, but some helpers' main output is their own frame:
-    - QuestTracker: panel and sounds
-    - QuestMobs: nameplate markers and list window
-    - ItemAdvisor: bag badges and tooltip line
-    - WindowBadges: badges
-    - ZoneLevels: on-screen note
-    - LevelLog and ForeverHelper: windows
-
-    For these helpers, switching Off changes little that the player can see.
-  - AutoQuest, Tooltips, MapPins, Builds, DeathNotes, BagCheck and RareWatch do check
-    `ForeverHub_IsOff` themselves.
-  - Recommend: either each of these helpers checks `ForeverHub_IsOff(name)` where it draws, or the Manage
-    tooltip names what stays.
-- **NIT: QuestMobs list window position.** Its default spot is TOPRIGHT -260, -220, and it's off by
-  default. It overlaps our tracker's left edge by about 34 px. With fix 1 in place, it falls on our tracker
-  when Blizzard's tracker is also visible. Recommend placing it relative to the tracker panel, or lower.
+- **DONE (owner decision, 11 November 2026): Off on the Manage page now hides a helper's own frames.**
+  - Before, Off hid only pages, side panel lines and pop-ups, so QuestTracker, QuestMobs, ItemAdvisor,
+    WindowBadges, ZoneLevels, LevelLog and ForeverHelper kept their own frames on screen.
+  - The hub now calls `ForeverHubOnSwitch[name](off)` right after a switch (no reload). Each of these
+    helpers registers there and also reads `ForeverHub_IsOff` at login. Without the hub nothing changes.
+    - QuestTracker: panel hidden, no quest sounds, no reads, Blizzard's tracker left alone. Its panel holds
+      secure item buttons, so a switch in combat waits for PLAYER_REGEN_ENABLED. Back On: same spot and fold.
+      If you had made Blizzard's tracker clear (right-click), Off doesn't write to Blizzard's frame to undo
+      that: it stays clear until the next /reload, when it shows again.
+    - QuestMobs: markers, list window and drop-chance tooltip lines gone, no tooltip reads.
+    - ItemAdvisor: overlay hidden (bag badges, reward marks), no tooltip line, nothing painted.
+      `ItemAdvisor_IsUpgrade` still answers other helpers.
+    - WindowBadges: overlay hidden, no badges placed.
+    - ZoneLevels: no warning, and its note (only used without the hub) hides.
+    - LevelLog and ForeverHelper: window hidden and can't be opened. A window you had open comes back On;
+      ForeverHelper saves your choice, not the forced hide.
+  - The Manage page, its switch tooltip and the Options page say so.
+  - Test: `tests\test_off_hides_frames.lua`.
+- **DONE: QuestMobs list window position.** The old default (TOPRIGHT -260, -220) overlapped our tracker by
+  about 34 px. Until you drag it, the window now opens just left of our tracker panel, level with its top
+  (the spot is copied, not anchored: the panel holds secure buttons). Without a shown tracker, or no room
+  left of it, it goes to TOPRIGHT -300, -220. A dragged spot is kept.
 - **NIT: Dungeons doesn't see a role picked by hand on ItemAdvisor's page.** ItemAdvisor has no event or
   public counter for that. The answers refresh on the next gear, level or talent change.
 - **NIT: Profession view buttons need `ForeverSkillProfessions`** (ProfessionCap or GoldGuide).
@@ -141,6 +145,13 @@ Each one failed before its fix and passes after it. `tests\test_final_hub_views.
 5. New character with no ForeverHelper save: the ForeverHelper window should start closed. On the
    Characters page, type `add Test` and the to-do should appear on the page.
 6. Spend a talent point that changes ItemAdvisor's role, then open Dungeons: the upgrade counts should follow.
+7. Manage page, switch QuestTracker Off: the panel goes at once. On: it's back where it was. Switch it Off
+   during a fight: it goes when the fight ends, with no "blocked" message.
+8. Switch QuestMobs, ItemAdvisor (open your bags) and WindowBadges (at a vendor) Off and On: markers, bag
+   coins and arrows, and badges go and come back without a /reload.
+9. Open the Level log window and ForeverHelper's window, switch each helper Off and On: the window closes and
+   reopens. Close one, switch Off and On: it stays closed.
+10. QuestMobs `list on` with Blizzard's tracker visible: the list window sits left of our tracker, not on it.
 
 ## Summary
 
@@ -154,5 +165,5 @@ Smaller issues: buttons for addons that aren't loaded, and stale Dungeons upgrad
 changes and level-ups. All seven are fixed and covered by tests. Nothing writes to Blizzard frames, hooks
 anything, registers combat-log or CallbackEvent events, prints to chat or automates anything.
 
-One owner decision is left: helpers whose main output is their own frame keep showing it when switched Off
-on the Manage page.
+The owner's decision on Off is now built: a helper switched Off on the Manage page hides its own frames too,
+and shows them again when switched On, without a reload.

@@ -32,6 +32,12 @@ local anchorRestricted = false   -- set if the game refuses to place our marker 
 local windowDirty, windowAt = true, 0
 local container, window
 local tooltipAdded = false
+-- Switched Off on the hub's Manage page: no markers, no list window, no tooltip lines, no tooltip reads.
+-- Without the hub this is never true.
+local hubOff = false
+local function HubSaysOff()
+    return type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("QuestMobs") == true
+end
 
 local function Safe(value)
     if issecretvalue and issecretvalue(value) then
@@ -291,7 +297,7 @@ end
 
 -- Unit tooltip lines (TooltipDataProcessor post-call; our lines only, nothing hooked).
 local function OnUnitTooltip(tooltip, data)
-    if not db or (GameTooltip and tooltip ~= GameTooltip) or type(data) ~= "table" then
+    if not db or hubOff or (GameTooltip and tooltip ~= GameTooltip) or type(data) ~= "table" then
         return
     end
     local npc = NpcID(Safe(data.guid))
@@ -534,7 +540,7 @@ end
 local function Apply(unit, plate, result)
     plate.result = result
     windowDirty = true
-    if result and result.quest and db and db.enabled and not anchorRestricted then
+    if result and result.quest and db and db.enabled and not anchorRestricted and not hubOff then
         ShowMarker(unit, plate)
     else
         Release(plate)
@@ -550,7 +556,7 @@ end
 ---------------------------------------------------------------------------- list window (our own frame)
 
 local function WindowWanted()
-    return db and db.enabled and (db.list or anchorRestricted) and not InInstance()
+    return db and db.enabled and not hubOff and (db.list or anchorRestricted) and not InInstance()
 end
 
 local function NearbyList()
@@ -582,12 +588,40 @@ local function SaveWindowSpot()
     end
 end
 
+-- Until you drag it, the list window sits just left of our quest tracker's panel, level with its top, so
+-- the two don't overlap (cross-addon review: the old TOPRIGHT -260, -220 covered the tracker by about 34 px).
+-- The tracker's spot is copied, not anchored to: that panel holds secure item buttons. Without a shown
+-- tracker (or no room left of it), a fixed spot left of the tracker's column at the right edge.
+local WINDOW_WIDTH, WINDOW_GAP = 230, 8
+local function PlaceWindow(frame)
+    frame:ClearAllPoints()
+    local spot = db and type(db.spot) == "table" and db.spot
+    if spot and type(spot[1]) == "string" and type(spot[3]) == "number" and type(spot[4]) == "number" then
+        frame:SetPoint(spot[1], UIParent, spot[2] or spot[1], spot[3], spot[4])
+        return
+    end
+    local tracker = QuestTrackerPanel
+    if type(tracker) == "table" and tracker.IsShown and tracker.GetLeft and tracker.GetTop then
+        local ok, shown, left, top = pcall(function()
+            return tracker:IsShown(), tracker:GetLeft(), tracker:GetTop()
+        end)
+        if ok then
+            shown, left, top = Safe(shown), Safe(left), Safe(top)
+            if shown and type(left) == "number" and type(top) == "number" and left - WINDOW_GAP - WINDOW_WIDTH >= 0 then
+                frame:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", left - WINDOW_GAP, top)
+                return
+            end
+        end
+    end
+    frame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -300, -220)
+end
+
 local function Window()
     if window then
         return window
     end
     window = CreateFrame("Frame", nil, UIParent)
-    window:SetSize(230, 34)
+    window:SetSize(WINDOW_WIDTH, 34)
     window:SetFrameStrata("MEDIUM")
     window:SetClampedToScreen(true)
     window:SetMovable(true)
@@ -598,12 +632,7 @@ local function Window()
         self:StopMovingOrSizing()
         SaveWindowSpot()
     end)
-    local spot = db and type(db.spot) == "table" and db.spot
-    if spot and type(spot[1]) == "string" and type(spot[3]) == "number" and type(spot[4]) == "number" then
-        window:SetPoint(spot[1], UIParent, spot[2] or spot[1], spot[3], spot[4])
-    else
-        window:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -260, -220)
-    end
+    window:Hide()   -- RefreshWindow places and shows it
     window.bg = window:CreateTexture(nil, "BACKGROUND")
     window.bg:SetAllPoints(window)
     window.bg:SetColorTexture(0, 0, 0, 0.6)
@@ -657,7 +686,11 @@ local function RefreshWindow()
         row:SetText(text)
     end
     frame:SetHeight(30 + shown * 14)
-    frame:Show()
+    if not frame:IsShown() then
+        -- Placed each time it opens, so the default follows the tracker; a dragged spot is kept.
+        PlaceWindow(frame)
+        frame:Show()
+    end
 end
 
 ---------------------------------------------------------------------------- work loop
@@ -665,7 +698,8 @@ end
 local events = CreateFrame("Frame")
 
 local function Tick()
-    if not db then
+    -- Switched Off: no tooltip reads and nothing drawn. Nameplates keep their "dirty" mark for later.
+    if not db or hubOff then
         return
     end
     local now = Now()
@@ -722,6 +756,36 @@ local function CheckInstance()
         end
     end
     windowDirty = true
+end
+
+-- Follows the hub's Off/On switch (ForeverHubOnSwitch), with no reload. Markers and the window are our
+-- own plain frames, so this works in combat too. On again, every nameplate is read afresh.
+local function ApplyHubSwitch()
+    local off = HubSaysOff()
+    if off == hubOff then
+        return
+    end
+    hubOff = off
+    if container then
+        container:SetShown(not off)
+    end
+    if off then
+        ReleaseAll()
+        if window then
+            window:Hide()
+        end
+    else
+        logDirty = true
+        for _, plate in pairs(plates) do
+            plate.dirty, plate.waitUntil = true, nil
+        end
+    end
+    windowDirty = true
+end
+
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.QuestMobs = function()
+    ApplyHubSwitch()
 end
 
 ---------------------------------------------------------------------------- page
@@ -851,6 +915,7 @@ events:SetScript("OnEvent", function(_, event, unit)
         if type(db.list) ~= "boolean" then
             db.list = false
         end
+        hubOff = HubSaysOff()
         logDirty = true
         -- Drop chances on enemy tooltips: our own lines through the tooltip data processor (no hooks).
         if not tooltipAdded and TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum

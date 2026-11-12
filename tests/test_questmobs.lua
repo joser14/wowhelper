@@ -125,7 +125,8 @@ local function koboldLines(have)
 end
 
 -- Stray globals: only ours may be created.
-local allowedGlobals = { QuestMobsDB = true, QuestMobs_IsQuestMob = true, SLASH_QUESTMOBS1 = true }
+-- ForeverHubOnSwitch: the hub's shared table, where QuestMobs registers for the Manage page's Off/On switch.
+local allowedGlobals = { QuestMobsDB = true, QuestMobs_IsQuestMob = true, SLASH_QUESTMOBS1 = true, ForeverHubOnSwitch = true }
 setmetatable(_G, { __newindex = function(t, k, v)
     if not allowedGlobals[k] then violate("global " .. tostring(k)) end
     rawset(t, k, v)

@@ -347,7 +347,7 @@ local function BuildCanvas()
 
     local helpersTitle = canvas:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     helpersTitle:SetPoint("TOPLEFT", canvas, "TOPLEFT", 16, y)
-    helpersTitle:SetText("Helpers  " .. GRAY .. "(Off hides a helper's pages, side panel lines and pop-ups)|r")
+    helpersTitle:SetText("Helpers  " .. GRAY .. "(Off hides a helper's pages, panel lines, pop-ups and its own frames)|r")
     y = y - 20
     -- Two columns, in the Manage page's order.
     local switchable = {}

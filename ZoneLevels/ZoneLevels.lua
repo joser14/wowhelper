@@ -142,7 +142,17 @@ function ForeverZoneLevels(mapID)
     return nil
 end
 
+-- Switched Off on the hub's Manage page: no warning and no note. Never true without the hub.
+local function HubSaysOff()
+    return type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ZoneLevels") == true
+end
+
 local function CheckZone()
+    if HubSaysOff() then
+        -- Back On, the zone you're in counts as new again.
+        lastWarned = nil
+        return
+    end
     local name, low, high = ReadZone()
     local level = Safe(UnitLevel("player"))
     if low and type(level) == "number" and low - level >= TOO_HIGH_BY then
@@ -164,6 +174,15 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_ENTERING_WORLD")
 events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 events:SetScript("OnEvent", CheckZone)
+
+-- Switched Off (ForeverHubOnSwitch): a note still on screen goes at once.
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.ZoneLevels = function(off)
+    if off and note then
+        noteToken = noteToken + 1
+        note:Hide()
+    end
+end
 
 SLASH_ZONELEVELS1 = "/zl"
 SlashCmdList.ZONELEVELS = function()

@@ -734,8 +734,14 @@ end
 local repaintScheduled, repaintAfterCombat = false, false
 local signatures = {}
 
+-- Switched Off on the hub's Manage page: the overlay hides and no badge is placed. Never true without the hub.
+local hubOff = false
+
 local function RunRepaint()
     repaintScheduled = false
+    if hubOff then
+        return
+    end
     if InCombat() then
         ReleaseAll()
         repaintAfterCombat = true
@@ -826,6 +832,30 @@ local function SetWatching()
     end
 end
 
+-- Follows the hub's Off/On switch (ForeverHubOnSwitch, and once at login), with no reload. Badges are our
+-- own frames on our own overlay, so this works in combat too.
+local function ApplyHubSwitch()
+    local off = type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff(SOURCE) == true
+    if off == hubOff then
+        return
+    end
+    hubOff = off
+    if off then
+        ReleaseAll()
+        overlay:Hide()
+    else
+        overlay:Show()
+        if loggedIn and AnyOpen() then
+            ScheduleRepaint()
+        end
+    end
+end
+
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch[SOURCE] = function()
+    ApplyHubSwitch()
+end
+
 local function OnEvent(_, event, arg1)
     if event == "PLAYER_LOGIN" then
         if type(WindowBadgesDB) ~= "table" then
@@ -838,6 +868,7 @@ local function OnEvent(_, event, arg1)
             BuildPool()
         end
         loggedIn = true
+        ApplyHubSwitch()
         SetWatching()
         return
     end

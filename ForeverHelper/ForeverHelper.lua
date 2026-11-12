@@ -343,11 +343,45 @@ local HELP = {
     "/fh reset - restart the session stats",
 }
 
+-- Switched Off on the hub's Manage page: the window hides and stays hidden; wantShown keeps whether you
+-- had it open, for switching On again and for the save. Never Off without the hub.
+local hubOff, wantShown = false, false
+local function HubSaysOff()
+    return type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ForeverHelper") == true
+end
+
+local function ApplyHubSwitch()
+    local off = HubSaysOff()
+    if off == hubOff or not frame then
+        return
+    end
+    hubOff = off
+    if off then
+        wantShown = frame:IsShown() and true or false
+        frame:Hide()
+    else
+        frame:SetShown(wantShown)
+        if wantShown and session.start then
+            RefreshStats()
+        end
+    end
+end
+
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.ForeverHelper = function()
+    ApplyHubSwitch()
+end
+
 local function HandleSlash(message)
     local command, rest = message:match("^(%S*)%s*(.-)%s*$")
     command = command:lower()
     if command == "" or command == "window" then
-        frame:SetShown(not frame:IsShown())
+        if hubOff then
+            -- Off: the choice is kept for when it's switched On again.
+            wantShown = not wantShown
+        else
+            frame:SetShown(not frame:IsShown())
+        end
     elseif command == "add" and rest ~= "" then
         table.insert(char.tasks, { text = rest:gsub("|", "||"), done = false })
         RefreshTasks()
@@ -390,6 +424,8 @@ events:SetScript("OnEvent", function(_, event, arg1)
             db.shown = true
         end
         BuildFrame()
+        -- The hub's saved switches are read by now ("!ForeverHub" loads first).
+        ApplyHubSwitch()
     elseif event == "PLAYER_LOGIN" then
         local key = ForeverCharacterAdopt(db.characters)
         db.characters[key] = db.characters[key] or { tasks = {} }
@@ -410,7 +446,11 @@ events:SetScript("OnEvent", function(_, event, arg1)
         end)
     elseif event == "PLAYER_LOGOUT" then
         -- Not saved here: the game can give wrong values while logging out, and the events above keep this current.
-        db.shown = frame:IsShown()
+        if hubOff then
+            db.shown = wantShown
+        else
+            db.shown = frame:IsShown()
+        end
     elseif event == "PLAYER_LEVEL_UP" then
         char.level = Safe(arg1) or char.level
     elseif event == "PLAYER_XP_UPDATE" then

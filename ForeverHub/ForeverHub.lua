@@ -364,6 +364,11 @@ local function HideTip()
     end
 end
 
+-- Helpers with their own frames on screen (a tracker, markers, badges, a window) register a function
+-- here: ForeverHubOnSwitch[name] = function(off) ... end. The hub calls it right after you switch that
+-- helper Off or On, so its frames follow without a reload. At login a helper asks ForeverHub_IsOff itself.
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+
 -- True when you switched this helper Off on the Manage page. Helpers may ask this themselves;
 -- the hub already hides an Off helper's pages, side panel lines and pop-ups for them.
 function ForeverHub_IsOff(name)
@@ -478,7 +483,8 @@ end
 
 local function ManageIntro()
     return table.concat({
-        "Switch a helper " .. GOLD .. "Off|r to hide its pages, its side panel lines and its pop-ups. It keeps running quietly; switch it On again any time.",
+        "Switch a helper " .. GOLD .. "Off|r to hide its pages, its side panel lines and its pop-ups, and its own windows, markers, badges and sounds. "
+            .. "It keeps recording quietly; switch it On again any time, no reload needed. A window you had open comes back with it.",
         "To stop a whole addon from loading, use the button next to its group, then reload.",
         "Sound and taskbar flash for important pop-ups are under " .. GOLD .. "Alerts|r at the bottom.",
     }, "\n")
@@ -644,6 +650,14 @@ local function SetHelperOff(helper, off)
     rowsDirty = true
     LayoutSidebar()
     RefreshManage()
+    -- The helper's own frames (see ForeverHubOnSwitch). One helper's error can't stop the switch.
+    local notify = type(ForeverHubOnSwitch) == "table" and ForeverHubOnSwitch[helper.name]
+    if type(notify) == "function" then
+        local ok, err = pcall(notify, off and true or false)
+        if not ok then
+            geterrorhandler()(err)
+        end
+    end
     -- The Settings panel shows the same switches.
     if extras.OnHelperSwitched then
         extras.OnHelperSwitched()
@@ -707,7 +721,7 @@ local function BuildManage()
                     SetHelperOff(helper, not ForeverHub_IsOff(helper.name))
                 end)
                 row.switch:SetScript("OnEnter", function(self)
-                    ShowButtonTip(self, helper.name, helper.about .. "\n\nOff hides its pages, side panel lines and pop-ups.")
+                    ShowButtonTip(self, helper.name, helper.about .. "\n\nOff hides its pages, side panel lines and pop-ups, and its own windows, markers, badges and sounds.")
                 end)
                 row.switch:SetScript("OnLeave", HideTip)
                 row.note = manageFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
