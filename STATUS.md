@@ -153,6 +153,9 @@ something looks wrong, open the hub's **Errors** page and note what it says.
     ends, with no "blocked" message.
 66. **(important)** Drop under 35 % health and under 20 % mana in a fight. Correct: a red screen edge and a drink icon
     appear, from the start of the fight, with no error on the Errors page.
+66b. **(important)** Fight a few mobs (and later a dungeon), then open the Level log window's Fights tab. Correct:
+    the last fight shows damage, healing, damage taken and DPS with plain numbers, and no "blocked" pop-up appears.
+    If the tab says the damage meter isn't available, try switching the game's damage meter on in Edit Mode.
 67. Die to a mob. Correct: within a few seconds the Deaths page names the real killer and shows the last hits.
 68. Release your spirit. Correct: the guide's arrow points at your body straight away, "Corpse N yd m:ss" is about
     right (also when you release across a zone border), "Spirit healer about N yd from your body" matches where you
