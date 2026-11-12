@@ -1467,7 +1467,10 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("QUEST_LOG_UPDATE")
 events:RegisterEvent("LOOT_OPENED")
-if not (events.RegisterUnitEvent and pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")) then
+-- Registered for "player" only, every UNIT_SPELLCAST_SUCCEEDED is your own cast, even when its unit token comes
+-- secret (the event is SecretWhenUnitSpellCastRestricted); only the all-units fallback has to read the token.
+local playerCastsOnly = events.RegisterUnitEvent and pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player") or false
+if not playerCastsOnly then
     pcall(events.RegisterEvent, events, "UNIT_SPELLCAST_SUCCEEDED")
 end
 events:SetScript("OnEvent", function(_, event, unit)
@@ -1476,7 +1479,7 @@ events:SetScript("OnEvent", function(_, event, unit)
         questLogDirty = true
         return
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
-        if Safe(unit) == "player" then
+        if playerCastsOnly or Safe(unit) == "player" then
             lastCastAt = Clock()
         end
         return

@@ -755,7 +755,8 @@ end
 -- Up to EXPLORE_BUDGET cells of the first queued zone. Called from the driver, out of combat.
 function Explore.Step()
     local zone = Explore.queue[1]
-    if not zone then
+    -- Review 6c: nothing is sampled while the layer (or MapPins) is switched off; the queue waits.
+    if not zone or not Explore.On() then
         return
     end
     if zone.restart then
@@ -827,7 +828,7 @@ end
 function Explore.Retarget(elapsed)
     local mapID = PlayerMap()
     local zone = mapID and Explore.zones[mapID]
-    if zone == nil and mapID then
+    if zone == nil and mapID and Explore.On() then
         Explore.Request(mapID)
         zone = Explore.zones[mapID]
     end
@@ -915,8 +916,11 @@ end
 
 -- The label shown on the world map's info line for this map, or nil. Asks for a sample the first time.
 function Explore.LineFor(mapID)
+    if not Explore.On() then
+        return nil
+    end
     local zone = Explore.zones[mapID]
-    if zone == nil and mapID and Explore.On() then
+    if zone == nil and mapID then
         Explore.Request(mapID)
         zone = Explore.zones[mapID]
     end
@@ -1945,6 +1949,7 @@ events:SetScript("OnEvent", function(_, event)
     end
     if event == "MAP_EXPLORATION_UPDATED" then
         -- Sample your zone again (a few cells a tick); the pin and the info line follow when it's done.
+        -- Queued even with the layer off (Step waits until it's on), so a zone sampled earlier isn't left stale.
         local here = PlayerMap()
         if here then
             Explore.Request(here)
