@@ -1678,7 +1678,7 @@ do
         local full = hour >= hourCap and freeHour or (day >= dayCap and freeDay) or nil
         if full then
             return counts, string.format("at the cap: a new dungeon may be refused for about %s", Minutes(full)), true
-        elseif hour == hourCap - 1 or day >= dayCap - 2 then
+        elseif hour == hourCap - 1 or day == dayCap - 1 then
             return counts, "one more new dungeon reaches the cap", false
         end
         return counts, nil, nil
@@ -1923,9 +1923,7 @@ do
     end
 
     -- After the loot window closes: notable items that reached your bags join the run.
-    local function CheckPending()
-        local pending, run = st.pending, st.lootRun
-        st.pending, st.lootRun = nil, nil
+    local function CheckPending(pending, run)
         if not (pending and run) then
             return
         end
@@ -1936,14 +1934,19 @@ do
         end
     end
 
+    -- Review 6b: each window's items and run go with its own 1 s check, so a corpse looted right after
+    -- (its LOOT_OPENED replaces st.pending) can't drop the previous corpse's items.
     local function LootClosed()
         st.lootOpen, st.lootClosedAt = false, Mono()
-        if st.pending then
-            st.lootRun = Open()
+        local pending, run = st.pending, Open()
+        st.pending = nil
+        if pending and run then
             if C_Timer and C_Timer.After then
-                C_Timer.After(1, CheckPending)
+                C_Timer.After(1, function()
+                    CheckPending(pending, run)
+                end)
             else
-                CheckPending()
+                CheckPending(pending, run)
             end
         end
     end

@@ -533,6 +533,17 @@ local function ApplyRecap(death)
     if not hits then
         return false
     end
+    -- Review 6b: without readable timestamps the recap is known by its newest hits (plain values only),
+    -- so the same old recap read for a later death is still skipped below.
+    if not stamp then
+        local parts = { "untimed" }
+        for index = 1, math.min(#hits, RECAP_HITS) do
+            local hit = hits[index]
+            parts[#parts + 1] = table.concat({ hit.source or "", hit.spell or "", hit.env or "",
+                tostring(hit.amount or "") }, "/")
+        end
+        stamp = table.concat(parts, "|")
+    end
     -- The same recap read again (an older death's): leave this death on its guess.
     if stamp and db.lastRecap == stamp then
         return false
