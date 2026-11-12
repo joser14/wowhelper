@@ -670,8 +670,13 @@ local function OwnedElsewhereText(id, name)
     return elsewhere and table.concat(parts, ", ") or nil
 end
 
+-- Switched Off on the hub's Manage page: no tooltip line and no bag view (saving goes on). Never Off without the hub.
+local function SwitchedOff()
+    return type(ForeverHub_IsOff) == "function" and ForeverHub_IsOff("ItemFinder") == true
+end
+
 local function OnTooltip(tooltip)
-    if not charData or (tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip) then
+    if not charData or (tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip) or SwitchedOff() then
         return
     end
     local name, link, id = TooltipUtil.GetDisplayedItem(tooltip)
@@ -1069,7 +1074,7 @@ end
 -- Opens the bag view (on a character whose name starts with `who`, when given), or closes it when it's open
 -- and nobody is named. For the hub's buttons and "/find bags [name]".
 function ItemFinder_ShowBags(who)
-    if not charData then
+    if not charData or SwitchedOff() then
         return false
     end
     local frame = Grid.Build()
@@ -1091,6 +1096,15 @@ function ItemFinder_ShowBags(who)
     frame:Show()
     Grid.Refresh()
     return true
+end
+
+-- Follows the hub's Off switch without a reload (test_off_hides_frames.lua): an open bag view closes. Our own
+-- window only, so this is fine in combat too.
+ForeverHubOnSwitch = ForeverHubOnSwitch or {}
+ForeverHubOnSwitch.ItemFinder = function()
+    if SwitchedOff() and Grid.frame and Grid.frame:IsShown() then
+        Grid.frame:Hide()
+    end
 end
 
 local events = CreateFrame("Frame")
