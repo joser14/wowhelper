@@ -1612,7 +1612,8 @@ end
 
 local function RunSoundScan()
     soundPending = false
-    if hubOff or not AnySoundOn() then
+    -- HubSaysOff too: switched Off in combat, the panel waits for combat to end but the sounds stop now.
+    if hubOff or HubSaysOff() or not AnySoundOn() then
         -- Switched off: start again from a fresh reading when one is turned on.
         soundSnap = nil
         return
@@ -1901,6 +1902,11 @@ local function ApplyHubSwitch()
         end
         Tip():Hide()
         panel:Hide()
+        -- You made Blizzard's tracker clear while ours replaced it: with ours gone, it's visible again
+        -- (review 6a; else no tracker until a /reload). Alpha only, as in ToggleBlizzardTracker. On clears it again.
+        if ObjectiveTrackerFrame and not db.keepBlizzard then
+            ObjectiveTrackerFrame:SetAlpha(1)
+        end
         -- Back On, the first reading only remembers: nothing that happened while Off is announced or played.
         readySeen, soundSnap = nil, nil
     else
