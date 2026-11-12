@@ -253,11 +253,13 @@ local VIEWS = {
     ["Gold guide"] = { { label = "Best farms", arg = "" }, { label = "All farms", arg = "all" }, { label = "Tips", arg = "tips" },
         { label = "Darkmoon", arg = "darkmoon" } },
     ["Legacy"] = { { label = "Unfinished", arg = "" }, { label = "This zone", arg = "zone" }, { label = "Finished", arg = "done" } },
-    ["Spell math"] = { { label = "Ranks", arg = "" }, { label = "Tooltip line off", arg = "tooltip off" },
-        { label = "Tooltip line on", arg = "tooltip on" } },
+    -- Switches are actions, not views: the hub redraws the current view whenever the window reopens, so a
+    -- switch kept as the view ran again on every reopen (a layer flipped back each time; full review).
+    ["Spell math"] = { { label = "Ranks", arg = "" }, { label = "Tooltip line off", arg = "tooltip off", action = true },
+        { label = "Tooltip line on", arg = "tooltip on", action = true } },
     ["Gathering"] = { { label = "This zone", arg = "" }, { label = "All zones", arg = "all" },
-        { label = "Herbs on/off", arg = "toggle herbs" }, { label = "Ore on/off", arg = "toggle ore" },
-        { label = "Fishing on/off", arg = "toggle fishing" } },
+        { label = "Herbs on/off", arg = "toggle herbs", action = true }, { label = "Ore on/off", arg = "toggle ore", action = true },
+        { label = "Fishing on/off", arg = "toggle fishing", action = true } },
     ["Map pins"] = { { label = "Layers", arg = "" }, { label = "My notes", arg = "notes" } },
     ["Events"] = { { label = "Now", arg = "" }, { label = "Holidays", arg = "holidays" }, { label = "All turn-ins", arg = "turnins" } },
     ["Dungeons"] = { { label = "For your level", arg = "" }, { label = "All dungeons", arg = "all" },

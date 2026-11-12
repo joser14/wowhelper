@@ -185,10 +185,10 @@ local COLOR_WARN = "|cffff8040"
 local COLOR_BAD = "|cffff3333"
 local COLOR_FOREVER = "|cffc58cff"
 -- Round 6 #19, "New in Forever": forever-db marks no quest as new, so the quest ID decides. The original
--- Classic quests all have IDs below 10000 (LevelGuide's QuestDB tops out at 9664 there); the quests Forever
--- added or took from later Classic releases start far above (65602 and up). QuestCheck and Tooltips use
--- the same rule.
-local FOREVER_FIRST_ID = 10000
+-- Classic quests end at 9665; 65593-84402 come from later Classic releases (Love is in the Air, Season of
+-- Discovery's library books and quests); forever-db has nothing from 84403 to 86573, and Forever's own
+-- quests start at 86574. Full review: 10000 also tagged the later-Classic ones. QuestCheck uses the same rule.
+local FOREVER_FIRST_ID = 85000
 
 local db, panel, headerTitle, collapseButton
 local rows, itemButtons = {}, {}

@@ -96,10 +96,11 @@ end
 -- else IsQuestFlaggedCompleted one by one). Read only, nothing saved: worked out when the page is opened.
 
 -- "New in Forever": forever-db marks no quest as new, so the quest ID decides. The original Classic
--- quests all have IDs below 10000 (QuestDB's highest is 9664); every quest Forever added or took from a
--- later Classic release has a far higher one (QuestDB's next is 65602). The same rule is in QuestTracker
--- and Tooltips, so the tag works without QuestDB too.
-local FOREVER_FIRST_ID = 10000
+-- quests end at 9665. 65593-84402 are quests from later Classic releases (Love is in the Air, Season of
+-- Discovery's library books and quests); forever-db has nothing from 84403 to 86573, and Forever's own
+-- quests start at 86574 (Darkshore, Loch Modan, Stonetalon, Elwynn, Riverglades). Full review: 10000 also
+-- tagged the later-Classic ones. The same rule is in QuestTracker, so the tag works without QuestDB too.
+local FOREVER_FIRST_ID = 85000
 local FOREVER_TAG = "|cffc58cffnew in Forever|r"
 local MAX_LEFT_LISTED, MAX_ZONES_LISTED = 8, 14
 local RACE_BITS = { Human = 1, Orc = 2, Dwarf = 4, NightElf = 8, Scourge = 16, Tauren = 32, Gnome = 64, Troll = 128 }
